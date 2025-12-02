@@ -241,10 +241,10 @@ class BsnlpParser(NerDatasetParser):
         for line in lines[1:]:
             if not line.strip():
                 continue
-            parts = re.split(r"\s+", line.strip())
+            parts = line.split("\t")
             if len(parts) < 3:
                 continue
-            surface, _canonical, ent_type = parts[0], parts[1], parts[2]
+            surface, ent_type = parts[0], parts[2]
             tokens = self._tokenize(surface)
             if not tokens:
                 continue
