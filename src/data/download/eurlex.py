@@ -94,7 +94,7 @@ def main(data_args) -> None:
     logger.info(f"Downloading {data_args.dataset_name}")
 
     download_dir = paths['download']['data']
-    zip_file = download_to_file(data_args.dataset_url,  download_dir / 'eurlex.zip')
+    zip_file = download_to_file(data_args.dataset_urls[0],  download_dir / 'eurlex.zip')
     extract_dir = download_dir / 'eurlex'
     extract_dir.mkdir(parents=True, exist_ok=True)
     logger.info(

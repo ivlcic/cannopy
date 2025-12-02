@@ -1,11 +1,11 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 
 @dataclass
 class DataArguments:
     dataset_name: str = ""
-    dataset_url: str = ""
+    dataset_urls: List[str] = field(default_factory=list)
     dataset_config_name: str = ""
     max_seq_length: int = 512
     overwrite_cache: bool = False

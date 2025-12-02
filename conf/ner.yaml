@@ -1,0 +1,12 @@
+data:
+  dataset_name: ner
+  dataset_urls:
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/CNEC_2.0_konkol.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/SUK.CoNLL-U.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/bs-wann.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/bsnlp-2017-21.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/hr500k-1.0.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/mk-wann.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/setimes-sr.conll.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/sk-wann.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/sq-wann.zip

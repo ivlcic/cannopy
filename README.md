@@ -1,6 +1,19 @@
 # CaNNopy
 Simple ML research framework that focuses on repeatability and supports flexible diversity of tasks. 
 
+## What it does
+- Unified CLI (`./data`, `./train`, `./eval`, `./test`) routes through `src/app/entrypoint.py` to load layered YAML configs, build Hugging Face `TrainingArguments` plus custom `DataArguments`/`ModelArguments`, and dispatch to task modules.
+- Supports dataset creation/downloading (ESG, multilingual keyword match, Slavic NER, EURLEX) and sequence/token model training and evaluation; writes outputs under `result/` with logs in `log/`.
+- Uses PyTorch/Transformers with config-driven runs for reproducibility.
+
+## Project structure
+- `src/app/`: CLI machinery (arg parsing, config stacking, logging, discovery utilities).
+- `src/data/`, `src/train/`, `src/eval/`, `src/test/`: command-specific task modules discovered by the entrypoint.
+- `conf/`: layered YAML configs; data source docs and defaults live here.
+- `data/`, `result/`, `log/`, `tmp/`: runtime assets and artifacts (keep large files out of git).
+- `train/`, `eval/`: notebooks/scripts for experiments; adjust configs via `-c` to stack overrides.
+- `requirements.txt`, `pyproject.toml`: dependencies and script entrypoints.
+
 ```shell
 python -m venv .venv && source .venv/bin/activate
 ```
@@ -14,12 +27,27 @@ pip install -r requirements.txt
 ```
 
 ## Dataset mining / creation
+
+Create dataset from ESG data source:
 ```shell
 ./data create esg
 ```
 
+Create a dataset from a multilingual keywords matching data source:
 ```shell
 ./data create ml-kw-match
+```
+
+## Dataset downloading
+
+Download Slavic NER dataset:
+```shell
+./data download ner
+```
+
+Download EURLEX57K dataset:
+```shell
+./data download eurlex
 ```
 
 TODO :D
