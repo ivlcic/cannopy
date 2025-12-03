@@ -1,18 +1,18 @@
-from __future__ import annotations
-
 import csv
 import re
+import shutil
+
 from collections import defaultdict
 from pathlib import Path
-from typing import Callable, DefaultDict, Dict, Iterable, List, Optional, Tuple, Any
+from typing import Callable, DefaultDict, Dict, Iterable, List, Tuple, Any
 
 from syntok.segmenter import process as syntok_process
 
+# noinspection PyPackages
 from ...app.args.data import DataArguments
 
 Sentence = Tuple[List[str], List[str]]
-
-LABEL_RE = re.compile(r'([BIO])[-_]?(.+)', re.IGNORECASE)
+LABEL_RE = re.compile(r'([BI])-(.+)', re.IGNORECASE)
 
 
 # noinspection PyMethodMayBeStatic
@@ -31,6 +31,8 @@ class NerDatasetParser:
             raw = raw.split('=', 1)[1]
         if raw.lower() == 'o':
             return 'O'
+        if raw == 'O':
+            return raw
         match = LABEL_RE.match(raw)
         if match:
             return f'{match.group(1)}-{match.group(2)}'
@@ -42,7 +44,7 @@ class NerDatasetParser:
         return label
 
 
-# noinspection PyGlobalUndefined
+# noinspection PyUnresolvedReferences
 class ConllDatasetParser(NerDatasetParser):
 
     def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
@@ -79,7 +81,6 @@ class ConllDatasetParser(NerDatasetParser):
         return sentences, file_has_labels
 
     def parse(self) -> Dict[str, List[Sentence]]:
-        global logger
         output: DefaultDict[str, List[Sentence]] = defaultdict(list)
         for path, lang, token_idx, label_selector in self._iter_sources():
             if not path.exists():
@@ -92,6 +93,7 @@ class ConllDatasetParser(NerDatasetParser):
         return output
 
 
+# noinspection PyUnresolvedReferences
 class CnecParser(ConllDatasetParser):
     def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
         if not self.root.exists():
@@ -104,6 +106,7 @@ class CnecParser(ConllDatasetParser):
         ]
 
 
+# noinspection PyUnresolvedReferences
 class SetimesParser(ConllDatasetParser):
     def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
         path = self.root / 'set.sr.conll'
@@ -114,9 +117,10 @@ class SetimesParser(ConllDatasetParser):
         return [(path, 'sr', 1, lambda parts: parts[label_idx] if len(parts) > label_idx else 'O')]
 
 
+# noinspection PyUnresolvedReferences
 class Hr500kParser(ConllDatasetParser):
     def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
-        path = self.root / 'hr500k.conll' / 'hr500k.conll'
+        path = self.root / 'hr500k.conll'
         if not path.exists():
             return []
         logger.info('hr500k: %s', path)
@@ -138,7 +142,7 @@ class SukParser(ConllDatasetParser):
         return ds_paths
 
 
-# noinspection PyGlobalUndefined
+# noinspection PyUnresolvedReferences
 class WannParser(NerDatasetParser):
     def __init__(self, root: Path, mapping: Dict[str, str], label_remap: Dict[str, str]):
         NerDatasetParser.__init__(self, root, label_remap)
@@ -146,7 +150,6 @@ class WannParser(NerDatasetParser):
         self.mapping = mapping
 
     def parse(self) -> Dict[str, List[Sentence]]:
-        global logger
         output: DefaultDict[str, List[Sentence]] = defaultdict(list)
         for folder, lang in self.mapping.items():
             dataset_dir = self.base / folder
@@ -184,7 +187,7 @@ class WannParser(NerDatasetParser):
         return sentences
 
 
-# noinspection PyMethodMayBeStatic, PyGlobalUndefined
+# noinspection PyMethodMayBeStatic, PyUnresolvedReferences
 class BsnlpParser(NerDatasetParser):
 
     def __init__(self, root: Path, label_remap: Dict[Any, Any]):
@@ -247,7 +250,6 @@ class BsnlpParser(NerDatasetParser):
         topic: str,
         lang: str
     ) -> Tuple[str, List[Sentence]]:
-        global logger
         lines = raw_file.read_text(encoding='utf-8').splitlines()
         if len(lines) < 5:
             return '', []
@@ -284,7 +286,6 @@ class BsnlpParser(NerDatasetParser):
         return doc_id, sentences
 
     def parse(self) -> Dict[str, List[Sentence]]:
-        global logger
         output: DefaultDict[str, List[Sentence]] = defaultdict(list)
         if not self.raw_root.exists() or not self.ann_root.exists():
             return output
@@ -308,21 +309,144 @@ class BsnlpParser(NerDatasetParser):
         return output
 
 
-# noinspection PyUnresolvedReferences, PyGlobalUndefined
-def main(data_args: DataArguments) -> None:
-    global logger, paths
+# noinspection PyMethodMayBeStatic, PyUnresolvedReferences
+class NerUkParser(NerDatasetParser):
 
+    def __init__(self, root: Path, label_remap: Dict[Any, Any]):
+        NerDatasetParser.__init__(self, root, label_remap)
+
+    def _iter_pairs(self) -> Iterable[Tuple[Path, Path]]:
+        data_dir = self.root / 'v2.0' / 'data'
+        for subset in ('bruk', 'ng'):
+            subset_dir = data_dir / subset
+            if not subset_dir.exists():
+                continue
+            for txt_file in subset_dir.glob('*.txt'):
+                ann_file = txt_file.with_suffix('.ann')
+                if ann_file.exists():
+                    yield txt_file, ann_file
+
+    def _load_spans(self, ann_file: Path) -> List[Tuple[int, int, str]]:
+        spans: List[Tuple[int, int, str]] = []
+        for line in ann_file.read_text(encoding='utf-8').splitlines():
+            if not line.strip():
+                continue
+            parts = line.split('\t')
+            label = ''
+            start = end = None
+            if len(parts) == 3:
+                span_bits = parts[1].split()
+                if len(span_bits) >= 3:
+                    label = span_bits[0]
+                    try:
+                        start = int(span_bits[1])
+                        end = int(span_bits[2])
+                    except ValueError:
+                        continue
+            elif len(parts) >= 4:
+                label = parts[1]
+                try:
+                    start = int(parts[2])
+                    end = int(parts[3])
+                except ValueError:
+                    continue
+            if label and start is not None and end is not None:
+                spans.append((start, end, label))
+        return sorted(spans, key=lambda x: x[0])
+
+    def _token_offsets(self, text: str, tokens: List[str]) -> List[Tuple[int, int]]:
+        offsets: List[Tuple[int, int]] = []
+        cursor = 0
+        for tok in tokens:
+            pos = text.find(tok, cursor)
+            if pos == -1:
+                pos = cursor
+            end = pos + len(tok)
+            offsets.append((pos, end))
+            cursor = end
+        return offsets
+
+    def _parse_pair(self, txt_file: Path, ann_file: Path) -> List[Sentence]:
+        lines = txt_file.read_text(encoding='utf-8').splitlines()
+        spans = self._load_spans(ann_file)
+        sentences: List[Sentence] = []
+
+        # Build global token offsets across the whole file
+        full_text = txt_file.read_text(encoding='utf-8')
+        all_tokens = full_text.split()
+        all_offsets = self._token_offsets(full_text, all_tokens)
+
+        # Walk lines and build per-line sentences
+        cursor = 0
+        token_index = 0
+        for line in lines:
+            line_tokens = line.split()
+            if not line_tokens:
+                cursor += len(line) + 1  # include newline
+                continue
+            line_start = full_text.find(line, cursor)
+            if line_start == -1:
+                line_start = cursor
+            line_end = line_start + len(line)
+
+            tokens = []
+            labels = []
+            while token_index < len(all_tokens):
+                tok_start, tok_end = all_offsets[token_index]
+                if tok_start >= line_end:
+                    break
+                if tok_end <= line_start:
+                    token_index += 1
+                    continue
+                tokens.append(all_tokens[token_index])
+                label = 'O'
+                for start, end, raw_label in spans:
+                    if tok_end <= start or tok_start >= end:
+                        continue
+                    prefix = 'B' if label == 'O' else 'I'
+                    normalized = self._normalize_label(raw_label)
+                    normalized = self._map_label(tokens[-1], normalized)
+                    if normalized == 'O':
+                        break
+                    label = f'{prefix}-{normalized}'
+                    break
+                labels.append(label)
+                token_index += 1
+
+            if tokens:
+                sentences.append((tokens, labels))
+
+            cursor = line_end + 1  # assume newline separator
+
+        return sentences
+
+    def parse(self) -> Dict[str, List[Sentence]]:
+        output: DefaultDict[str, List[Sentence]] = defaultdict(list)
+        count_files = 0
+        for txt_file, ann_file in self._iter_pairs():
+            sentences = self._parse_pair(txt_file, ann_file)
+            if sentences:
+                output['uk'].extend(sentences)
+                count_files += 1
+        logger.info('ner-uk: %d sentences from %d files', len(output['uk']), count_files)
+        return output
+
+
+# noinspection PyUnresolvedReferences
+def main(data_args: DataArguments) -> None:
     logger.info('Preparing NER datasets')
 
     download_root = paths['base']['data'] / 'download' / 'ner'
     output_dir = paths['prepare']['data'] / 'ner'
 
+    label_remap = data_args.label_remap
     parsers: List[NerDatasetParser] = [
-        BsnlpParser(download_root / 'bsnlp-2017-21' / 'bsnlp', data_args.label_remap.get('bsnlp', {})),
-        CnecParser(download_root / 'CNEC_2.0_konkol' / 'CNEC_2.0_konkol', data_args.label_remap.get('cnec', {})),
-        SetimesParser(download_root / 'setimes-sr.conll' / 'setimes-sr.conll', data_args.label_remap.get('setimes', {})),
-        Hr500kParser(download_root / 'hr500k-1.0', data_args.label_remap.get('hr500k', {})),
-        SukParser(download_root / 'SUK.CoNLL-U' / 'SUK.CoNLL-U', data_args.label_remap.get('suk', {})),
+        BsnlpParser(download_root / 'bsnlp-2017-21' / 'bsnlp', label_remap.get('bsnlp', {})),
+        CnecParser(download_root / 'CNEC_2.0_konkol' / 'CNEC_2.0_konkol', label_remap.get('cnec', {})),
+        SetimesParser(download_root / 'setimes-sr.conll' / 'setimes-sr.conll', label_remap.get('setimes', {})),
+        Hr500kParser(download_root / 'hr500k-1.0' / 'hr500k.conll', label_remap.get('hr500k', {})),
+        SukParser(download_root / 'SUK.CoNLL-U' / 'SUK.CoNLL-U', label_remap.get('suk', {})),
+        NerUkParser(download_root / 'ner-uk' / 'ner-uk', label_remap.get('ner-uk', {})),
         WannParser(
             download_root,
             {
@@ -331,7 +455,7 @@ def main(data_args: DataArguments) -> None:
                 'sk-wann': 'sk',
                 'sq-wann': 'sq',
             },
-            data_args.label_remap.get('wann', {})
+            label_remap.get('wann', {})
         ),
     ]
 
@@ -356,3 +480,8 @@ def main(data_args: DataArguments) -> None:
                 writer.writerow([' '.join(tokens), ' '.join(labels)])
         logger.info('Wrote %s with %d sentences', target, len(sentences))
     logger.info('Wrote %d language files to %s', len(aggregated), output_dir)
+
+    # cleanup downloaded folders to save space
+    for child in download_root.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child, ignore_errors=True)
