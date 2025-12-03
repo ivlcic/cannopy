@@ -4,7 +4,7 @@ import csv
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import DefaultDict, Dict, List, Optional, Tuple
+from typing import Callable, DefaultDict, Dict, Iterable, List, Optional, Tuple, Any
 
 from syntok.segmenter import process as syntok_process
 
@@ -12,135 +12,160 @@ from ...app.args.data import DataArguments
 
 Sentence = Tuple[List[str], List[str]]
 
-LABEL_RE = re.compile(r"^[BIO]([-_].+)?", re.IGNORECASE)
+LABEL_RE = re.compile(r'([BIO])[-_]?(.+)', re.IGNORECASE)
 
 
-def _normalize_label(raw: Optional[str]) -> str:
-    if not raw:
-        return "O"
-    raw = raw.strip()
-    if raw.startswith("NER="):
-        raw = raw.split("=", 1)[1]
-    if raw.lower() == "o":
-        return "O"
-    match = re.match(r"([BIO])[-_]?(.+)", raw, re.IGNORECASE)
-    if match:
-        return f"{match.group(1).upper()}-{match.group(2).upper()}"
-    return raw.upper()
-
-
-def _find_iob_label(parts: List[str]) -> str:
-    for part in reversed(parts):
-        if LABEL_RE.match(part):
-            return part
-    return "O"
-
-
-def _parse_conll_file(path: Path, token_idx: int, label_selector, keep_comment: bool = False) \
-        -> Tuple[List[Sentence], bool]:
-    sentences: List[Sentence] = []
-    tokens: List[str] = []
-    labels: List[str] = []
-    file_has_labels = False
-
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            if tokens:
-                sentences.append((tokens, labels))
-                tokens, labels = [], []
-            continue
-        if line.startswith("#") and not keep_comment:
-            continue
-        parts = line.split("\t")
-        if len(parts) <= token_idx:
-            continue
-        token = parts[token_idx]
-        label = _normalize_label(label_selector(parts))
-        if label != "O":
-            file_has_labels = True
-        tokens.append(token)
-        labels.append(label)
-
-    if tokens:
-        sentences.append((tokens, labels))
-
-    return sentences, file_has_labels
-
-
+# noinspection PyMethodMayBeStatic
 class NerDatasetParser:
+
+    def __init__(self, root: Path, label_remap: Dict[Any, Any]):
+        self.root = root
+        self.label_remap = label_remap
+
     def parse(self) -> Dict[str, List[Sentence]]:
         raise NotImplementedError
 
+    def _normalize_label(self, raw: str) -> str:
+        raw = raw.strip()
+        if raw.startswith('NER='):
+            raw = raw.split('=', 1)[1]
+        if raw.lower() == 'o':
+            return 'O'
+        match = LABEL_RE.match(raw)
+        if match:
+            return f'{match.group(1)}-{match.group(2)}'
+        return raw
 
-class CnecParser(NerDatasetParser):
-    def __init__(self, root: Path):
-        self.root = root
+    def _map_label(self, token: str, label: str) -> str:
+        if self.label_remap:
+            return self.label_remap.get(label, label)
+        return label
+
+
+# noinspection PyGlobalUndefined
+class ConllDatasetParser(NerDatasetParser):
+
+    def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
+        raise NotImplementedError
+
+    def _parse_conll_file(self, path: Path, token_idx: int, label_selector,
+                          keep_comment: bool = False) -> Tuple[List[Sentence], bool]:
+        sentences: List[Sentence] = []
+        tokens: List[str] = []
+        labels: List[str] = []
+        file_has_labels = False
+
+        for line in path.read_text(encoding='utf-8').splitlines():
+            if not line.strip():
+                if tokens:
+                    sentences.append((tokens, labels))
+                    tokens, labels = [], []
+                continue
+            if line.startswith('#') and not keep_comment:
+                continue
+            parts = line.split('\t')
+            if len(parts) <= token_idx:
+                continue
+            token = parts[token_idx]
+            label = self._map_label(token, self._normalize_label(label_selector(parts)))
+            if label != 'O':
+                file_has_labels = True
+            tokens.append(token)
+            labels.append(label)
+
+        if tokens:
+            sentences.append((tokens, labels))
+
+        return sentences, file_has_labels
 
     def parse(self) -> Dict[str, List[Sentence]]:
+        global logger
         output: DefaultDict[str, List[Sentence]] = defaultdict(list)
-        if not self.root.exists():
-            return output
-        for fname in ("train.conll", "dtest.conll", "etest.conll"):
-            path = self.root / fname
+        for path, lang, token_idx, label_selector in self._iter_sources():
             if not path.exists():
                 continue
-            sentences, _ = _parse_conll_file(path, 0, lambda parts: parts[-1])
-            output["cs"].extend(sentences)
+            sentences, has_labels = self._parse_conll_file(path, token_idx, label_selector)
+            if not has_labels:
+                continue
+            output[lang].extend(sentences)
+            logger.info('%s: %s -> %d sentences', lang, path.name, len(sentences))
         return output
 
 
-class SetimesParser(NerDatasetParser):
-    def __init__(self, root: Path):
-        self.root = root
+class CnecParser(ConllDatasetParser):
+    def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
+        if not self.root.exists():
+            return []
+        logger.info('CNEC: scanning %s', self.root)
+        files = ['train.conll', 'dtest.conll', 'etest.conll']
+        return [
+            (self.root / fname, 'cs', 0, lambda parts: parts[-1])
+            for fname in files
+        ]
 
-    def parse(self) -> Dict[str, List[Sentence]]:
-        output: DefaultDict[str, List[Sentence]] = defaultdict(list)
-        path = self.root / "set.sr.conll"
+
+class SetimesParser(ConllDatasetParser):
+    def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
+        path = self.root / 'set.sr.conll'
         if not path.exists():
-            return output
-        sentences, _ = _parse_conll_file(path, 1, _find_iob_label)
-        output["sr"].extend(sentences)
-        return output
+            return []
+        logger.info('SETimes: %s', path)
+        label_idx = 10
+        return [(path, 'sr', 1, lambda parts: parts[label_idx] if len(parts) > label_idx else 'O')]
 
 
-class Hr500kParser(NerDatasetParser):
-    def __init__(self, root: Path):
-        self.root = root
-
-    def parse(self) -> Dict[str, List[Sentence]]:
-        output: DefaultDict[str, List[Sentence]] = defaultdict(list)
-        path = self.root / "hr500k.conll" / "hr500k.conll"
+class Hr500kParser(ConllDatasetParser):
+    def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
+        path = self.root / 'hr500k.conll' / 'hr500k.conll'
         if not path.exists():
-            return output
-        sentences, _ = _parse_conll_file(path, 1, _find_iob_label)
-        output["hr"].extend(sentences)
-        return output
+            return []
+        logger.info('hr500k: %s', path)
+        label_idx = 10
+        return [(path, 'hr', 1, lambda parts: parts[label_idx] if len(parts) > label_idx else 'O')]
 
 
+class SukParser(ConllDatasetParser):
+    def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
+        if not self.root.exists():
+            return []
+        label_idx = 9
+        ds_paths = []
+        for path in sorted(self.root.glob('*.ud.conllu')):
+            stem = path.stem
+            if stem.startswith('ssj500k-tag') or stem.startswith('ambiga'):
+                continue
+            ds_paths.append((path, 'sl', 1, lambda parts, idx=label_idx: parts[idx] if len(parts) > idx else 'O'))
+        return ds_paths
+
+
+# noinspection PyGlobalUndefined
 class WannParser(NerDatasetParser):
-    def __init__(self, base: Path, mapping: Dict[str, str]):
-        self.base = base
+    def __init__(self, root: Path, mapping: Dict[str, str], label_remap: Dict[str, str]):
+        NerDatasetParser.__init__(self, root, label_remap)
+        self.base = root
         self.mapping = mapping
 
     def parse(self) -> Dict[str, List[Sentence]]:
+        global logger
         output: DefaultDict[str, List[Sentence]] = defaultdict(list)
         for folder, lang in self.mapping.items():
             dataset_dir = self.base / folder
             if not dataset_dir.exists():
                 continue
-            for split in ("train", "dev", "test", "extra"):
+            for split in ('train', 'dev', 'test', 'extra'):
                 split_path = dataset_dir / split
                 if not split_path.exists():
                     continue
-                output[lang].extend(self._parse_split(split_path))
+                sentences = self._parse_split(split_path)
+                output[lang].extend(sentences)
+                logger.info('WANN %s %s: %d sentences', lang, split_path.name, len(sentences))
         return output
 
-    @staticmethod
-    def _parse_split(path: Path) -> List[Sentence]:
+    def _parse_split(self, path: Path) -> List[Sentence]:
         sentences: List[Sentence] = []
         tokens: List[str] = []
         labels: List[str] = []
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in path.read_text(encoding='utf-8').splitlines():
             line = line.strip()
             if not line:
                 if tokens:
@@ -151,63 +176,27 @@ class WannParser(NerDatasetParser):
             if len(parts) < 2:
                 continue
             token_raw, label_raw = parts[0], parts[1]
-            token = token_raw.split(":", 1)[1] if ":" in token_raw else token_raw
+            token = token_raw.split(':', 1)[1] if ':' in token_raw else token_raw
             tokens.append(token)
-            labels.append(_normalize_label(label_raw))
+            labels.append(self._map_label(token, self._normalize_label(label_raw)))
         if tokens:
             sentences.append((tokens, labels))
         return sentences
 
 
-class SukParser(NerDatasetParser):
-    def __init__(self, root: Path):
-        self.root = root
-
-    def parse(self) -> Dict[str, List[Sentence]]:
-        output: DefaultDict[str, List[Sentence]] = defaultdict(list)
-        if not self.root.exists():
-            return output
-
-        for path in sorted(self.root.glob("*.conllu")):
-            sentences, has_labels = _parse_conll_file(path, 1, self._extract_label)
-            if not has_labels:
-                continue
-            output["sl"].extend(sentences)
-        return output
-
-    @staticmethod
-    def _extract_label(parts: List[str]) -> str:
-        for part in parts:
-            if "NER=" in part:
-                for feature in part.split("|"):
-                    if feature.startswith("NER="):
-                        return feature.split("=", 1)[1]
-        return _find_iob_label(parts)
-
-
+# noinspection PyMethodMayBeStatic, PyGlobalUndefined
 class BsnlpParser(NerDatasetParser):
-    def __init__(self, root: Path):
-        self.raw_root = root / "raw"
-        self.ann_root = root / "annotated"
 
-    def parse(self) -> Dict[str, List[Sentence]]:
-        output: DefaultDict[str, List[Sentence]] = defaultdict(list)
-        if not self.raw_root.exists() or not self.ann_root.exists():
-            return output
+    def __init__(self, root: Path, label_remap: Dict[Any, Any]):
+        NerDatasetParser.__init__(self, root, label_remap)
+        self.raw_root = root / 'raw'
+        self.ann_root = root / 'annotated'
 
-        annotations = self._load_annotations()
-        for topic_dir in sorted(self.raw_root.iterdir()):
-            if not topic_dir.is_dir():
-                continue
-            for lang_dir in sorted(topic_dir.iterdir()):
-                if not lang_dir.is_dir():
-                    continue
-                lang = lang_dir.name
-                for raw_file in lang_dir.glob("*.txt"):
-                    doc_id, sentences = self._process_doc(raw_file, annotations, lang)
-                    if doc_id and sentences:
-                        output[lang].extend(sentences)
-        return output
+    def _map_label(self, token: str, label: str) -> str:
+        label = super()._map_label(token, label)
+        if '@' in token:
+            return 'O'
+        return label
 
     @staticmethod
     def _tokenize(text: str) -> List[str]:
@@ -217,8 +206,27 @@ class BsnlpParser(NerDatasetParser):
                 tokens.extend([tok.value for tok in sentence])
         return tokens
 
-    def _load_annotations(self) -> Dict[Tuple[str, str], List[Tuple[List[str], str]]]:
-        index: Dict[Tuple[str, str], List[Tuple[List[str], str]]] = {}
+    def _parse_annotation_file(self, path: Path) -> Tuple[str, List[Tuple[List[str], str]]]:
+        lines = path.read_text(encoding='utf-8').splitlines()
+        if not lines:
+            return '', []
+        doc_id = lines[0].strip()
+        entities: List[Tuple[List[str], str]] = []
+        for line in lines[1:]:
+            if not line.strip():
+                continue
+            parts = line.split('\t')
+            if len(parts) < 3:
+                continue
+            surface, ent_type = parts[0].strip(), parts[2].strip()
+            tokens = self._tokenize(surface)
+            if not tokens:
+                continue
+            entities.append((tokens, ent_type.upper()))
+        return doc_id, entities
+
+    def _load_annotations(self) -> Dict[Tuple[str, str, str], List[Tuple[List[str], str]]]:
+        index: Dict[Tuple[str, str, str], List[Tuple[List[str], str]]] = {}
         for topic_dir in sorted(self.ann_root.iterdir()):
             if not topic_dir.is_dir():
                 continue
@@ -226,51 +234,34 @@ class BsnlpParser(NerDatasetParser):
                 if not lang_dir.is_dir():
                     continue
                 lang = lang_dir.name
-                for ann_file in lang_dir.glob("*.*"):
+                for ann_file in lang_dir.glob('*.out'):
                     doc_id, entities = self._parse_annotation_file(ann_file)
                     if doc_id and entities:
-                        index[(lang, doc_id)] = entities
+                        index.setdefault((topic_dir.name, lang, doc_id), []).extend(entities)
         return index
-
-    def _parse_annotation_file(self, path: Path) -> Tuple[str, List[Tuple[List[str], str]]]:
-        lines = path.read_text(encoding="utf-8").splitlines()
-        if not lines:
-            return "", []
-        doc_id = lines[0].strip()
-        entities: List[Tuple[List[str], str]] = []
-        for line in lines[1:]:
-            if not line.strip():
-                continue
-            parts = line.split("\t")
-            if len(parts) < 3:
-                continue
-            surface, ent_type = parts[0], parts[2]
-            tokens = self._tokenize(surface)
-            if not tokens:
-                continue
-            entities.append((tokens, ent_type.upper()))
-        return doc_id, entities
 
     def _process_doc(
         self,
         raw_file: Path,
-        annotations: Dict[Tuple[str, str], List[Tuple[List[str], str]]],
+        annos: Dict[Tuple[str, str, str], List[Tuple[List[str], str]]],
+        topic: str,
         lang: str
     ) -> Tuple[str, List[Sentence]]:
-        lines = raw_file.read_text(encoding="utf-8").splitlines()
+        global logger
+        lines = raw_file.read_text(encoding='utf-8').splitlines()
         if len(lines) < 5:
-            return "", []
+            return '', []
         doc_id = lines[0].strip()
-        entities = annotations.get((lang, doc_id), [])
+        entities = annos.get((topic, lang, doc_id), [])
         if not entities:
             return doc_id, []
 
-        text = "\n".join(lines[4:])
+        text = '\n'.join(lines[4:])
         sentences: List[Sentence] = []
         for paragraph in syntok_process(text):
             for sentence in paragraph:
                 tokens = [tok.value for tok in sentence]
-                labels = ["O"] * len(tokens)
+                labels = ['O'] * len(tokens)
                 lower_tokens = [t.lower() for t in tokens]
                 for ent_tokens, ent_type in entities:
                     if not ent_tokens:
@@ -278,11 +269,13 @@ class BsnlpParser(NerDatasetParser):
                     pattern = [t.lower() for t in ent_tokens]
                     idx = 0
                     while idx <= len(tokens) - len(pattern):
-                        if all(label == "O" for label in labels[idx:idx + len(pattern)]) and \
+                        if all(label == 'O' for label in labels[idx:idx + len(pattern)]) and \
                                 lower_tokens[idx:idx + len(pattern)] == pattern:
-                            labels[idx] = f"B-{ent_type}"
+                            labels[idx] = self._map_label(tokens[idx], self._normalize_label(f'B-{ent_type}'))
                             for j in range(1, len(pattern)):
-                                labels[idx + j] = f"I-{ent_type}"
+                                labels[idx + j] = self._map_label(
+                                    tokens[idx + j], self._normalize_label(f'I-{ent_type}')
+                                )
                             idx += len(pattern)
                         else:
                             idx += 1
@@ -290,41 +283,55 @@ class BsnlpParser(NerDatasetParser):
                     sentences.append((tokens, labels))
         return doc_id, sentences
 
+    def parse(self) -> Dict[str, List[Sentence]]:
+        global logger
+        output: DefaultDict[str, List[Sentence]] = defaultdict(list)
+        if not self.raw_root.exists() or not self.ann_root.exists():
+            return output
 
-def _write_outputs(output_dir: Path, sentences_by_lang: Dict[str, List[Sentence]]) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for lang, sentences in sentences_by_lang.items():
-        target = output_dir / f"{lang}.csv"
-        with target.open("w", encoding="utf-8", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["sentence", "labels"])
-            for tokens, labels in sentences:
-                writer.writerow([" ".join(tokens), " ".join(labels)])
+        annos = self._load_annotations()
+        topic_counts: Dict[str, int] = defaultdict(int)
+        for topic_dir in sorted(self.raw_root.iterdir()):
+            if not topic_dir.is_dir():
+                continue
+            for lang_dir in sorted(topic_dir.iterdir()):
+                if not lang_dir.is_dir():
+                    continue
+                lang = lang_dir.name
+                for raw_file in lang_dir.glob('*.txt'):
+                    doc_id, sentences = self._process_doc(raw_file, annos, topic_dir.name, lang)
+                    if doc_id and sentences:
+                        output[lang].extend(sentences)
+                        topic_counts[topic_dir.name] += len(sentences)
+        for topic, count in topic_counts.items():
+            logger.info('BSNLP %s: %d sentences', topic, count)
+        return output
 
 
-# noinspection PyUnresolvedReferences
+# noinspection PyUnresolvedReferences, PyGlobalUndefined
 def main(data_args: DataArguments) -> None:
     global logger, paths
 
-    logger.info("Preparing NER datasets")
+    logger.info('Preparing NER datasets')
 
-    download_root = paths["base"]["data"] / "download" / "ner"
-    output_dir = paths["prepare"]["data"] / "ner"
+    download_root = paths['base']['data'] / 'download' / 'ner'
+    output_dir = paths['prepare']['data'] / 'ner'
 
     parsers: List[NerDatasetParser] = [
-        BsnlpParser(download_root / "bsnlp-2017-21" / "bsnlp"),
-        CnecParser(download_root / "CNEC_2.0_konkol" / "CNEC_2.0_konkol"),
-        SetimesParser(download_root / "setimes-sr.conll" / "setimes-sr.conll"),
-        Hr500kParser(download_root / "hr500k-1.0"),
-        SukParser(download_root / "SUK.CoNLL-U" / "SUK.CoNLL-U"),
+        BsnlpParser(download_root / 'bsnlp-2017-21' / 'bsnlp', data_args.label_remap.get('bsnlp', {})),
+        CnecParser(download_root / 'CNEC_2.0_konkol' / 'CNEC_2.0_konkol', data_args.label_remap.get('cnec', {})),
+        SetimesParser(download_root / 'setimes-sr.conll' / 'setimes-sr.conll', data_args.label_remap.get('setimes', {})),
+        Hr500kParser(download_root / 'hr500k-1.0', data_args.label_remap.get('hr500k', {})),
+        SukParser(download_root / 'SUK.CoNLL-U' / 'SUK.CoNLL-U', data_args.label_remap.get('suk', {})),
         WannParser(
             download_root,
             {
-                "bs-wann": "bs",
-                "mk-wann": "mk",
-                "sk-wann": "sk",
-                "sq-wann": "sq",
+                'bs-wann': 'bs',
+                'mk-wann': 'mk',
+                'sk-wann': 'sk',
+                'sq-wann': 'sq',
             },
+            data_args.label_remap.get('wann', {})
         ),
     ]
 
@@ -333,11 +340,19 @@ def main(data_args: DataArguments) -> None:
         parsed = parser.parse()
         for lang, sentences in parsed.items():
             aggregated[lang].extend(sentences)
-            logger.info("Parsed %d sentences for %s", len(sentences), lang)
+            logger.info('Parsed %d sentences for %s', len(sentences), lang)
 
     if not aggregated:
-        logger.warning("No NER sentences parsed; nothing to write")
+        logger.warning('No NER sentences parsed; nothing to write')
         return
 
-    _write_outputs(output_dir, aggregated)
-    logger.info("Wrote %d language files to %s", len(aggregated), output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for lang, sentences in aggregated.items():
+        target = output_dir / f'{lang}.csv'
+        with target.open('w', encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['sentence', 'labels'])
+            for tokens, labels in sentences:
+                writer.writerow([' '.join(tokens), ' '.join(labels)])
+        logger.info('Wrote %s with %d sentences', target, len(sentences))
+    logger.info('Wrote %d language files to %s', len(aggregated), output_dir)

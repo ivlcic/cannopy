@@ -2,11 +2,70 @@ data:
   dataset_name: ner
   dataset_urls:
     - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/CNEC_2.0_konkol.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/SUK.CoNLL-U.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/bs-wann.zip
     - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/bsnlp-2017-21.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/SUK.CoNLL-U.zip
     - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/hr500k-1.0.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/mk-wann.zip
     - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/setimes-sr.conll.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/mk-wann.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/bs-wann.zip
     - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/sk-wann.zip
     - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/sq-wann.zip
+    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/ner-uk.zip
+  label_remap:
+    cnec:
+      B-I: B-ORG
+      I-I: I-ORG
+      B-P: B-PER
+      I-P: I-PER
+      B-M: B-ORG
+      I-M: I-ORG
+      B-G: B-LOC
+      I-G: I-LOC
+      B-O: B-MISC
+      I-O: I-MISC
+      B-T: O
+      I-T: O
+      B-A: O
+      I-A: O
+    suk:
+      B-loc: B-LOC
+      I-loc: I-LOC
+      B-org: B-ORG
+      I-org: I-ORG
+      B-per: B-PER
+      I-per: I-PER
+      B-misc: B-MISC
+      I-misc: I-MISC
+      B-deriv-per: B-PER
+      I-deriv-per: I-PER
+    bsnlp:
+      B-EVT: B-MISC
+      I-EVT: I-MISC
+      B-PRO: B-MISC
+      I-PRO: I-MISC
+    hr500k:
+      B-loc: B-LOC
+      I-loc: I-LOC
+      B-org: B-ORG
+      I-org: I-ORG
+      B-per: B-PER
+      I-per: I-PER
+      B-misc: B-MISC
+      I-misc: I-MISC
+      B-deriv-per: B-PER
+      I-deriv-per: I-PER
+    ner-uk:
+      ART: MISC
+      DATE: O
+      DOC: O
+      JOB: O
+      LOC: LOC
+      MISC: MISC
+      MON: O
+      ORG: ORG
+      PCT: O
+      PERIOD: O
+      PERS: PER
+      QUANT: O
+      TIME: O
+

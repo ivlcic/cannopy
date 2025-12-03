@@ -7,6 +7,7 @@ class DataArguments:
     dataset_name: str = ""
     dataset_urls: List[str] = field(default_factory=list)
     dataset_config_name: str = ""
+    label_remap: Dict[str, Dict[Any, Any]] = field(default_factory=dict)
     max_seq_length: int = 512
     overwrite_cache: bool = False
     preprocessing_num_workers: int = 4
