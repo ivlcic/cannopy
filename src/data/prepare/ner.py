@@ -1,8 +1,7 @@
 import csv
 import re
 import shutil
-
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Callable, DefaultDict, Dict, Iterable, List, Tuple, Any
 
@@ -27,6 +26,7 @@ class NerDatasetParser:
 
     def _normalize_label(self, raw: str) -> str:
         raw = raw.strip()
+        raw = raw.split("|", 1)[0]
         if raw.startswith('NER='):
             raw = raw.split('=', 1)[1]
         if raw.lower() == 'o':
@@ -432,6 +432,46 @@ class NerUkParser(NerDatasetParser):
         return output
 
 
+def _write_outputs_and_stats(output_dir: Path, aggregated: Dict[str, List[Sentence]]) -> Dict[str, Dict[str, Counter]]:
+    """
+    Write per-language CSVs and gather stats: label counts, sentence counts, token counts.
+    Returns a dict with keys: labels (Dict[str, Counter]), sentences (Counter), tokens (Counter).
+    """
+    label_stats: Dict[str, Counter] = {}
+    sentence_stats: Counter = Counter()
+    token_stats: Counter = Counter()
+
+    all_tags = sorted({tag for counter in label_stats.values() for tag in counter})
+    for lang, sentences in aggregated.items():
+        target = output_dir / f'{lang}.csv'
+        label_counter: Counter = Counter()
+        sent_count = len(sentences)
+        tok_count = 0
+        with target.open('w', encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['sentence', 'labels'])
+            for tokens, labels in sentences:
+                tok_count += len(tokens)
+                writer.writerow([' '.join(tokens), ' '.join(labels)])
+                for label in labels:
+                    if label != 'O':
+                        label_counter[label] += 1
+        label_stats[lang] = label_counter
+        sentence_stats[lang] = sent_count
+        token_stats[lang] = tok_count
+
+    stats_path = output_dir / 'ner_stats.csv'
+    with stats_path.open('w', encoding='utf-8', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['language', 'sentences', 'tokens', *all_tags])
+        for lang in sorted(label_stats.keys()):
+            counter = label_stats[lang]
+            row = [lang, sentence_stats[lang], token_stats[lang]] + [counter.get(tag, 0) for tag in all_tags]
+            writer.writerow(row)
+
+    return {'labels': label_stats, 'sentences': sentence_stats, 'tokens': token_stats}
+
+
 # noinspection PyUnresolvedReferences
 def main(data_args: DataArguments) -> None:
     logger.info('Preparing NER datasets')
@@ -471,17 +511,17 @@ def main(data_args: DataArguments) -> None:
         return
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    for lang, sentences in aggregated.items():
-        target = output_dir / f'{lang}.csv'
-        with target.open('w', encoding='utf-8', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['sentence', 'labels'])
-            for tokens, labels in sentences:
-                writer.writerow([' '.join(tokens), ' '.join(labels)])
-        logger.info('Wrote %s with %d sentences', target, len(sentences))
+    stats = _write_outputs_and_stats(output_dir, aggregated)
+
     logger.info('Wrote %d language files to %s', len(aggregated), output_dir)
+    logger.info('Wrote stats to %s', output_dir / 'ner_stats.csv')
+    logger.info('NER tag counts:')
+    for lang, counter in sorted(stats['labels'].items()):
+        parts = [f'{tag}:{count}' for tag, count in counter.most_common()]
+        logger.info('%s -> %s (sentences=%d tokens=%d)', lang, ', '.join(parts),
+                    stats['sentences'][lang], stats['tokens'][lang])
 
     # cleanup downloaded folders to save space
-    for child in download_root.iterdir():
-        if child.is_dir():
-            shutil.rmtree(child, ignore_errors=True)
+    #for child in download_root.iterdir():
+    #    if child.is_dir():
+    #        shutil.rmtree(child, ignore_errors=True)

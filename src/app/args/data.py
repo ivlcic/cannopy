@@ -11,6 +11,7 @@ class DataArguments:
     max_seq_length: int = 512
     overwrite_cache: bool = False
     preprocessing_num_workers: int = 4
+    split_ratio: List[float] = field(default_factory=lambda: [0.1, 0.1, 0.8])
     dataset_src_url: str = ""
     dataset_src_start: str = ""
     dataset_src_end: str = ""

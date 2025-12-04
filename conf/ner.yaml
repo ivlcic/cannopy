@@ -54,6 +54,17 @@ data:
       I-misc: I-MISC
       B-deriv-per: B-PER
       I-deriv-per: I-PER
+    setimes:
+      B-loc: B-LOC
+      I-loc: I-LOC
+      B-org: B-ORG
+      I-org: I-ORG
+      B-per: B-PER
+      I-per: I-PER
+      B-misc: B-MISC
+      I-misc: I-MISC
+      B-deriv-per: B-PER
+      I-deriv-per: I-PER
     ner-uk:
       ART: MISC
       DATE: O
