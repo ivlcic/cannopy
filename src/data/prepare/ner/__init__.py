@@ -3,12 +3,16 @@ import random
 import shutil
 
 from collections import Counter, defaultdict
+from logging import Logger
 from pathlib import Path
 from typing import DefaultDict, Dict, List, Any
 
 from .parser import (Sentence, NerDatasetParser, CnecParser, BsnlpParser, SukParser, SetimesParser, Hr500kParser,
                      WannParser, NerUkParser)
 from ....app.args.data import DataArguments
+
+logger: Logger
+paths: Dict[str, Any]
 
 
 def _write_outputs(output_dir: Path, aggregated: Dict[str, List[Sentence]],
@@ -174,8 +178,8 @@ def main(data_args: DataArguments) -> None:
     ]
 
     aggregated: DefaultDict[str, List[Sentence]] = defaultdict(list)
-    for parser in parsers:
-        parsed = parser.parse()
+    for _parser in parsers:
+        parsed = _parser.parse()
         for lang, sentences in parsed.items():
             aggregated[lang].extend(sentences)
             logger.info('Parsed %d sentences for %s', len(sentences), lang)

@@ -1,11 +1,16 @@
 import re
 from dataclasses import field, dataclass
 from datetime import timedelta
+from logging import Logger
 from typing import Dict, Any, List, Tuple, Set
 
 from ...app.args.data import DataArguments
 from ...app.elastic import ElasticQuery, ElasticWriter, ElasticArticleSanitizer
 from ...app.iterators import DateTimeIterator, DateTimeState, RuntimeData
+
+
+logger: Logger
+paths: Dict[str, Any]
 
 
 @dataclass
@@ -231,10 +236,8 @@ def parse_config(runtime: EsgRuntimeData, data_args: DataArguments):
                             '{"span_near": {"slop": 0, "in_order": true, "clauses": [\n' + span_near + '\n]}}')
 
 
-# noinspection PyUnresolvedReferences,DuplicatedCode,PyGlobalUndefined
+# noinspection DuplicatedCode
 def main(data_args: DataArguments) -> None:
-    global logger, paths
-
     runtime = EsgRuntimeData()
     parse_config(runtime, data_args)
 

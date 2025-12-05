@@ -1,8 +1,13 @@
+from logging import Logger
+from typing import Dict, Any
+
 from ...app.downloader import Downloader
 from ...app.zip import Zip
 
+logger: Logger
+paths: Dict[str, Any]
 
-# noinspection PyUnresolvedReferences
+
 def main(data_args) -> None:
     logger.info(f"Downloading {data_args.dataset_name}")
 

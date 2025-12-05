@@ -2,11 +2,16 @@ import json
 import shutil
 
 from pathlib import Path
-from typing import Iterable, List
+from logging import Logger
+from typing import Iterable, List, Dict, Any
 
 from ...app.common import PathLike
 from ...app.downloader import Downloader
 from ...app.zip import Zip
+
+
+logger: Logger
+paths: Dict[str, Any]
 
 
 class MergeError(Exception):
@@ -89,7 +94,6 @@ def merge_eurlex_jsons_and_remove_dir(eurlex_dir: PathLike, prefix: str) -> List
     return output_paths
 
 
-# noinspection PyUnresolvedReferences
 def main(data_args) -> None:
     logger.info(f"Downloading {data_args.dataset_name}")
 

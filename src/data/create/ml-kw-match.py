@@ -1,10 +1,14 @@
 import re
 from datetime import timedelta
+from logging import Logger
 from typing import Dict, Any
 
 from ...app.args.data import DataArguments
 from ...app.elastic import ElasticQuery, ElasticWriter, ElasticArticleSanitizer
 from ...app.iterators import DateTimeIterator, DateTimeState, RuntimeData
+
+logger: Logger
+paths: Dict[str, Any]
 
 
 def contains_any(text: str, keywords: list[str]) -> bool:
@@ -22,9 +26,8 @@ def contains_any(text: str, keywords: list[str]) -> bool:
     return False
 
 
-# noinspection PyUnresolvedReferences,DuplicatedCode,PyGlobalUndefined
+# noinspection PyUnresolvedReferences,DuplicatedCode
 def write(state: DateTimeState):
-    global paths
     data_create_path = paths['create']['data']
     file_name = state.data_args.dataset_name + f"-{state.runtime_data.file_num:02d}"
     ElasticWriter.write_to_file(
@@ -76,19 +79,18 @@ def load_data(state: DateTimeState):
             write(state)
 
 
-# noinspection PyUnresolvedReferences,DuplicatedCode,PyGlobalUndefined
+# noinspection DuplicatedCode
 def main(data_args: DataArguments) -> None:
-    global logger, paths
     logger.info(f"Downloading {data_args.dataset_name}")
     runtime = RuntimeData(num_items_per_file=50000)
     state = None
     for state in DateTimeIterator(
-        start=data_args.dataset_src_start,
-        end=data_args.dataset_src_end,
-        step=timedelta(days=10),
-        callback=load_data,
-        data_args=data_args,
-        runtime_data=runtime
+            start=data_args.dataset_src_start,
+            end=data_args.dataset_src_end,
+            step=timedelta(days=10),
+            callback=load_data,
+            data_args=data_args,
+            runtime_data=runtime
     ):
         logger.info(f"Processed {state.progress:.2f} @ step [{state.step_start} <=> {state.step_end}] / {state.end}")
     if state:
