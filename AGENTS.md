@@ -14,6 +14,8 @@
 
 ## Coding Style & Naming Conventions
 - Follow PEP 8; use 4-space indentation and type hints where possible.
+- Functions must be defined before a first call in a file or class.
+- First function call sequence must be the same as definition sequence.
 - Keep modules focused; prefer pure functions for preprocessing and clearly named classes for models.
 - Name files and tests descriptively (e.g., `model_registry.py`, `test_model_registry.py`).
 - Prefer f-strings, avoid unused imports, and keep imports sorted (stdlib, third-party, local).

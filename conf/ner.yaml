@@ -1,5 +1,10 @@
 data:
   dataset_name: ner
+  split:
+    train: 0.8
+    validation: 0.1
+    test: 0.1
+    seed: 2611
   dataset_urls:
     - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/CNEC_2.0_konkol.zip
     - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/bsnlp-2017-21.zip
