@@ -3,9 +3,8 @@ from dataclasses import field, dataclass
 from datetime import timedelta
 from typing import Dict, Any, List, Tuple, Set
 
-from .common import sanitize_es_result, write_to_file
 from ...app.args.data import DataArguments
-from ...app.elastic_query import ElasticQuery
+from ...app.elastic import ElasticQuery, ElasticWriter, ElasticArticleSanitizer
 from ...app.iterators import DateTimeIterator, DateTimeState, RuntimeData
 
 
@@ -42,9 +41,9 @@ def return_keyword_matches(text: str, category_keywords: List[CategoryKeywords])
                 flags = re.IGNORECASE
             if keyword.endswith('*'):
                 keyword = keyword[:-1]
-                pat = re.compile(rf"\b{re.escape(keyword)}\w*\b", flags=flags)
+                pat = re.compile(rf'\b{re.escape(keyword)}\w*\b', flags=flags)
             else:
-                pat = re.compile(rf"\b{re.escape(keyword)}\b", flags=flags)
+                pat = re.compile(rf'\b{re.escape(keyword)}\b', flags=flags)
             if pat.search(text):
                 matches.append(keyword)
                 if category.name not in categories:
@@ -66,12 +65,12 @@ def return_expression_matches(text: str, category_expressions: List[CategoryExpr
                 if not token.islower():
                     all_lowercase = False
                 if token_regex:
-                    token_regex += "\s+"
+                    token_regex += '\s+'
                 if token.endswith('*'):
                     token = token[:-1]
-                    token_regex += rf"\b{re.escape(token)}\w*\b"
+                    token_regex += rf'\b{re.escape(token)}\w*\b'
                 else:
-                    token_regex += rf"\b{re.escape(token)}\b"
+                    token_regex += rf'\b{re.escape(token)}\b'
             flags = 0
             if all_lowercase:
                 flags = re.IGNORECASE
@@ -88,20 +87,20 @@ def return_expression_matches(text: str, category_expressions: List[CategoryExpr
 def write(state: DateTimeState):
     global paths
     data_create_path = paths['create']['data']
-    file_name = state.data_args.dataset_name + f"-{state.runtime_data.file_num:02d}"
-    write_to_file(
+    file_name = state.data_args.dataset_name + f'-{state.runtime_data.file_num:02d}'
+    ElasticWriter.write_to_file(
         state.runtime_data.items,
         data_create_path,
         file_name
     )
-    logger.info("Writing data to %s", data_create_path)
+    logger.info('Writing data to %s', data_create_path)
     state.runtime_data.file_num += 1
     state.runtime_data.items = []
 
 
 # noinspection PyUnresolvedReferences
 def init_item(result, state: DateTimeState) -> Tuple[Dict[str, Any], Dict[str, str], Any]:
-    item = sanitize_es_result(result)
+    item = ElasticArticleSanitizer.sanitize_es_result(result)
     if item is None:
         return {}, {}, None
 
@@ -119,7 +118,7 @@ def init_item(result, state: DateTimeState) -> Tuple[Dict[str, Any], Dict[str, s
     body = item['body']
     title = item['title']
     if not body.startswith(title):
-        text = title + "\n\n" + body
+        text = title + '\n\n' + body
     else:
         text = body
 
@@ -239,7 +238,7 @@ def main(data_args: DataArguments) -> None:
     runtime = EsgRuntimeData()
     parse_config(runtime, data_args)
 
-    logger.info(f"Downloading {data_args.dataset_name}")
+    logger.info(f'Downloading {data_args.dataset_name}')
     state = None
     for state in DateTimeIterator(
         start=data_args.dataset_src_start,
@@ -249,6 +248,6 @@ def main(data_args: DataArguments) -> None:
         data_args=data_args,
         runtime_data=runtime
     ):
-        logger.info(f"Processing {state.progress:.2f} @ step [{state.step_start} <=> {state.step_end}] / {state.end}")
+        logger.info(f'Processing {state.progress:.2f} @ step [{state.step_start} <=> {state.step_end}] / {state.end}')
     if state:
         write(state)

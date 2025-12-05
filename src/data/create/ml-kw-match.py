@@ -2,9 +2,8 @@ import re
 from datetime import timedelta
 from typing import Dict, Any
 
-from .common import sanitize_es_result, write_to_file
 from ...app.args.data import DataArguments
-from ...app.elastic_query import ElasticQuery
+from ...app.elastic import ElasticQuery, ElasticWriter, ElasticArticleSanitizer
 from ...app.iterators import DateTimeIterator, DateTimeState, RuntimeData
 
 
@@ -28,7 +27,7 @@ def write(state: DateTimeState):
     global paths
     data_create_path = paths['create']['data']
     file_name = state.data_args.dataset_name + f"-{state.runtime_data.file_num:02d}"
-    write_to_file(
+    ElasticWriter.write_to_file(
         state.runtime_data.items,
         data_create_path,
         file_name
@@ -49,7 +48,7 @@ def load_data(state: DateTimeState):
         query = query.replace('<should_match>', keywords_str)
         results, total = req.query(query, state.step_start, state.step_end)
         for result in results:
-            item = sanitize_es_result(result, {'categories': [category]})
+            item = ElasticArticleSanitizer.sanitize_es_result(result, {'categories': [category]})
             if item is None:
                 continue
             body = item['body']

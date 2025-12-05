@@ -48,6 +48,11 @@ def _list_subactions(src: Path, script: str) -> List[str]:
     for child in base.iterdir():
         if child.is_dir() and any(child.glob("*.py")):
             items.append(child.name)
+        else:
+            for sub_child in child.iterdir():
+                if _is_pkg_dir(sub_child):
+                    items.append(child.name)
+                    break
     return sorted(items)
 
 
@@ -59,6 +64,8 @@ def list_names(src: Path, script: str, sub_action: str) -> List[str]:
     for child in base.iterdir():
         if child.is_file() and child.suffix == ".py" and child.stem != "__init__":
             names.append(child.stem)
+        elif _is_pkg_dir(child):
+            names.append(child.name)
     return sorted(names)
 
 

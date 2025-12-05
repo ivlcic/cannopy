@@ -4,8 +4,9 @@ import shutil
 from pathlib import Path
 from typing import Iterable, List
 
-# noinspection PyPackages
-from .common import download_to_file, extract_zip, PathLike
+from ...app.common import PathLike
+from ...app.downloader import Downloader
+from ...app.zip import Zip
 
 
 class MergeError(Exception):
@@ -93,12 +94,12 @@ def main(data_args) -> None:
     logger.info(f"Downloading {data_args.dataset_name}")
 
     download_dir = paths['download']['data']
-    zip_file = download_to_file(data_args.dataset_urls[0],  download_dir / 'eurlex.zip')
+    zip_file = Downloader.download(data_args.dataset_urls[0],  download_dir / 'eurlex.zip')
     extract_dir = download_dir / 'eurlex'
     extract_dir.mkdir(parents=True, exist_ok=True)
     logger.info(
         f"Extracting {zip_file} to {extract_dir}"
     )
-    extract_zip(zip_file, extract_dir)
+    Zip.extract(zip_file, extract_dir)
     merge_eurlex_jsons_and_remove_dir(extract_dir, data_args.dataset_name)
     zip_file.unlink()
