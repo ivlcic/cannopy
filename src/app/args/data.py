@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
+
 
 @dataclass
 class DataArguments:
@@ -10,12 +11,12 @@ class DataArguments:
     max_seq_length: int = 512
     overwrite_cache: bool = False
     preprocessing_num_workers: int = 4
-    split: Dict[str, float] = field(
+    split: Dict[str, Union[float, int]] = field(
         default_factory=lambda: {
             "train": 0.8,
             "validation": 0.1,
             "test": 0.1,
-            "seed": 42,  # you can keep this as int; type below could be Dict[str, Any]
+            "seed": 42
         }
     )
     dataset_src_url: str = ""

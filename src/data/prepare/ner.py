@@ -492,9 +492,9 @@ def _format_stats_table(stats: Dict[str, Any]) -> str:
         rows.append(row)
         widths = [max(w, len(val)) for w, val in zip(widths, row)]
 
-    def _fmt_row(row: List[str]) -> str:
+    def _fmt_row(_row: List[str]) -> str:
         parts = []
-        for idx, val in enumerate(row):
+        for idx, val in enumerate(_row):
             align = '<' if idx == 0 else '>'
             parts.append(f'{val:{align}{widths[idx]}}')
         return '  '.join(parts)
@@ -545,9 +545,9 @@ def _format_split_stats_table(split_stats: Dict[str, Dict[str, Any]], tags: List
             rows.append(row)
             widths = [max(w, len(val)) for w, val in zip(widths, row)]
 
-    def _fmt_row(row: List[str]) -> str:
+    def _fmt_row(_row: List[str]) -> str:
         parts = []
-        for idx, val in enumerate(row):
+        for idx, val in enumerate(_row):
             align = '<' if idx < 2 else '>'
             parts.append(f'{val:{align}{widths[idx]}}')
         return '  '.join(parts)
