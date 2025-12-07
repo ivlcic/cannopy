@@ -26,24 +26,34 @@ pip install -U pip setuptools
 pip install -r requirements.txt
 ```
 
-## Dataset mining / creation
+# Dataset mining / creation task
 
+## ESG Dataset creation
 Create dataset from ESG data source:
 ```shell
 ./data create esg
 ```
 
+## ML-Kw-match Dataset creation
 Create a dataset from a multilingual keywords matching data source:
 ```shell
 ./data create ml-kw-match
 ```
 
-## Dataset downloading
+# NER task
 
-Download Slavic NER dataset:
+## Dataset preparation
+
+Download and prepare Slavic NER dataset:
 ```shell
 ./data download ner
+./data prepare ner
+./data split ner
+./data analyze ner
 ```
+
+
+# Dataset downloading
 
 Download EURLEX57K dataset:
 ```shell
@@ -52,20 +62,18 @@ Download EURLEX57K dataset:
 
 TODO :D
 ```shell
-./data download ner
+
 ./data download newsmon
 ./data download eurlex
-./data prepare ner
 ./data prepare newsmon
 ./data prepare eurlex
 ./data embed newsmon -c bge-m3.yaml -c sl.yaml
 ./data embed newsmon -c m-gte.yaml
-./data embed newsmon -c emb-genna3.yaml -c sl.yaml
+./data embed newsmon -c emb-gemma3.yaml -c sl.yaml
 ./data resample newsmon -c sl.yaml
 ./data resample newsmon -c sr.yaml
 ./data resample newsmon
 ./data sample newsmon -c hard_neg.yaml
-./data split ner
 ./data split newsmon -c sl.yaml
 ./data split eurlex -c sl.yaml
 ./data analyze newsmon -c sl.yaml  
@@ -79,16 +87,16 @@ TODO :D
 ./train token ner -c xlmr.yaml
 ./train token ner -c m-bert.yaml
 ./train token ner -c mm-bert.yaml
-./train token ner -c genna3-200m.yaml
-./train token ner -c genna3-1b.yaml
+./train token ner -c gemma3-200m.yaml
+./train token ner -c gemma3-1b.yaml
 ./train hard_neg newsmon -c bge-m3.yaml
 ./train hard_neg newsmon -c m-gte.yaml
-./train hard_neg newsmon -c emb-genna3.yaml
+./train hard_neg newsmon -c emb-gemma3.yaml
 ./eval seqence newsmon -c xlmr.yaml
 ./eval seqence newsmon -c mm-bert.yaml
 ./eval token ner -c xlmr.yaml
 ./eval token ner -c m-bert.yaml
 ./eval token ner -c mm-bert.yaml
-./eval token ner -c genna3-200m.yaml
-./eval token ner -c genna3-1b.yaml
+./eval token ner -c gemma3-200m.yaml
+./eval token ner -c gemma3-1b.yaml
 ```
