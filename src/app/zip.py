@@ -21,13 +21,13 @@ class Zip:
 
             # prevent path traversal (e.g., ../../etc/passwd)
             if not str(resolved_path).startswith(str(target_dir)):
-                raise RuntimeError(f"Unsafe zip entry detected: {member!r}")
+                raise RuntimeError(f'Unsafe zip entry detected: {member!r}')
 
-            if member.endswith("/"):
+            if member.endswith('/'):
                 resolved_path.mkdir(parents=True, exist_ok=True)
             else:
                 resolved_path.parent.mkdir(parents=True, exist_ok=True)
-                with zf.open(member) as source, resolved_path.open("wb") as target:
+                with zf.open(member) as source, resolved_path.open('wb') as target:
                     shutil.copyfileobj(source, target)
 
     @staticmethod
