@@ -1,0 +1,15 @@
+train:
+  learning_rate: 5e-5
+  num_train_epochs: 20
+  eval_strategy: epoch
+  save_strategy: epoch
+  load_best_model_at_end: true
+  optim: adamw_torch
+  save_total_limit: 1
+  metric_for_best_model: 'f1'
+  logging_strategy: epoch
+  per_device_train_batch_size: 32
+  per_device_eval_batch_size: 32
+  seed: 2611
+model:
+  model_name_or_path: 'jhu-clsp/mmBERT-base'

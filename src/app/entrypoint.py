@@ -100,7 +100,8 @@ def _load_yaml_if_exists(path: Path) -> Dict[str, Any]:
 def _resolve_config_stack(conf_dir: Path, script: str, sub_action: str, name: str, extra_confs: List[str]) \
         -> List[Path]:
     # Follow the exact order:
-    # [name].yaml, each -c, then repeat in conf/{script}/, then conf/{script}/{sub_action}/
+    # [name].yaml, each -c, then repeat in conf/{script}/, then conf/{script}/{sub_action}/,
+    # then conf/{script}/{sub_action}/{name}
     # Accept either bare names or .yaml filenames in -c
     def norm(x: str) -> str:
         return x if x.endswith(".yaml") else f"{x}.yaml"
@@ -120,6 +121,10 @@ def _resolve_config_stack(conf_dir: Path, script: str, sub_action: str, name: st
     # conf/{script}/{sub_action}
     for fn in ordered:
         paths.append(conf_dir / script / sub_action / fn)
+
+    # conf/{script}/{sub_action}/{name}
+    for fn in ordered:
+        paths.append(conf_dir / script / sub_action / name / fn)
 
     return paths
 
@@ -151,7 +156,7 @@ def _split_for_dataclasses(merged: Dict[str, Any]) \
 
     model_dict = dict(merged.get("model", {}))
     data_dict = dict(merged.get("data", {}))
-    train_dict = dict(merged.get("training", {}))
+    train_dict = dict(merged.get("train", {}))
     other = dict(merged)
 
     # Pull top-level fields into the right dataclass maps if present
@@ -353,7 +358,7 @@ def main(argv: List[str]) -> int:
         "run_args": run,
         "model_args": model_args,
         "data_args": data_args,
-        "training_args": training_args,
+        "train_args": training_args,
         "extra_args": extras,
         "paths": run_dirs,
         "logger": logger,
