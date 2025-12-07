@@ -5,9 +5,10 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 from transformers import (AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification,
-                          TrainingArguments)
+                          Trainer, TrainingArguments)
+from transformers.utils import working_or_temp_dir
 
 from ...app.args.model import ModelArguments
 from ...app.args.data import DataArguments
@@ -86,6 +87,13 @@ class NerDataset(Dataset):
         return encoding
 
 
+def compute_output_dir(model_args: ModelArguments, data_args: DataArguments, training_args: TrainingArguments) -> Path:
+    model_name = f'{data_args.dataset_name}.{model_args.short_name}.b{training_args.train_batch_size}.lr{training_args.learning_rate}'
+    output_dir = paths['token']['result'] / model_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
 def main(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments) -> None:
     logger.info('Training NER')
 
@@ -99,6 +107,8 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     if not cache_root.exists():
         logger.error('Split data not found at %s. Run `./data split ner` first.', data_root)
         return
+
+    train_args.output_dir = str(compute_output_dir(model_args, data_args, train_args))
 
     languages = data_args.subdata_order or []
     if not languages:
@@ -137,25 +147,33 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     )
 
     datasets: Dict[str, Dataset] = {}
-    dataloaders: Dict[str, DataLoader] = {}
     for split in ['train', 'eval']:
         samples = [sample for sentences in samples_by_lang[split].values() for sample in sentences]
         dataset = NerDataset(samples, tokenizer, label2id, model_args.max_seq_length)
-        loader = DataLoader(
-            dataset,
-            batch_size=train_args.per_device_train_batch_size,
-            shuffle=True,
-            collate_fn=collator,
-        )
         logger.info(
-            'Prepared %d batches (%d samples) across %d languages for %s',
-            len(loader),
+            'Prepared %d samples across %d languages for %s',
             len(dataset),
             len(samples_by_lang[split]),
             split
         )
         datasets[split] = dataset
-        dataloaders[split] = loader
 
-    # This is where a training loop or Trainer would be invoked; for now we only prepare loaders/model.
-    return
+    trainer = Trainer(
+        model=model,
+        args=train_args,
+        train_dataset=datasets.get('train'),
+        eval_dataset=datasets.get('eval'),
+        data_collator=collator,
+        tokenizer=tokenizer,
+    )
+
+    train_result = trainer.train()
+    trainer.save_model(train_args.output_dir)
+    logger.info('Training complete; global steps=%s, training_loss=%.4f',
+                train_result.global_step, train_result.training_loss)
+
+    if datasets.get('eval'):
+        metrics = trainer.evaluate()
+        logger.info('Evaluation metrics: %s', metrics)
+    else:
+        logger.info('Evaluation skipped (no eval split available)')
