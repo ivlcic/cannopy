@@ -15,7 +15,7 @@ paths: Dict[str, Any]
 def _load_sentences(source_dir: Path, split_suffix: str | None = None) -> Dict[str, List[Sentence]]:
     aggregated: DefaultDict[str, List[Sentence]] = defaultdict(list)
     for csv_file in sorted(source_dir.glob('ner-*.csv')):
-        stem = csv_file.stem
+        stem: str = csv_file.stem
         if stem.startswith('ner_stats'):
             continue
         if split_suffix:

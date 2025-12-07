@@ -15,7 +15,7 @@ paths: Dict[str, Any]
 def _load_prepared_sentences(source_dir: Path) -> Dict[str, List[Sentence]]:
     aggregated: DefaultDict[str, List[Sentence]] = defaultdict(list)
     for csv_file in sorted(source_dir.glob('ner-*.csv')):
-        stem = csv_file.stem
+        stem: str = csv_file.stem
         if stem.startswith('ner_stats'):
             continue
         if '.' in stem:

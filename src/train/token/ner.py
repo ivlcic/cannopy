@@ -1,8 +1,10 @@
+import csv
+import torch
+
 from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import (AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification,
                           TrainingArguments)
@@ -20,14 +22,14 @@ def _load_split_file(path: Path) -> List[Sentence]:
     samples: List[Sentence] = []
     if not path.exists():
         return samples
-    with path.open('r', encoding='utf-8') as f:
-        next(f, None)  # header
-        for line in f:
-            parts = line.rstrip('\n').split(',')
-            if len(parts) < 2:
+    with path.open('r', encoding='utf-8', newline='') as f:
+        reader = csv.reader(f)
+        next(reader, None)  # header
+        for row in reader:
+            if len(row) < 2:
                 continue
-            tokens = parts[0].split(' ')
-            labels = parts[1].split(' ')
+            tokens = row[0].split(' ')
+            labels = row[1].split(' ')
             samples.append((tokens, labels))
     return samples
 
@@ -38,7 +40,16 @@ def _collect_labels(samples_by_lang: Dict[str, Dict[str, List[Sentence]]]) -> Li
         for sentences in samples_by_lang[split].values():
             for _, labs in sentences:
                 labels.update(labs)
-    return sorted(labels)
+
+    def _label_key(label: str) -> Tuple[str, str]:
+        if label == 'O':
+            return '', label
+        if '-' in label:
+            prefix, postfix = label.split('-', 1)
+            return postfix, prefix
+        return label, ''
+
+    return sorted(labels, key=_label_key)
 
 
 class NerDataset(Dataset):
@@ -83,6 +94,12 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         logger.error('Split data not found at %s. Run `./data split ner` first.', data_root)
         return
 
+    cache_root = paths['base']['tmp'] / 'cache'
+    cache_root.mkdir(parents=True, exist_ok=True)
+    if not cache_root.exists():
+        logger.error('Split data not found at %s. Run `./data split ner` first.', data_root)
+        return
+
     languages = data_args.subdata_order or []
     if not languages:
         languages = [p.stem.split('.')[0] for p in data_root.glob('ner-*.train.csv')]
@@ -109,10 +126,11 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     id2label = {idx: label for label, idx in label2id.items()}
 
     tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir=cache_root)
     collator = DataCollatorForTokenClassification(tokenizer, padding='longest')
     model = AutoModelForTokenClassification.from_pretrained(
         model_args.model_name_or_path,
+        cache_dir=cache_root,
         num_labels=len(label_list),
         id2label=id2label,
         label2id=label2id,
@@ -130,10 +148,11 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
             collate_fn=collator,
         )
         logger.info(
-            'Prepared %d batches (%d samples) across %d languages for training',
+            'Prepared %d batches (%d samples) across %d languages for %s',
             len(loader),
             len(dataset),
             len(samples_by_lang[split]),
+            split
         )
         datasets[split] = dataset
         dataloaders[split] = loader
