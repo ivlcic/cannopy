@@ -14,11 +14,12 @@ class DataArguments:
     split: Dict[str, Union[float, int]] = field(
         default_factory=lambda: {
             "train": 0.8,
-            "validation": 0.1,
+            "dev": 0.1,
             "test": 0.1,
             "seed": 42
         }
     )
+    subdata_order: List[str] = field(default_factory=list)
     dataset_src_url: str = ""
     dataset_src_start: str = ""
     dataset_src_end: str = ""

@@ -1,2 +1,15 @@
 data:
   dataset_name: ner
+  subdata_order:
+    - sl
+    - hr
+    - sr
+    - bs
+    - mk
+    - sq
+    - cs
+    - bg
+    - pl
+    - ru
+    - sk
+    - uk

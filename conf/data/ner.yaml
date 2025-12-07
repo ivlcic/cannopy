@@ -2,7 +2,7 @@ data:
   dataset_name: ner
   split:
     train: 0.8
-    validation: 0.1
+    dev: 0.1
     test: 0.1
     seed: 2611
   dataset_urls:

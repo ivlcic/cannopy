@@ -72,7 +72,7 @@ def main(data_args: DataArguments) -> None:
         return
 
     train_ratio = data_args.split["train"]
-    dev_ratio = data_args.split["validation"]
+    dev_ratio = data_args.split["dev"]
     test_ratio = data_args.split["test"]
     seed = data_args.split["seed"]
 
