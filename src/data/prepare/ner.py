@@ -1,11 +1,18 @@
 import re
-from collections import defaultdict
+import csv
+import shutil
 
+from collections import Counter, defaultdict
 from logging import Logger
 from pathlib import Path
 from typing import Tuple, List, Dict, Any, Iterable, Callable, DefaultDict
 
 from syntok.segmenter import process as syntok_process
+
+from ...app.args.data import DataArguments
+
+logger: Logger
+paths: Dict[str, Any]
 
 Sentence = Tuple[List[str], List[str]]
 LABEL_RE = re.compile(r'([BI])-(.+)', re.IGNORECASE)
@@ -14,8 +21,7 @@ LABEL_RE = re.compile(r'([BI])-(.+)', re.IGNORECASE)
 # noinspection PyMethodMayBeStatic
 class NerDatasetParser:
 
-    def __init__(self, logger: Logger, root: Path, label_remap: Dict[Any, Any]):
-        self.logger = logger
+    def __init__(self, root: Path, label_remap: Dict[Any, Any]):
         self.root = root
         self.label_remap = label_remap
 
@@ -86,7 +92,7 @@ class ConllDatasetParser(NerDatasetParser):
             if not has_labels:
                 continue
             output[lang].extend(sentences)
-            self.logger.info('%s: %s -> %d sentences', lang, path.name, len(sentences))
+            logger.info('%s: %s -> %d sentences', lang, path.name, len(sentences))
         return output
 
 
@@ -94,7 +100,7 @@ class CnecParser(ConllDatasetParser):
     def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
         if not self.root.exists():
             return []
-        self.logger.info('CNEC: scanning %s', self.root)
+        logger.info('CNEC: scanning %s', self.root)
         files = ['train.conll', 'dtest.conll', 'etest.conll']
         return [
             (self.root / fname, 'cs', 0, lambda parts: parts[-1])
@@ -107,7 +113,7 @@ class SetimesParser(ConllDatasetParser):
         path = self.root / 'set.sr.conll'
         if not path.exists():
             return []
-        self.logger.info('SETimes: %s', path)
+        logger.info('SETimes: %s', path)
         label_idx = 10
         return [(path, 'sr', 1, lambda parts: parts[label_idx] if len(parts) > label_idx else 'O')]
 
@@ -117,7 +123,7 @@ class Hr500kParser(ConllDatasetParser):
         path = self.root / 'hr500k.conll'
         if not path.exists():
             return []
-        self.logger.info('hr500k: %s', path)
+        logger.info('hr500k: %s', path)
         label_idx = 10
         return [(path, 'hr', 1, lambda parts: parts[label_idx] if len(parts) > label_idx else 'O')]
 
@@ -137,8 +143,8 @@ class SukParser(ConllDatasetParser):
 
 
 class WannParser(NerDatasetParser):
-    def __init__(self, logger: Logger, root: Path, mapping: Dict[str, str], label_remap: Dict[str, str]):
-        NerDatasetParser.__init__(self, logger, root, label_remap)
+    def __init__(self, root: Path, mapping: Dict[str, str], label_remap: Dict[str, str]):
+        NerDatasetParser.__init__(self, root, label_remap)
         self.base = root
         self.mapping = mapping
 
@@ -154,7 +160,7 @@ class WannParser(NerDatasetParser):
                     continue
                 sentences = self._parse_split(split_path)
                 output[lang].extend(sentences)
-                self.logger.info('WANN %s %s: %d sentences', lang, split_path.name, len(sentences))
+                logger.info('WANN %s %s: %d sentences', lang, split_path.name, len(sentences))
         return output
 
     def _parse_split(self, path: Path) -> List[Sentence]:
@@ -183,8 +189,8 @@ class WannParser(NerDatasetParser):
 # noinspection PyMethodMayBeStatic
 class BsnlpParser(NerDatasetParser):
 
-    def __init__(self, logger: Logger, root: Path, label_remap: Dict[Any, Any]):
-        NerDatasetParser.__init__(self, logger, root, label_remap)
+    def __init__(self, root: Path, label_remap: Dict[Any, Any]):
+        NerDatasetParser.__init__(self, root, label_remap)
         self.raw_root = root / 'raw'
         self.ann_root = root / 'annotated'
 
@@ -298,15 +304,15 @@ class BsnlpParser(NerDatasetParser):
                         output[lang].extend(sentences)
                         topic_counts[topic_dir.name] += len(sentences)
         for topic, count in topic_counts.items():
-            self.logger.info('BSNLP %s: %d sentences', topic, count)
+            logger.info('BSNLP %s: %d sentences', topic, count)
         return output
 
 
 # noinspection PyMethodMayBeStatic
 class NerUkParser(NerDatasetParser):
 
-    def __init__(self, logger: Logger, root: Path, label_remap: Dict[Any, Any]):
-        NerDatasetParser.__init__(self, logger, root, label_remap)
+    def __init__(self, root: Path, label_remap: Dict[Any, Any]):
+        NerDatasetParser.__init__(self, root, label_remap)
 
     def _iter_pairs(self) -> Iterable[Tuple[Path, Path]]:
         data_dir = self.root / 'v2.0' / 'data'
@@ -421,5 +427,83 @@ class NerUkParser(NerDatasetParser):
             if sentences:
                 output['uk'].extend(sentences)
                 count_files += 1
-        self.logger.info('ner-uk: %d sentences from %d files', len(output['uk']), count_files)
+        logger.info('ner-uk: %d sentences from %d files', len(output['uk']), count_files)
         return output
+
+
+def _write_outputs(output_dir: Path, aggregated: Dict[str, List[Sentence]], file_suffix: str = ""):
+    """
+    Write per-language CSVs.
+    """
+    for lang, sentences in aggregated.items():
+        target = output_dir / f'ner-{lang}{file_suffix}.csv'
+        label_counter: Counter = Counter()
+        tok_count = 0
+        with target.open('w', encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['sentence', 'labels'])
+            for tokens, labels in sentences:
+                tok_count += len(tokens)
+                writer.writerow([' '.join(tokens), ' '.join(labels)])
+                for label in labels:
+                    if label != 'O':
+                        label_counter[label] += 1
+
+
+# noinspection
+def main(data_args: DataArguments) -> None:
+    logger.info('Preparing NER datasets')
+
+    download_root = paths['base']['data'] / 'download' / 'ner'
+    output_dir = paths['prepare']['data']
+
+    label_remap = data_args.label_remap
+    parsers: List[NerDatasetParser] = [
+        BsnlpParser(
+            download_root / 'bsnlp-2017-21' / 'bsnlp', label_remap.get('bsnlp', {})
+        ),
+        CnecParser(
+            download_root / 'CNEC_2.0_konkol' / 'CNEC_2.0_konkol', label_remap.get('cnec', {})
+        ),
+        SetimesParser(
+            download_root / 'setimes-sr.conll' / 'setimes-sr.conll', label_remap.get('setimes', {})
+        ),
+        Hr500kParser(
+            download_root / 'hr500k-1.0' / 'hr500k.conll', label_remap.get('hr500k', {})
+        ),
+        SukParser(
+            download_root / 'SUK.CoNLL-U' / 'SUK.CoNLL-U', label_remap.get('suk', {})
+        ),
+        NerUkParser(
+            download_root / 'ner-uk' / 'ner-uk', label_remap.get('ner-uk', {})
+        ),
+        WannParser(
+            download_root,
+            {
+                'bs-wann': 'bs',
+                'mk-wann': 'mk',
+                'sk-wann': 'sk',
+                'sq-wann': 'sq',
+            },
+            label_remap.get('wann', {})
+        ),
+    ]
+
+    aggregated: DefaultDict[str, List[Sentence]] = defaultdict(list)
+    for _parser in parsers:
+        parsed = _parser.parse()
+        for lang, sentences in parsed.items():
+            aggregated[lang].extend(sentences)
+            logger.info('Parsed %d sentences for %s', len(sentences), lang)
+
+    if not aggregated:
+        logger.warning('No NER sentences parsed; nothing to write')
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _write_outputs(output_dir, aggregated)
+
+    logger.info('Wrote %d language files to %s', len(aggregated), output_dir)
+
+    # clean up download folder
+    shutil.rmtree(download_root, ignore_errors=True)

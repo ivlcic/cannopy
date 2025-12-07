@@ -3,12 +3,13 @@ from typing import Dict, Any
 
 from ...app.downloader import Downloader
 from ...app.zip import Zip
+from ...app.args.data import DataArguments
 
 logger: Logger
 paths: Dict[str, Any]
 
 
-def main(data_args) -> None:
+def main(data_args: DataArguments) -> None:
     logger.info(f"Downloading {data_args.dataset_name}")
 
     download_dir = paths['download']['data']

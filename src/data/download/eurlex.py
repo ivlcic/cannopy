@@ -6,6 +6,7 @@ from logging import Logger
 from typing import Iterable, List, Dict, Any
 
 from ...app.common import PathLike
+from ...app.args.data import DataArguments
 from ...app.downloader import Downloader
 from ...app.zip import Zip
 
@@ -54,7 +55,7 @@ def _write_jsonl_atomic(records: Iterable, dest: Path) -> None:
     tmp.replace(dest)
 
 
-def merge_eurlex_jsons_and_remove_dir(eurlex_dir: PathLike, prefix: str) -> List[Path]:
+def merge_eurlex_jsons_and_remove_dir(eurlex_dir: PathLike, prefix: str, target_dir: PathLike) -> List[Path]:
     eurlex_path = Path(eurlex_dir).resolve()
     if not eurlex_path.exists() or not eurlex_path.is_dir():
         raise MergeError(f"Provided eurlex_dir does not exist or is not a directory: {eurlex_path}")
@@ -68,7 +69,6 @@ def merge_eurlex_jsons_and_remove_dir(eurlex_dir: PathLike, prefix: str) -> List
     if missing:
         raise MergeError(f"Missing expected split directories under {dataset_dir}: {missing}")
 
-    out_parent = eurlex_path.parent  # parent directory where outputs will be written
     output_paths: List[Path] = []
 
     # For each split, collect records and write an atomic JSON lines file
@@ -77,7 +77,7 @@ def merge_eurlex_jsons_and_remove_dir(eurlex_dir: PathLike, prefix: str) -> List
         json_files = _gather_json_files(sd)
         if not json_files:
             raise MergeError(f"No .json files found in {sd} — aborting to avoid producing empty output.")
-        dest = out_parent / f"{prefix}_{split}.jsonl"
+        dest = target_dir / f"{prefix}.{split}.jsonl"
 
         # generator that yields records from all files in order
         def records_generator(files: List[Path]):
@@ -94,10 +94,11 @@ def merge_eurlex_jsons_and_remove_dir(eurlex_dir: PathLike, prefix: str) -> List
     return output_paths
 
 
-def main(data_args) -> None:
+def main(data_args: DataArguments) -> None:
     logger.info(f"Downloading {data_args.dataset_name}")
 
     download_dir = paths['download']['data']
+    output_dir = paths['base']['data'] / 'prepare'
     zip_file = Downloader.download(data_args.dataset_urls[0],  download_dir / 'eurlex.zip')
     extract_dir = download_dir / 'eurlex'
     extract_dir.mkdir(parents=True, exist_ok=True)
@@ -105,5 +106,5 @@ def main(data_args) -> None:
         f"Extracting {zip_file} to {extract_dir}"
     )
     Zip.extract(zip_file, extract_dir)
-    merge_eurlex_jsons_and_remove_dir(extract_dir, data_args.dataset_name)
+    merge_eurlex_jsons_and_remove_dir(extract_dir, data_args.dataset_name, output_dir)
     zip_file.unlink()
