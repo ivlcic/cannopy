@@ -8,8 +8,8 @@ from typing import Any, Dict, List, Tuple
 from torch.utils.data import Dataset
 from transformers import (AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification,
                           Trainer, TrainingArguments)
-from transformers.utils import working_or_temp_dir
 
+from ...app.metrics import TokenClassificationMetrics
 from ...app.args.model import ModelArguments
 from ...app.args.data import DataArguments
 
@@ -135,6 +135,8 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     label2id = {label: idx for idx, label in enumerate(label_list)}
     id2label = {idx: label for label, idx in label2id.items()}
 
+    metrics = TokenClassificationMetrics(id2label=id2label)
+
     tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir=cache_root)
     collator = DataCollatorForTokenClassification(tokenizer, padding='longest')
@@ -165,6 +167,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         eval_dataset=datasets.get('eval'),
         data_collator=collator,
         tokenizer=tokenizer,
+        metrics=metrics.compute_metrics
     )
 
     train_result = trainer.train()

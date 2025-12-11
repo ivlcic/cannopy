@@ -1,11 +1,11 @@
 import json
 import os
-from typing import Optional, Literal, Dict, Any
-
+import evaluate
 import numpy as np
+
+from typing import Optional, Literal, Dict, Any
 from numpy import floating
 from sklearn.metrics import ndcg_score, precision_score, recall_score, f1_score, accuracy_score, hamming_loss
-
 
 class MetricsAtK:
 
@@ -54,6 +54,46 @@ class MetricsAtK:
             f'{prefix}p{suffix}': self.mean_precision,
             f'{prefix}r{suffix}': self.mean_recall,
             f'{prefix}ndcg{suffix}': self.ndcg,
+        }
+
+
+class TokenClassificationMetrics:
+    def __init__(self, id2label, ignore_index=-100):
+        self.id2label = id2label
+        self.ignore_index = ignore_index
+        self.seqeval = evaluate.load("seqeval")
+
+    def align_predictions(self, predictions, label_ids):
+        preds = np.argmax(predictions, axis=-1)
+
+        true_labels = []
+        true_preds = []
+
+        for pred_seq, label_seq in zip(preds, label_ids):
+            seq_true = []
+            seq_pred = []
+            for p, l in zip(pred_seq, label_seq):
+                if l == self.ignore_index:
+                    continue
+                seq_true.append(self.id2label[int(l)])
+                seq_pred.append(self.id2label[int(p)])
+            true_labels.append(seq_true)
+            true_preds.append(seq_pred)
+
+        return true_preds, true_labels
+
+    def compute_metrics(self, eval_pred):
+        predictions, labels = eval_pred
+        preds_list, labels_list = self.align_predictions(predictions, labels)
+        results = self.seqeval.compute(
+            predictions=preds_list,
+            references=labels_list
+        )
+        return {
+            "precision": results["overall_precision"],
+            "recall": results["overall_recall"],
+            "f1": results["overall_f1"],
+            "accuracy": results["overall_accuracy"],
         }
 
 
