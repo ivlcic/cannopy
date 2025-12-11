@@ -59,6 +59,7 @@ Download and prepare Slavic NER dataset:
 ./data train ner -c mbert.yaml
 ./data train ner -c gemma3-270m.yaml
 ./data train ner -c gemma3-1b-pt.yaml
+./data train ner -c qwen3-1.7b.yaml
 ```
 
 
