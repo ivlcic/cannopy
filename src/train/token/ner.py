@@ -163,8 +163,8 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     trainer = Trainer(
         model=model,
         args=train_args,
-        train_dataset=datasets.get('train'),
-        eval_dataset=datasets.get('eval'),
+        train_dataset=datasets['train'],
+        eval_dataset=datasets['eval'],
         data_collator=collator,
         tokenizer=tokenizer,
         metrics=metrics.compute_metrics
@@ -175,8 +175,5 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     logger.info('Training complete; global steps=%s, training_loss=%.4f',
                 train_result.global_step, train_result.training_loss)
 
-    if datasets.get('eval'):
-        metrics = trainer.evaluate()
-        logger.info('Evaluation metrics: %s', metrics)
-    else:
-        logger.info('Evaluation skipped (no eval split available)')
+    metrics = trainer.evaluate()
+    logger.info('Evaluation metrics: %s', metrics)
