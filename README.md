@@ -1,12 +1,12 @@
 # CaNNopy
-Simple ML research framework that focuses on repeatability and supports flexible diversity of tasks. 
+Simple ML research framework that focuses on repeatability and supports flexible and isolated diversity of tasks. 
 
-## What it does
+### What it does
 - Unified CLI (`./data`, `./train`, `./eval`, `./test`) routes through `src/app/entrypoint.py` to load layered YAML configs, build Hugging Face `TrainingArguments` plus custom `DataArguments`/`ModelArguments`, and dispatch to task modules.
 - Supports dataset creation/downloading (ESG, multilingual keyword match, Slavic NER, EURLEX) and sequence/token model training and evaluation; writes outputs under `result/` with logs in `log/`.
 - Uses PyTorch/Transformers with config-driven runs for reproducibility.
 
-## Project structure
+### Project structure
 - `src/app/`: CLI machinery (arg parsing, config stacking, logging, discovery utilities).
 - `src/data/`, `src/train/`, `src/eval/`, `src/test/`: command-specific task modules discovered by the entrypoint.
 - `conf/`: layered YAML configs; data source docs and defaults live here.
@@ -26,23 +26,32 @@ pip install -U pip setuptools
 pip install -r requirements.txt
 ```
 
-# Dataset mining / creation task
+Oneliner to reinitialize:
+```shell
+rm -Rf .venv && python -m venv .venv && source .venv/bin/activate && pip install -U pip setuptools && pip install -r requirements.txt
+```
 
-## ESG Dataset creation
-Create dataset from ESG data source:
+## 1. Dataset mining / creation task
+
+Prerequisites:
+- An access to archive servers.
+- The `CPTM_SPASS` environment variable is needed in `.env` file. 
+
+### ESG Slovene News Dataset
+Create environmental, social, and governance dataset from Slovene news data source:
 ```shell
 ./data create esg
 ```
 
-## ML-Kw-match Dataset creation
+### Multilingual Keyword Match Slovene News Dataset
 Create a dataset from a multilingual keywords matching data source:
 ```shell
 ./data create ml-kw-match
 ```
 
-# NER task
+## 2. Multilingual Slavic NER task
 
-## Dataset preparation
+### Dataset preparation
 
 Download and prepare Slavic NER dataset:
 ```shell
@@ -52,7 +61,7 @@ Download and prepare Slavic NER dataset:
 ./data analyze ner
 ```
 
-## Training and evaluation
+### Training and evaluation
 ```shell
 ./data train ner -c xlmr.yaml
 ./data train ner -c mm-bert.yaml
@@ -62,15 +71,25 @@ Download and prepare Slavic NER dataset:
 ./data train ner -c qwen3-1.7b.yaml
 ```
 
+## 3. Multilingual Slavic Retrieval task
 
-# Dataset downloading
+Download MIRACL EN and MSMARCO v2.1 datasets:
+```shell
+./data download miracl
+./data download msmarco
+```
+MIRACL download now also pulls the English miracl-corpus shards alongside topics/qrels.
+
+## 4. Extreme Multilingual Multilabel Text Classification  
+
+### Dataset downloading
 
 Download EURLEX57K dataset:
 ```shell
 ./data download eurlex
 ```
 
-TODO :D
+## 5. TODO :D
 ```shell
 
 ./data download newsmon

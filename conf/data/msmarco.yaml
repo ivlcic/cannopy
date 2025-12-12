@@ -1,0 +1,13 @@
+data:
+  dataset_name: msmarco
+  dataset_config_name: v2.1
+  dataset_urls:
+    - https://huggingface.co/datasets/microsoft/ms_marco/resolve/main/v2.1/train-00000-of-00007.parquet
+    - https://huggingface.co/datasets/microsoft/ms_marco/resolve/main/v2.1/train-00001-of-00007.parquet
+    - https://huggingface.co/datasets/microsoft/ms_marco/resolve/main/v2.1/train-00002-of-00007.parquet
+    - https://huggingface.co/datasets/microsoft/ms_marco/resolve/main/v2.1/train-00003-of-00007.parquet
+    - https://huggingface.co/datasets/microsoft/ms_marco/resolve/main/v2.1/train-00004-of-00007.parquet
+    - https://huggingface.co/datasets/microsoft/ms_marco/resolve/main/v2.1/train-00005-of-00007.parquet
+    - https://huggingface.co/datasets/microsoft/ms_marco/resolve/main/v2.1/train-00006-of-00007.parquet
+    - https://huggingface.co/datasets/microsoft/ms_marco/resolve/main/v2.1/validation-00000-of-00001.parquet
+    - https://huggingface.co/datasets/microsoft/ms_marco/resolve/main/v2.1/test-00000-of-00001.parquet

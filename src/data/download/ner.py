@@ -21,6 +21,6 @@ def main(data_args: DataArguments) -> None:
         logger.info(
             f'Extracting {zip_file} to {extract_dir}'
         )
-        logger.info(f'Extracted {zip_file} to {extract_dir}')
         Zip.extract(zip_file, extract_dir)
+        logger.info(f'Extracted {zip_file} to {extract_dir}')
         zip_file.unlink()
