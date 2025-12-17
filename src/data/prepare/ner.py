@@ -450,7 +450,6 @@ def _write_outputs(output_dir: Path, aggregated: Dict[str, List[Sentence]], file
                         label_counter[label] += 1
 
 
-# noinspection
 def main(data_args: DataArguments) -> None:
     logger.info('Preparing NER datasets')
 

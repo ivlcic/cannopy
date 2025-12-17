@@ -5,17 +5,28 @@ data:
     eval: 0.1
     test: 0.1
     seed: 2611
-  dataset_urls:
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/CNEC_2.0_konkol.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/bsnlp-2017-21.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/SUK.CoNLL-U.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/hr500k-1.0.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/setimes-sr.conll.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/mk-wann.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/bs-wann.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/sk-wann.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/sq-wann.zip
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/ner/raw/ner-uk.zip
+  source:
+    links:
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/CNEC_2.0_konkol.zip
+        lang: cs
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/bsnlp-2017-21.zip
+        lang: bg,cs,pl,ru,sl,uk
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/SUK.CoNLL-U.zip
+        lang: sl
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/hr500k-1.0.zip
+        lang: hr
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/setimes-sr.conll.zip
+        lang: sr
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/mk-wann.zip
+        lang: mk
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/bs-wann.zip
+        lang: bs
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/sk-wann.zip
+        lang: sk
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/sq-wann.zip
+        lang: sq
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/ner-uk.zip
+        lang: uk
   label_remap:
     cnec:
       B-I: B-ORG

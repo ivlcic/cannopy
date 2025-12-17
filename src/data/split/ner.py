@@ -71,10 +71,10 @@ def main(data_args: DataArguments) -> None:
         logger.warning('No prepared NER data found in %s', source_dir)
         return
 
-    train_ratio = data_args.split['train']
-    dev_ratio = data_args.split['eval']
-    test_ratio = data_args.split['test']
-    seed = data_args.split['seed']
+    train_ratio = data_args.split.train
+    dev_ratio = data_args.split.eval
+    test_ratio = data_args.split.test
+    seed = data_args.split.seed
 
     split_data = _split_language_data(aggregated, train_ratio, dev_ratio, test_ratio, seed)
     for split_name, sentences_by_lang in split_data.items():

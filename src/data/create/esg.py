@@ -88,23 +88,27 @@ def return_expression_matches(text: str, category_expressions: List[CategoryExpr
     return matches, categories
 
 
-# noinspection PyUnresolvedReferences,DuplicatedCode,PyGlobalUndefined
+# noinspection DuplicatedCode,PyGlobalUndefined
 def write(state: DateTimeState):
-    global paths
+    # noinspection PyUnresolvedReferences
+    data_args: DataArguments = state.data_args
+    # noinspection PyUnresolvedReferences
+    runtime_data: EsgRuntimeData = state.runtime_data
     data_create_path = paths['create']['data']
-    file_name = state.data_args.dataset_name + f'-{state.runtime_data.file_num:02d}'
+    file_name = data_args.dataset_name + f'-{runtime_data.file_num:02d}'
     ElasticWriter.write_to_file(
-        state.runtime_data.items,
+        runtime_data.items,
         data_create_path,
         file_name
     )
     logger.info('Writing data to %s', data_create_path)
-    state.runtime_data.file_num += 1
-    state.runtime_data.items = []
+    runtime_data.file_num += 1
+    runtime_data.items = []
 
 
-# noinspection PyUnresolvedReferences
 def init_item(result, state: DateTimeState) -> Tuple[Dict[str, Any], Dict[str, str], Any]:
+    # noinspection PyUnresolvedReferences
+    runtime_data: EsgRuntimeData = state.runtime_data
     item = ElasticArticleSanitizer.sanitize_es_result(result)
     if item is None:
         return {}, {}, None
@@ -116,9 +120,9 @@ def init_item(result, state: DateTimeState) -> Tuple[Dict[str, Any], Dict[str, s
     for tag in result['tags']:
         if 'class' not in tag or not tag['class'].endswith('.CustomerTopicGroup'):
             continue
-        if tag['uuid'] not in state.runtime_data.industries_map.keys():
+        if tag['uuid'] not in runtime_data.industries_map.keys():
             continue
-        industries[tag['uuid']] = state.runtime_data.industries_map[tag['uuid']]
+        industries[tag['uuid']] = runtime_data.industries_map[tag['uuid']]
 
     body = item['body']
     title = item['title']
@@ -130,21 +134,25 @@ def init_item(result, state: DateTimeState) -> Tuple[Dict[str, Any], Dict[str, s
     return item, industries, text
 
 
-# noinspection PyUnresolvedReferences,DuplicatedCode
+# noinspection DuplicatedCode
 def load_data(state: DateTimeState):
-    req = ElasticQuery(state.data_args.dataset_src_url, state.data_args.dataset_src_user)
-    query_desc: Dict[str, Any] = state.data_args.dataset_src_query
+    # noinspection PyUnresolvedReferences
+    data_args: DataArguments = state.data_args
+    # noinspection PyUnresolvedReferences
+    runtime_data: EsgRuntimeData = state.runtime_data
+    req = ElasticQuery(data_args.source.conn.url, data_args.source.conn.username)
+    query_desc: Dict[str, Any] = data_args.source.select.query
 
     items_batch = {}
     query_template = query_desc['template']
-    if state.runtime_data.keyword_should:
-        keyword_query = query_template.replace('<should_match>', state.runtime_data.keyword_should)
+    if runtime_data.keyword_should:
+        keyword_query = query_template.replace('<should_match>', runtime_data.keyword_should)
         results, total = req.query(keyword_query, state.step_start, state.step_end)
         for result in results:
             item, industries, text = init_item(result, state)
             if not item:
                 continue
-            matches, categories = return_keyword_matches(text, state.runtime_data.category_keywords)
+            matches, categories = return_keyword_matches(text, runtime_data.category_keywords)
             if not categories:
                 continue
 
@@ -157,14 +165,14 @@ def load_data(state: DateTimeState):
             item['matches'] = matches
             items_batch[result['uuid']] = item
 
-    if state.runtime_data.expression_should:
-        expression_query = query_template.replace('<should_match>', state.runtime_data.expression_should)
+    if runtime_data.expression_should:
+        expression_query = query_template.replace('<should_match>', runtime_data.expression_should)
         results, total = req.query(expression_query, state.step_start, state.step_end)
         for result in results:
             item, industries, text = init_item(result, state)
             if not item:
                 continue
-            matches, categories = return_expression_matches(text, state.runtime_data.category_expressions)
+            matches, categories = return_expression_matches(text, runtime_data.category_expressions)
             if not categories:
                 continue
 
@@ -192,13 +200,13 @@ def load_data(state: DateTimeState):
             items_batch[result['uuid']] = item
 
     for k, item in items_batch.items():
-        state.runtime_data.items.append(item)
-        if state.runtime_data.num_items_per_file == len(state.runtime_data.items):
+        runtime_data.items.append(item)
+        if runtime_data.num_items_per_file == len(runtime_data.items):
             write(state)
 
 
 def parse_config(runtime: EsgRuntimeData, data_args: DataArguments):
-    query_desc: Dict[str, Any] = data_args.dataset_src_query
+    query_desc: Dict[str, Any] = data_args.source.select.query
 
     runtime.industries_map = query_desc['industry_map']
     industry_matches = query_desc['industry_match']
@@ -244,8 +252,8 @@ def main(data_args: DataArguments) -> None:
     logger.info(f'Downloading {data_args.dataset_name}')
     state = None
     for state in DateTimeIterator(
-        start=data_args.dataset_src_start,
-        end=data_args.dataset_src_end,
+        start=data_args.source.select.start,
+        end=data_args.source.select.end,
         step=timedelta(days=10),
         callback=load_data,
         data_args=data_args,

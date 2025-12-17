@@ -87,8 +87,8 @@ class NerDataset(Dataset):
         return encoding
 
 
-def compute_output_dir(model_args: ModelArguments, data_args: DataArguments, training_args: TrainingArguments) -> Path:
-    model_name = f'{data_args.dataset_name}.{model_args.short_name}.b{training_args.train_batch_size}.lr{training_args.learning_rate}'
+def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
+    model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
     output_dir = paths['token']['result'] / model_name
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir

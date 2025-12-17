@@ -1,4 +1,6 @@
 data:
   dataset_name: eurlex57k
-  dataset_urls:
-    - https://github.com/ivlcic/train-data/raw/refs/heads/main/eurlex/datasets.zip
+  source:
+    links:
+      - url: https://kt-cloud.ijs.si/index.php/s/ZxsX8BZxTWmcSNb/download/datasets.zip
+        lang: en

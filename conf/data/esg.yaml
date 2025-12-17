@@ -1,186 +1,189 @@
 data:
   dataset_name: esg
-  dataset_src_url: https://c1-infra.clippitamine.systems/elastic/article/_search
-  dataset_src_user: admin
-  dataset_src_start: 2010-01-01
-  dataset_src_end: 2025-01-01
-  dataset_src_query:
-    media_map:
-      cf08eb8c-1e50-4884-ae0a-9ccf7d735817: SLOVENSKE NOVICE
-      2fd717ed-78ba-4f63-b257-cd096acb6bda: DELO
-      f0f8c65f-3cf8-47e5-a958-5e5372450046: VEČER
-      64b8809a-4143-4609-9a59-eeed8bc180d7: DNEVNIK
-      d09bd49a-e71d-45ff-a30c-c7795d079cda: NOVICE SVET24
-      17c2f863-f348-4fe0-9ea5-02e4bedca568: NEDELJSKI DNEVNIK
-      2f4bae21-9e4b-4a5f-9168-c1eea24c86c0: MLADINA
-      5b7318c1-1a7d-4219-8427-fcd730a748eb: ONA
-      3456bb2d-4c31-401f-9e3d-d05dd13ae72b: VIKEND
-      7529f6b5-2a31-4359-86e6-3817136a3bb7: NEDELO
-      7eadd15d-28aa-485c-8c00-1e11cff87069: SOBOTNA PRILOGA
-      1b64e062-3e83-4591-af86-a6e244c45ed5: 24ur.com
-      754da261-9aee-4a1a-b9d8-734cd409fabf: zurnal24.si
-      d53a5e20-a6dd-4ca5-b989-2b662b028f7b: siol.net
-      0a8a2b48-c8cd-4776-9aa5-210fcb999315: metropolitan.si
-      1d51235d-5f06-4801-bfd2-b549cf788978: svet24.si
-      6a996b7c-b8ea-4aa9-ab67-d8d558d1cba4: n1info.si
-      29213ab4-199c-4b11-aa64-eaa37092adf6: rtvslo.si
-    industry_map:
-      ec4c9172-b612-3e0e-809b-72dbfbfb23f3: talum
-      f5f73321-fe7e-34b4-b701-6b41a999f512: sdh
-      1c4a5d3e-c0f1-3b6a-9b98-610c13505f0a: zns
-      648d1735-61b5-3f67-b9f5-413596acfe25: nlb
-      74a43247-0343-3a8d-9d5c-b046d90308c1: salonit
-      c5dd0ca4-4951-3cd3-915a-3de7993042f7: sž
-      9612f51c-947b-38b4-98cb-bb06c9a9c07d: sij
-      0f7bce51-1fd4-3bc7-b1bb-210442570e2f: triglav
-      829826a3-0221-3b41-8364-102835c4dfb7: telekom
-      6318f134-93e2-30d2-b047-63c61e1471e7: cinkarna
-    industry_match:
-      talum:
-        uuid: ec4c9172-b612-3e0e-809b-72dbfbfb23f3
-        keywords:
-          - talum*
-      sdh:
-        uuid: f5f73321-fe7e-34b4-b701-6b41a999f512
-        keywords:
-          - SDH
-        expressions:
-          - slovensk* držav* holding*
-      zns:
-        uuid: 1c4a5d3e-c0f1-3b6a-9b98-610c13505f0a
-          - združenj* nadzornik* sloveni*
-      nlb:
-        uuid: 648d1735-61b5-3f67-b9f5-413596acfe25
-        keywords:
-          - NLB
-        expression:
-          - nov* ljubjansk* bank*
-      salonit:
-        uuid: 74a43247-0343-3a8d-9d5c-b046d90308c1
-        expressions:
-          - salonit* anhov*
-          - alpacem*
-      sž:
-        uuid: c5dd0ca4-4951-3cd3-915a-3de7993042f7
-        expressions:
-          - slovensk* železnic*
-        keywords:
-          - SŽ
-      sij:
-        uuid: 9612f51c-947b-38b4-98cb-bb06c9a9c07d
-        keywords:
-          - SIJ
-        expressions:
-          - slovensk* industrij* jekla
-      triglav:
-        uuid: 0f7bce51-1fd4-3bc7-b1bb-210442570e2f
-        expressions:
-          - zavarovaln* triglav*
-          - triglav* zavarovaln*
-      telekom:
-        uuid: 829826a3-0221-3b41-8364-102835c4dfb7
-        expressions:
-          - telekom* sloven*
-      cinkarna:
-        uuid: 6318f134-93e2-30d2-b047-63c61e1471e7
-        expressions:
-          - cinkarn* celje*
-      steklarna:
-        uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f990  # synthetic
-        expressions:
-          - steklarn* hrastnik*
-      sava:
-        uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f991  # synthetic
-        expressions:
-          - zavarovaln* sav*
-      otp:
-        uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f992  # synthetic
-        expressions:
-          - otp* bank*
-        keywords:
-          - OTP
-      pošta:
-        uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f993  # synthetic
-        expressions:
-          - pošt* sloven*
-      petrol:
-        uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f994  # synthetic
-        keywords:
-          - Petrol*
-          - PETROL*
-      trbovlje:
-        uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f995  # synthetic
-        keywords:
-          - RTH
-        expressions:
-          - rudnik* trbovlj* hrastnik*
-          - rudnik* trbovlj*
-      šoštanj:
-        uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f996  # synthetic
-        keywords:
-          - TEŠ
-        expressions:
-          - termoelektrarn* šoštanj*
-      sid:
-        uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f997  # synthetic
-        keywords:
-          - SID
-        expressions:
-          - sid* bank*
-      intereuropa:
-        uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f998  # synthetic
-        keywords:
-          - intereurop*
-    template: |
-      {
-        "query": {
-          "bool": {
-            "filter": [
-              {
-                "range": {
-                  "created": {
-                    "gte": "<date_start>",
-                    "lt": "<date_end>"
+  source:
+    conn:
+      url: https://c1-infra.clippitamine.systems/elastic/article/_search
+      username: admin
+    select:
+      start: 2010-01-01
+      end: 2025-01-01
+      query:
+        media_map:
+          cf08eb8c-1e50-4884-ae0a-9ccf7d735817: SLOVENSKE NOVICE
+          2fd717ed-78ba-4f63-b257-cd096acb6bda: DELO
+          f0f8c65f-3cf8-47e5-a958-5e5372450046: VEČER
+          64b8809a-4143-4609-9a59-eeed8bc180d7: DNEVNIK
+          d09bd49a-e71d-45ff-a30c-c7795d079cda: NOVICE SVET24
+          17c2f863-f348-4fe0-9ea5-02e4bedca568: NEDELJSKI DNEVNIK
+          2f4bae21-9e4b-4a5f-9168-c1eea24c86c0: MLADINA
+          5b7318c1-1a7d-4219-8427-fcd730a748eb: ONA
+          3456bb2d-4c31-401f-9e3d-d05dd13ae72b: VIKEND
+          7529f6b5-2a31-4359-86e6-3817136a3bb7: NEDELO
+          7eadd15d-28aa-485c-8c00-1e11cff87069: SOBOTNA PRILOGA
+          1b64e062-3e83-4591-af86-a6e244c45ed5: 24ur.com
+          754da261-9aee-4a1a-b9d8-734cd409fabf: zurnal24.si
+          d53a5e20-a6dd-4ca5-b989-2b662b028f7b: siol.net
+          0a8a2b48-c8cd-4776-9aa5-210fcb999315: metropolitan.si
+          1d51235d-5f06-4801-bfd2-b549cf788978: svet24.si
+          6a996b7c-b8ea-4aa9-ab67-d8d558d1cba4: n1info.si
+          29213ab4-199c-4b11-aa64-eaa37092adf6: rtvslo.si
+        industry_map:
+          ec4c9172-b612-3e0e-809b-72dbfbfb23f3: talum
+          f5f73321-fe7e-34b4-b701-6b41a999f512: sdh
+          1c4a5d3e-c0f1-3b6a-9b98-610c13505f0a: zns
+          648d1735-61b5-3f67-b9f5-413596acfe25: nlb
+          74a43247-0343-3a8d-9d5c-b046d90308c1: salonit
+          c5dd0ca4-4951-3cd3-915a-3de7993042f7: sž
+          9612f51c-947b-38b4-98cb-bb06c9a9c07d: sij
+          0f7bce51-1fd4-3bc7-b1bb-210442570e2f: triglav
+          829826a3-0221-3b41-8364-102835c4dfb7: telekom
+          6318f134-93e2-30d2-b047-63c61e1471e7: cinkarna
+        industry_match:
+          talum:
+            uuid: ec4c9172-b612-3e0e-809b-72dbfbfb23f3
+            keywords:
+              - talum*
+          sdh:
+            uuid: f5f73321-fe7e-34b4-b701-6b41a999f512
+            keywords:
+              - SDH
+            expressions:
+              - slovensk* držav* holding*
+          zns:
+            uuid: 1c4a5d3e-c0f1-3b6a-9b98-610c13505f0a
+              - združenj* nadzornik* sloveni*
+          nlb:
+            uuid: 648d1735-61b5-3f67-b9f5-413596acfe25
+            keywords:
+              - NLB
+            expression:
+              - nov* ljubjansk* bank*
+          salonit:
+            uuid: 74a43247-0343-3a8d-9d5c-b046d90308c1
+            expressions:
+              - salonit* anhov*
+              - alpacem*
+          sž:
+            uuid: c5dd0ca4-4951-3cd3-915a-3de7993042f7
+            expressions:
+              - slovensk* železnic*
+            keywords:
+              - SŽ
+          sij:
+            uuid: 9612f51c-947b-38b4-98cb-bb06c9a9c07d
+            keywords:
+              - SIJ
+            expressions:
+              - slovensk* industrij* jekla
+          triglav:
+            uuid: 0f7bce51-1fd4-3bc7-b1bb-210442570e2f
+            expressions:
+              - zavarovaln* triglav*
+              - triglav* zavarovaln*
+          telekom:
+            uuid: 829826a3-0221-3b41-8364-102835c4dfb7
+            expressions:
+              - telekom* sloven*
+          cinkarna:
+            uuid: 6318f134-93e2-30d2-b047-63c61e1471e7
+            expressions:
+              - cinkarn* celje*
+          steklarna:
+            uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f990  # synthetic
+            expressions:
+              - steklarn* hrastnik*
+          sava:
+            uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f991  # synthetic
+            expressions:
+              - zavarovaln* sav*
+          otp:
+            uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f992  # synthetic
+            expressions:
+              - otp* bank*
+            keywords:
+              - OTP
+          pošta:
+            uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f993  # synthetic
+            expressions:
+              - pošt* sloven*
+          petrol:
+            uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f994  # synthetic
+            keywords:
+              - Petrol*
+              - PETROL*
+          trbovlje:
+            uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f995  # synthetic
+            keywords:
+              - RTH
+            expressions:
+              - rudnik* trbovlj* hrastnik*
+              - rudnik* trbovlj*
+          šoštanj:
+            uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f996  # synthetic
+            keywords:
+              - TEŠ
+            expressions:
+              - termoelektrarn* šoštanj*
+          sid:
+            uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f997  # synthetic
+            keywords:
+              - SID
+            expressions:
+              - sid* bank*
+          intereuropa:
+            uuid: 918ceb8d-ff6e-4a3c-a5f3-e2d1ff61f998  # synthetic
+            keywords:
+              - intereurop*
+        template: |
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "created": {
+                        "gte": "<date_start>",
+                        "lt": "<date_end>"
+                      }
+                    }
+                  },
+                  {
+                    "terms": {
+                      "media.uuid": [
+                        "b729ce5a-5277-4aa3-91b1-da102d76681f",
+                        "cf08eb8c-1e50-4884-ae0a-9ccf7d735817",
+                        "2fd717ed-78ba-4f63-b257-cd096acb6bda",
+                        "f0f8c65f-3cf8-47e5-a958-5e5372450046",
+                        "64b8809a-4143-4609-9a59-eeed8bc180d7",
+                        "d09bd49a-e71d-45ff-a30c-c7795d079cda",
+                        "17c2f863-f348-4fe0-9ea5-02e4bedca568",
+                        "2f4bae21-9e4b-4a5f-9168-c1eea24c86c0",
+                        "5b7318c1-1a7d-4219-8427-fcd730a748eb",
+                        "3456bb2d-4c31-401f-9e3d-d05dd13ae72b",
+                        "7529f6b5-2a31-4359-86e6-3817136a3bb7",
+                        "7eadd15d-28aa-485c-8c00-1e11cff87069",
+                        "1b64e062-3e83-4591-af86-a6e244c45ed5",
+                        "754da261-9aee-4a1a-b9d8-734cd409fabf",
+                        "d53a5e20-a6dd-4ca5-b989-2b662b028f7b",
+                        "0a8a2b48-c8cd-4776-9aa5-210fcb999315",
+                        "1d51235d-5f06-4801-bfd2-b549cf788978",
+                        "6a996b7c-b8ea-4aa9-ab67-d8d558d1cba4",
+                        "29213ab4-199c-4b11-aa64-eaa37092adf6"
+                      ]
+                    }
                   }
-                }
-              },
-              {
-                "terms": {
-                  "media.uuid": [
-                    "b729ce5a-5277-4aa3-91b1-da102d76681f",
-                    "cf08eb8c-1e50-4884-ae0a-9ccf7d735817",
-                    "2fd717ed-78ba-4f63-b257-cd096acb6bda",
-                    "f0f8c65f-3cf8-47e5-a958-5e5372450046",
-                    "64b8809a-4143-4609-9a59-eeed8bc180d7",
-                    "d09bd49a-e71d-45ff-a30c-c7795d079cda",
-                    "17c2f863-f348-4fe0-9ea5-02e4bedca568",
-                    "2f4bae21-9e4b-4a5f-9168-c1eea24c86c0",
-                    "5b7318c1-1a7d-4219-8427-fcd730a748eb",
-                    "3456bb2d-4c31-401f-9e3d-d05dd13ae72b",
-                    "7529f6b5-2a31-4359-86e6-3817136a3bb7",
-                    "7eadd15d-28aa-485c-8c00-1e11cff87069",
-                    "1b64e062-3e83-4591-af86-a6e244c45ed5",
-                    "754da261-9aee-4a1a-b9d8-734cd409fabf",
-                    "d53a5e20-a6dd-4ca5-b989-2b662b028f7b",
-                    "0a8a2b48-c8cd-4776-9aa5-210fcb999315",
-                    "1d51235d-5f06-4801-bfd2-b549cf788978",
-                    "6a996b7c-b8ea-4aa9-ab67-d8d558d1cba4",
-                    "29213ab4-199c-4b11-aa64-eaa37092adf6"
-                  ]
-                }
+                ],
+                "should": [
+                  <should_match>
+                ],
+                "minimum_should_match": 1
               }
+            },
+            "_source": [
+              "uuid", "created", "published", "tags", "media.name", "media.uuid", "media.tags", "country.name", "language", 
+              "rubric.uuid", "rubric.name", "duration", "mediaReach", "advertValue", "translations", "url"
             ],
-            "should": [
-              <should_match>
-            ],
-            "minimum_should_match": 1
+            "from": <from>,
+            "size": <size>,
+            "sort": { "created": {"order": "asc"}}
           }
-        },
-        "_source": [
-          "uuid", "created", "published", "tags", "media.name", "media.uuid", "media.tags", "country.name", "language", 
-          "rubric.uuid", "rubric.name", "duration", "mediaReach", "advertValue", "translations", "url"
-        ],
-        "from": <from>,
-        "size": <size>,
-        "sort": { "created": {"order": "asc"}}
-      }

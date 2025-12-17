@@ -1,26 +1,58 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List
+
+
+@dataclass
+class TranslateConfig:
+    src_lang: str = 'en'
+    lang: str = ''
+    prompt: str = ''
+
+
+@dataclass
+class ConnectionConfig:
+    url: str = ''
+    username: str = ''
+    password: str = ''
+
+
+@dataclass
+class SourceSelectConfig:
+    start: str = ''
+    end: str = ''
+    query: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class SourceConfigLink:
+    url: str = ''
+    lang: str = ''
+
+
+@dataclass
+class SourceConfig:
+    select: SourceSelectConfig = field(default_factory=SourceSelectConfig)
+    conn: ConnectionConfig = field(default_factory=ConnectionConfig)
+    lang: str = ''
+    links: List[SourceConfigLink] = field(default_factory=list)
+
+
+@dataclass
+class SplitConfig:
+    train: float = 0.8
+    eval: float = 0.1
+    test: float = 0.1
+    seed: int = 42
 
 
 @dataclass
 class DataArguments:
     dataset_name: str = ''
-    dataset_urls: List[str] = field(default_factory=list)
-    dataset_config_name: str = ''
+    version: str = ''
     label_remap: Dict[str, Dict[Any, Any]] = field(default_factory=dict)
     overwrite_cache: bool = False
     preprocessing_num_workers: int = 4
-    split: Dict[str, Union[float, int]] = field(
-        default_factory=lambda: {
-            'train': 0.8,
-            'eval': 0.1,
-            'test': 0.1,
-            'seed': 42
-        }
-    )
+    split: SplitConfig = field(default_factory=SplitConfig)
     subdata_order: List[str] = field(default_factory=list)
-    dataset_src_url: str = ''
-    dataset_src_start: str = ''
-    dataset_src_end: str = ''
-    dataset_src_user: str = ''
-    dataset_src_query: Dict[str, Any] = field(default_factory=dict)
+    translate: TranslateConfig = field(default_factory=TranslateConfig)
+    source: SourceConfig = field(default_factory=SourceConfig)

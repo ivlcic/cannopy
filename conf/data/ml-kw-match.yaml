@@ -1,228 +1,231 @@
 data:
   dataset_name: ml-kw-match
-  dataset_src_url: https://c1-infra.clippitamine.systems/elastic/article/_search
-  dataset_src_user: admin
-  dataset_src_start: 2005-01-01
-  dataset_src_end: 2025-01-01
-  dataset_src_query:
-    template: |
-      {
-        "query": {
-          "bool": {
-            "filter": [
-              {
-                "range": {
-                  "created": {
-                    "gte": "<date_start>",
-                    "lt": "<date_end>"
+  source:
+    conn:
+      url: https://c1-infra.clippitamine.systems/elastic/article/_search
+      username: admin
+    select:
+      start: 2005-01-01
+      end: 2025-01-01
+      query:
+        template: |
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "created": {
+                        "gte": "<date_start>",
+                        "lt": "<date_end>"
+                      }
+                    }
                   }
-                }
+                ],
+                "should": [
+                  <should_match>
+                ],
+                "minimum_should_match": 1
               }
+            },
+            "_source": [
+              "uuid", "created", "published", "tags", "media.name", "media.uuid", "media.tags", "country.name", "language", 
+              "rubric.uuid", "rubric.name", "duration", "mediaReach", "advertValue", "translations", "url"
             ],
-            "should": [
-              <should_match>
-            ],
-            "minimum_should_match": 1
+            "from": "<from>",
+            "size": "<size>",
+            "sort": { "created": {"order": "asc"}}
           }
-        },
-        "_source": [
-          "uuid", "created", "published", "tags", "media.name", "media.uuid", "media.tags", "country.name", "language", 
-          "rubric.uuid", "rubric.name", "duration", "mediaReach", "advertValue", "translations", "url"
-        ],
-        "from": "<from>",
-        "size": "<size>",
-        "sort": { "created": {"order": "asc"}}
-      }
-    keywords:
-      zda:
-        - USA
-        - U.S.A.
-        - United States
-        - United States of America
-        - ZDA
-        - ZDA-ja
-        - ZDA-ju
-        - SAD
-        - SAD-u
-        - SAD-a
-        - SAD-om
-        - SAD-e
-        - САД
-        - САД-а
-        - САД-у
-        - САД-е
-        - САД-ом
-        - Združene Države Amerike
-        - Združenih Držav Amerike
-        - Sjedinjene Američke Države
-        - Sjedinjenih Američkih Država
-        - Сједињене Америчке Државе
-        - Соединети Американски Држави
-        - Соединетите Американски Држави
-        #- američani
-        #- američanov
-        #- američanom
-        #- američane
-        #- američanih
-        #- amerikanci
-        #- amerikanaca
-        #- amerikancima
-        #- amerikance
-        #- американци
-        #- американаца
-        #- американцима
-        #- американце
-        #- американците
-      nato:
-        - NATO-m
-        - NATO
-        - NATA
-        - NATU
-        - NATOM
-        - NATE
-        - НАТО
-        - НАТА
-        - НАТУ
-        - НАТОМ
-        - НАТО-m
-        - НАТЕ
-        - North Atlantic Treaty Organization
-        - Severnoatlantska zveza
-        - Severnoatlantske zveze
-        - Severnoatlantski savez
-        - Severnoatlantskog saveza
-        - Severnoatlantskom savezu
-        - Северноатлантски савез
-        - Северноатлантског савеза
-        - Северноатлантском савезу
-        - Северно атлантски сојуз
-        - Северно атлантскиот сојуз
-      tesla:
-        - Tesla
-        - TESLA
-        - Tesle
-        - TESLE
-        - Tesli
-        - TESLI
-        - Teslo
-        - TESLO
-        - Teslu
-        - TESLU
-        - Teslom
-        - TESLOM
-        - Тесла
-        - ТЕСЛА
-        - Тесле
-        - ТЕСЛЕ
-        - Тесли
-        - ТЕСЛИ
-        - Тесло
-        - ТЕСЛО
-        - Теслу
-        - ТЕСЛУ
-        - Теслом
-        - ТЕСЛОМ
-        - Тесла
-        - ТЕСЛА
-        - Тесли
-        - ТЕСЛИ
-        - Тесла
-        - Тесљa
-        - ТЕСЉА
-        - Теслата
-        - ТЕСЛАТА
-        - Теслава
-        - ТЕСЛАВА
-        - Теслана
-        - ТЕСЛАНА
-      ikea:
-        - Ikea
-        - IKEa
-        - Ikee
-        - IKEE
-        - Ikei
-        - IKEI
-        - Ikeo
-        - IKEO
-        - Ikeu
-        - IKEU
-        - Ikeom
-        - IKEOM
-        - Икеа
-        - ИКЕА
-        - Икее
-        - ИКЕЕ
-        - Икеи
-        - ИКЕИ
-        - Икео
-        - ИКЕО
-        - Икеу
-        - ИКЕУ
-        - Икеом
-        - ИКЕОМ
-        - Икеја
-        - ИКЕЈА
-        - Икеата
-        - ИКЕАТА
-        - Икеава
-        - ИКЕАВА
-        - Икеана
-        - ИКЕАНА
-        - Икејa
-        - ИКЕЈА
-      volkswagen:
-        - Volkswagen
-        - Volkswagna
-        - Volkswagnu
-        - Volkswagnom
-        - Volkswagni
-        - Volkswagnih
-        - Volkswagne
-        - VW
-        - VWa
-        - VWu
-        - VWom
-        - VWi
-        - VWh
-        - VWe
-        - Volkswagena
-        - Volkswagenu
-        - Volkswagenom
-        - Volkswagene
-        - Volkswagenu
-        - Фолксваген
-        - Фолксвагена
-        - Фолксвагену
-        - Фолксвагеном
-        - Фолксвагене
-        - Фолксвагену
-        - Фолксвагенот
-        - Фолксвагени
-      global_warming:
-        - globalno segrevanje
-        - globalnega segrevanja
-        - globalnemu segrevanju
-        - globalnem segrevanju
-        - globalnim segrevanjem
-        - globalno zagrijavanje
-        - globalnog zagrijavanja
-        - globalnom zagrijavanju
-        - globalnim zagrijavanjem
-        - globalno zatopljenje
-        - globalnog zatopljenja
-        - globalno zagrevanje
-        - globalnog zagrevanja
-        - globalnom zagrevanju
-        - globalnim zagrevanjem
-        - globalnom zatopljenju
-        - globalnim zatopljenjem
-        - глобално загревање
-        - глобалног загревања
-        - глобалном загревању
-        - глобалним загревањем
-        - глобално затопљење
-        - глобалног затопљења
-        - глобалном затопљењу
-        - глобалним затопљењем
-        - глобално затоплување
-        - глобалното затоплување
+        keywords:
+          zda:
+            - USA
+            - U.S.A.
+            - United States
+            - United States of America
+            - ZDA
+            - ZDA-ja
+            - ZDA-ju
+            - SAD
+            - SAD-u
+            - SAD-a
+            - SAD-om
+            - SAD-e
+            - САД
+            - САД-а
+            - САД-у
+            - САД-е
+            - САД-ом
+            - Združene Države Amerike
+            - Združenih Držav Amerike
+            - Sjedinjene Američke Države
+            - Sjedinjenih Američkih Država
+            - Сједињене Америчке Државе
+            - Соединети Американски Држави
+            - Соединетите Американски Држави
+            #- američani
+            #- američanov
+            #- američanom
+            #- američane
+            #- američanih
+            #- amerikanci
+            #- amerikanaca
+            #- amerikancima
+            #- amerikance
+            #- американци
+            #- американаца
+            #- американцима
+            #- американце
+            #- американците
+          nato:
+            - NATO-m
+            - NATO
+            - NATA
+            - NATU
+            - NATOM
+            - NATE
+            - НАТО
+            - НАТА
+            - НАТУ
+            - НАТОМ
+            - НАТО-m
+            - НАТЕ
+            - North Atlantic Treaty Organization
+            - Severnoatlantska zveza
+            - Severnoatlantske zveze
+            - Severnoatlantski savez
+            - Severnoatlantskog saveza
+            - Severnoatlantskom savezu
+            - Северноатлантски савез
+            - Северноатлантског савеза
+            - Северноатлантском савезу
+            - Северно атлантски сојуз
+            - Северно атлантскиот сојуз
+          tesla:
+            - Tesla
+            - TESLA
+            - Tesle
+            - TESLE
+            - Tesli
+            - TESLI
+            - Teslo
+            - TESLO
+            - Teslu
+            - TESLU
+            - Teslom
+            - TESLOM
+            - Тесла
+            - ТЕСЛА
+            - Тесле
+            - ТЕСЛЕ
+            - Тесли
+            - ТЕСЛИ
+            - Тесло
+            - ТЕСЛО
+            - Теслу
+            - ТЕСЛУ
+            - Теслом
+            - ТЕСЛОМ
+            - Тесла
+            - ТЕСЛА
+            - Тесли
+            - ТЕСЛИ
+            - Тесла
+            - Тесљa
+            - ТЕСЉА
+            - Теслата
+            - ТЕСЛАТА
+            - Теслава
+            - ТЕСЛАВА
+            - Теслана
+            - ТЕСЛАНА
+          ikea:
+            - Ikea
+            - IKEa
+            - Ikee
+            - IKEE
+            - Ikei
+            - IKEI
+            - Ikeo
+            - IKEO
+            - Ikeu
+            - IKEU
+            - Ikeom
+            - IKEOM
+            - Икеа
+            - ИКЕА
+            - Икее
+            - ИКЕЕ
+            - Икеи
+            - ИКЕИ
+            - Икео
+            - ИКЕО
+            - Икеу
+            - ИКЕУ
+            - Икеом
+            - ИКЕОМ
+            - Икеја
+            - ИКЕЈА
+            - Икеата
+            - ИКЕАТА
+            - Икеава
+            - ИКЕАВА
+            - Икеана
+            - ИКЕАНА
+            - Икејa
+            - ИКЕЈА
+          volkswagen:
+            - Volkswagen
+            - Volkswagna
+            - Volkswagnu
+            - Volkswagnom
+            - Volkswagni
+            - Volkswagnih
+            - Volkswagne
+            - VW
+            - VWa
+            - VWu
+            - VWom
+            - VWi
+            - VWh
+            - VWe
+            - Volkswagena
+            - Volkswagenu
+            - Volkswagenom
+            - Volkswagene
+            - Volkswagenu
+            - Фолксваген
+            - Фолксвагена
+            - Фолксвагену
+            - Фолксвагеном
+            - Фолксвагене
+            - Фолксвагену
+            - Фолксвагенот
+            - Фолксвагени
+          global_warming:
+            - globalno segrevanje
+            - globalnega segrevanja
+            - globalnemu segrevanju
+            - globalnem segrevanju
+            - globalnim segrevanjem
+            - globalno zagrijavanje
+            - globalnog zagrijavanja
+            - globalnom zagrijavanju
+            - globalnim zagrijavanjem
+            - globalno zatopljenje
+            - globalnog zatopljenja
+            - globalno zagrevanje
+            - globalnog zagrevanja
+            - globalnom zagrevanju
+            - globalnim zagrevanjem
+            - globalnom zatopljenju
+            - globalnim zatopljenjem
+            - глобално загревање
+            - глобалног загревања
+            - глобалном загревању
+            - глобалним загревањем
+            - глобално затопљење
+            - глобалног затопљења
+            - глобалном затопљењу
+            - глобалним затопљењем
+            - глобално затоплување
+            - глобалното затоплување

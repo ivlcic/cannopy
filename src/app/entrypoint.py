@@ -6,10 +6,10 @@ import importlib.util
 import inspect
 import logging
 import logging.config
-from dataclasses import fields
+from dataclasses import fields, is_dataclass, replace
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union, get_args, get_origin
 
 import yaml
 from transformers import HfArgumentParser, TrainingArguments
@@ -174,10 +174,63 @@ def _split_for_dataclasses(merged: Dict[str, Any]) \
     return model_dict, data_dict, train_dict, other
 
 
+def _is_dataclass_type(t) -> bool:
+    try:
+        return inspect.isclass(t) and is_dataclass(t)
+    except TypeError:
+        return False
+
+
+def _coerce_dataclass(cls, data: Dict[str, Any]):
+    kwargs = {}
+    for f in fields(cls):
+        if f.name not in data:
+            continue
+        val = data[f.name]
+        f_type = f.type
+        if _is_dataclass_type(f_type) and isinstance(val, dict):
+            kwargs[f.name] = _coerce_dataclass(f_type, val)
+        else:
+            origin = get_origin(f_type)
+            args = get_args(f_type)
+            if origin is Union:
+                nested = next((a for a in args if _is_dataclass_type(a)), None)
+                if nested and isinstance(val, dict):
+                    kwargs[f.name] = _coerce_dataclass(nested, val)
+                    continue
+            kwargs[f.name] = val
+    return cls(**kwargs)
+
+
+def _coerce_nested_dataclasses(obj):
+    if not is_dataclass(obj):
+        return obj
+    updates = {}
+    for f in fields(obj):
+        val = getattr(obj, f.name)
+        f_type = f.type
+        if _is_dataclass_type(f_type) and isinstance(val, dict):
+            updates[f.name] = _coerce_dataclass(f_type, val)
+        elif is_dataclass(val):
+            updates[f.name] = _coerce_nested_dataclasses(val)
+        else:
+            origin = get_origin(f_type)
+            args = get_args(f_type)
+            if origin is Union:
+                nested = next((a for a in args if _is_dataclass_type(a)), None)
+                if nested and isinstance(val, dict):
+                    updates[f.name] = _coerce_dataclass(nested, val)
+    if updates:
+        return replace(obj, **updates)
+    return obj
+
+
 def _parse_hf_args(merged: Dict[str, Any]) -> Tuple[ModelArguments, DataArguments, TrainingArguments, Dict[str, Any]]:
     model_dict, data_dict, train_dict, extras = _split_for_dataclasses(merged)
     parser = HfArgumentParser((ModelArguments, DataArguments))
-    model_args, data_args = parser.parse_dict({**model_dict, **data_dict}, True)
+    model_args, data_args = parser.parse_dict({**model_dict, **data_dict}, allow_extra_keys=True)
+    model_args = _coerce_nested_dataclasses(model_args)
+    data_args = _coerce_nested_dataclasses(data_args)
     training_args = TrainingArguments(**train_dict)
     return model_args, data_args, training_args, extras
 

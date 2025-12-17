@@ -26,24 +26,31 @@ def contains_any(text: str, keywords: list[str]) -> bool:
     return False
 
 
-# noinspection PyUnresolvedReferences,DuplicatedCode
+# noinspection DuplicatedCode
 def write(state: DateTimeState):
+    # noinspection PyUnresolvedReferences
+    data_args: DataArguments = state.data_args
+    # noinspection PyUnresolvedReferences
+    runtime_data: RuntimeData = state.runtime_data
     data_create_path = paths['create']['data']
-    file_name = state.data_args.dataset_name + f"-{state.runtime_data.file_num:02d}"
+    file_name = data_args.dataset_name + f"-{runtime_data.file_num:02d}"
     ElasticWriter.write_to_file(
-        state.runtime_data.items,
+        runtime_data.items,
         data_create_path,
         file_name
     )
     logger.info("Writing data to %s", data_create_path)
-    state.runtime_data.file_num += 1
-    state.runtime_data.items = []
+    runtime_data.file_num += 1
+    runtime_data.items = []
 
 
-# noinspection PyUnresolvedReferences
 def load_data(state: DateTimeState):
-    req = ElasticQuery(state.data_args.dataset_src_url, state.data_args.dataset_src_user)
-    query_desc: Dict[str, Any] = state.data_args.dataset_src_query
+    # noinspection PyUnresolvedReferences
+    data_args: DataArguments = state.data_args
+    # noinspection PyUnresolvedReferences
+    runtime_data: RuntimeData = state.runtime_data
+    req = ElasticQuery(data_args.source.conn.url, data_args.source.conn.username)
+    query_desc: Dict[str, Any] = data_args.source.select.query
     items_batch = {}
     for category, keywords in query_desc['keywords'].items():
         query = query_desc['template']
@@ -74,8 +81,8 @@ def load_data(state: DateTimeState):
             items_batch[result['uuid']] = item
 
     for k, item in items_batch.items():
-        state.runtime_data.items.append(item)
-        if state.runtime_data.num_items_per_file == len(state.runtime_data.items):
+        runtime_data.items.append(item)
+        if runtime_data.num_items_per_file == len(runtime_data.items):
             write(state)
 
 
@@ -85,8 +92,8 @@ def main(data_args: DataArguments) -> None:
     runtime = RuntimeData(num_items_per_file=50000)
     state = None
     for state in DateTimeIterator(
-            start=data_args.dataset_src_start,
-            end=data_args.dataset_src_end,
+            start=data_args.source.select.start,
+            end=data_args.source.select.end,
             step=timedelta(days=10),
             callback=load_data,
             data_args=data_args,
