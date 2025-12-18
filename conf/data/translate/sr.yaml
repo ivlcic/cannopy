@@ -1,0 +1,32 @@
+data:
+  translate:
+    src_lang: en
+    lang: sr
+    models:
+      default:
+        provider: openai
+        parameters:
+          model: gpt-5-mini
+          reasoning_effort: minimal
+          verbosity: low
+          top_p: 1
+          stream: False
+
+      precise:
+        provider: openai
+        parameters:
+          parameters:
+            model: gpt-5.2
+            reasoning_effort: low
+            verbosity: low
+            top_p: 1
+            stream: False
+    prompt: |
+      You are a high-precision dataset translator.
+      Translate from English to Serbian.
+      - Preserve meaning exactly.
+      - Use neutral, standard Serbian.
+      - Do NOT add explanations.
+      - Use Latin script
+      - Do not translate library names, API calls, or code identifiers.
+      - Preserve formatting like <tags> or markdown.

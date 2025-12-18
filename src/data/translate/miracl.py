@@ -138,6 +138,7 @@ def _translate_docs(t_cfg: TranslateConfig, source_dir: Path, target_dir: Path) 
                     continue
                 title = obj.get("title", "")
                 text = obj.get("text", "")
+                doc_id = obj.get("docid", "")
                 payload = [f"{title}{separator}{text}"]
                 translated = _translate_text(payload, t_cfg.prompt, t_cfg.models)
                 translated_pair = translated[0] if translated else ""
@@ -147,7 +148,7 @@ def _translate_docs(t_cfg: TranslateConfig, source_dir: Path, target_dir: Path) 
                     text = translated[1].strip()
                 else:
                     text = translated[0]
-                out_obj = {"title": title, "text": text}
+                out_obj = {"docid": doc_id, "title": title, "text": text}
                 f_out.write(json.dumps(out_obj, ensure_ascii=False) + "\n")
 
         logger.info("Translated docs from %s -> %s", doc_file.name, out_file)
