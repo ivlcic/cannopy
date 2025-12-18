@@ -1,7 +1,7 @@
 data:
   translate:
     src_lang: en
-    lang: sr
+    lang: hr
     models:
       default:
         provider: openai
@@ -23,9 +23,9 @@ data:
             stream: False
     prompt: |
       You are a high-precision dataset translator.
-      Translate from English to Serbian.
+      Translate from English to Croatian.
       - Preserve meaning exactly.
-      - Use neutral, standard Serbian.
+      - Use neutral, standard Croatian.
       - Do NOT add explanations.
       - Do not translate library names, API calls, or code identifiers.
       - Preserve formatting like <tags> or markdown.

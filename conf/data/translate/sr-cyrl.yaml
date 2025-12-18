@@ -1,7 +1,7 @@
 data:
   translate:
     src_lang: en
-    lang: sr
+    lang: sr-cyrl
     models:
       default:
         provider: openai
@@ -27,5 +27,6 @@ data:
       - Preserve meaning exactly.
       - Use neutral, standard Serbian.
       - Do NOT add explanations.
+      - Use Cyrillic script.
       - Do not translate library names, API calls, or code identifiers.
       - Preserve formatting like <tags> or markdown.

@@ -1,6 +1,7 @@
 import csv
 import json
 import shutil
+from collections import defaultdict
 
 from logging import Logger
 from pathlib import Path
@@ -110,46 +111,92 @@ def _translate_topics(t_cfg: TranslateConfig, source_dir, target_dir) -> None:
     logger.info("Translated %d total rows into %s", total, target_dir)
 
 
-def _translate_docs(t_cfg: TranslateConfig, source_dir: Path, target_dir: Path) -> None:
+def _load_topic(fn):
+    qid2topic = {}
+    with open(fn, encoding="utf-8") as f:
+        for line in f:
+            qid, topic = line.strip().split('\t')
+            qid2topic[qid] = topic
+    return qid2topic
+
+
+def _load_qrels(fn):
+    if fn is None:
+        return None
+
+    qrels = defaultdict(dict)
+    with open(fn, encoding="utf-8") as f:
+        for line in f:
+            qid, _, docid, rel = line.strip().split('\t')
+            qrels[qid][docid] = int(rel)
+    return qrels
+
+
+def _select_translation_docs(data_args: DataArguments, source_dir: Path, target_dir: Path) -> None:
+    t_cfg = data_args.translate
+    out_file = target_dir.parent / f'docs-qrels-{t_cfg.src_lang}.jsonl'
+    if out_file.exists():
+        return
+
+    docids = []
+    for split in ["dev", "train"]:
+        topic_file = source_dir / f"topics.miracl-v{data_args.version}-{t_cfg.src_lang}-{split}.tsv"
+        qrels_file = source_dir / f"qrels.miracl-v{data_args.version}-{t_cfg.src_lang}-{split}.tsv"
+        qid2topic = _load_topic(topic_file)
+        qrels = _load_qrels(qrels_file)
+        for qid in qid2topic:
+            docids.extend(qrels[qid].keys())
+
     doc_files = sorted([p for p in source_dir.glob("*.jsonl") if p.is_file()])
     if not doc_files:
         logger.warning("No doc files found in %s", source_dir)
         return
 
-    separator = "\n\n------\n\n"
     for doc_file in doc_files:
-        out_file = target_dir / doc_file.name
-        existing = 0
-        if out_file.exists():
-            with out_file.open("r", encoding="utf-8") as f_existing:
-                existing = sum(1 for _ in f_existing)
-
         with doc_file.open("r", encoding="utf-8") as f_in, out_file.open("a", encoding="utf-8") as f_out:
             for line_no, line in enumerate(f_in, start=1):
-                if line_no <= existing:
-                    continue
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    logger.warning("Skipping malformed JSON in %s line %d", doc_file.name, line_no)
-                    continue
-                title = obj.get("title", "")
-                text = obj.get("text", "")
-                doc_id = obj.get("docid", "")
-                payload = [f"{title}{separator}{text}"]
-                translated = _translate_text(payload, t_cfg.prompt, t_cfg.models)
-                translated_pair = translated[0] if translated else ""
-                translated = translated_pair.split(separator)
-                if len(translated) == 2:
-                    title = translated[0].strip()
-                    text = translated[1].strip()
-                else:
-                    text = translated[0]
-                out_obj = {"docid": doc_id, "title": title, "text": text}
-                f_out.write(json.dumps(out_obj, ensure_ascii=False) + "\n")
+                f_out.write(line)
+
+
+def _translate_docs(t_cfg: TranslateConfig, target_dir: Path) -> None:
+    doc_file = target_dir.parent / f'docs-qrels-{t_cfg.src_lang}.jsonl'
+    if not doc_file.exists():
+        logger.warning("No source docs language qrels file found in %s", target_dir)
+        return
+
+    separator = "\n\n------\n\n"
+    out_file = target_dir / f'docs-qrels-{t_cfg.lang}.jsonl'
+    existing = 0
+    if out_file.exists():
+        with out_file.open("r", encoding="utf-8") as f_existing:
+            existing = sum(1 for _ in f_existing)
+
+    with doc_file.open("r", encoding="utf-8") as f_in, out_file.open("a", encoding="utf-8") as f_out:
+        for line_no, line in enumerate(f_in, start=1):
+            if line_no <= existing:
+                continue
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                logger.warning("Skipping malformed JSON in %s line %d", doc_file.name, line_no)
+                continue
+            title = obj.get("title", "")
+            text = obj.get("text", "")
+            doc_id = obj.get("docid", "")
+            payload = [f"{title}{separator}{text}"]
+            translated = _translate_text(payload, t_cfg.prompt, t_cfg.models)
+            translated_pair = translated[0] if translated else ""
+            translated = translated_pair.split(separator)
+            if len(translated) == 2:
+                title = translated[0].strip()
+                text = translated[1].strip()
+            else:
+                text = translated[0]
+            out_obj = {"docid": doc_id, "title": title, "text": text}
+            f_out.write(json.dumps(out_obj, ensure_ascii=False) + "\n")
 
         logger.info("Translated docs from %s -> %s", doc_file.name, out_file)
 
@@ -166,4 +213,5 @@ def main(data_args: DataArguments) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
     _copy_related(t_cfg, source_dir, target_dir)
     _translate_topics(t_cfg, source_dir, target_dir)
-    _translate_docs(t_cfg, source_dir, target_dir)
+    _select_translation_docs(data_args, source_dir, target_dir)
+    _translate_docs(t_cfg, target_dir)
