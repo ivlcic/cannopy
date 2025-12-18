@@ -1,7 +1,7 @@
 data:
   translate:
     src_lang: en
-    lang: sr
+    lang: bg
     models:
       default:
         provider: openai
@@ -23,10 +23,9 @@ data:
             stream: False
     prompt: |
       You are a high-precision dataset translator.
-      Translate from English to Serbian.
+      Translate from English to Bulgarian.
       - Preserve meaning exactly.
-      - Use neutral, standard Serbian.
+      - Use neutral, standard Bulgarian.
       - Do NOT add explanations.
-      - Use Latin script.
       - Do not translate library names, API calls, or code identifiers.
       - Preserve formatting like <tags> or markdown.
