@@ -11,28 +11,27 @@ class Downloader:
         """
         Download a file from `url` and save it to `dest` safely.
         """
-        if '-o' in url:
-            parts = url.split('-o')
-            url = parts[0].strip()
-            filename = parts[1].strip()
-            if not str(dest.resolve()).endswith(filename):
+        if not dest.suffix:
+            for splitter in ['-o', 'file=', 'files=', 'filename=']:
+                if not splitter in url:
+                    continue
+                parts = url.split(splitter)
+                if ' ' in url:
+                    url = parts[0].strip()
+
+                filename = parts[1].strip()
                 dest = dest / filename
 
         dest_path = Path(dest)
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = dest_path.with_suffix(dest_path.suffix + ".part")
 
-        if 'drive.google.com' in url:
-            import gdown
-            gdown.download(url, str(tmp_path.resolve()))
-        else:
-            with requests.get(url, stream=True) as r:
-                r.raise_for_status()
-
-                with tmp_path.open("wb") as f:
-                    for chunk in r.iter_content(chunk_size=chunk_size):
-                        if chunk:
-                            f.write(chunk)
+        with requests.get(url, stream=True) as r:
+            r.raise_for_status()
+            with tmp_path.open("wb") as f:
+                for chunk in r.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        f.write(chunk)
 
         tmp_path.replace(dest_path)
         return dest_path

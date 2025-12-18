@@ -7,25 +7,25 @@ data:
     seed: 2611
   source:
     links:
-      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/CNEC_2.0_konkol.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=CNEC_2.0_konkol.zip
         lang: cs
-      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/bsnlp-2017-21.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=bsnlp-2017-21.zip
         lang: bg,cs,pl,ru,sl,uk
-      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/SUK.CoNLL-U.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=SUK.CoNLL-U.zip
         lang: sl
-      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/hr500k-1.0.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=hr500k-1.0.zip
         lang: hr
-      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/setimes-sr.conll.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=setimes-sr.conll.zip
         lang: sr
-      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/mk-wann.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=mk-wann.zip
         lang: mk
-      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/bs-wann.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=bs-wann.zip
         lang: bs
-      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/sk-wann.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=sk-wann.zip
         lang: sk
-      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/sq-wann.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=sq-wann.zip
         lang: sq
-      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download/ner-uk.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=ner-uk.zip
         lang: uk
   label_remap:
     cnec:

@@ -77,6 +77,8 @@ def merge_eurlex_jsons_and_remove_dir(eurlex_dir: PathLike, prefix: str, target_
         json_files = _gather_json_files(sd)
         if not json_files:
             raise MergeError(f'No .json files found in {sd} — aborting to avoid producing empty output.')
+        if split == 'dev':
+            split = 'eval'
         dest = target_dir / f'{prefix}.{split}.jsonl'
 
         # generator that yields records from all files in order

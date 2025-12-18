@@ -14,7 +14,7 @@ def main(data_args: DataArguments) -> None:
 
     download_dir = paths['download']['data']
     for link in data_args.source.links:
-        zip_file = Downloader.download(link.url, download_dir / link.url.split('/')[-1])
+        zip_file = Downloader.download(link.url, download_dir)
         logger.info(f'Downloaded {zip_file}')
         extract_dir = download_dir / 'ner' / zip_file.stem
         extract_dir.mkdir(parents=True, exist_ok=True)

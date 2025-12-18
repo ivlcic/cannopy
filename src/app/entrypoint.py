@@ -181,24 +181,38 @@ def _is_dataclass_type(t) -> bool:
         return False
 
 
+def _coerce_value(f_type, val):
+    if _is_dataclass_type(f_type) and isinstance(val, dict):
+        return _coerce_dataclass(f_type, val)
+
+    origin = get_origin(f_type)
+    args = get_args(f_type)
+
+    if origin is Union:
+        nested = next((a for a in args if _is_dataclass_type(a)), None)
+        if nested and isinstance(val, dict):
+            return _coerce_dataclass(nested, val)
+
+    if origin in (list, List):
+        inner = args[0] if args else None
+        if _is_dataclass_type(inner):
+            return [(_coerce_dataclass(inner, x) if isinstance(x, dict) else x) for x in val]
+
+    if origin in (dict, Dict) and len(args) == 2:
+        key_t, val_t = args
+        if _is_dataclass_type(val_t) and isinstance(val, dict):
+            return {k: _coerce_dataclass(val_t, v) if isinstance(v, dict) else v for k, v in val.items()}
+
+    return val
+
+
 def _coerce_dataclass(cls, data: Dict[str, Any]):
     kwargs = {}
     for f in fields(cls):
         if f.name not in data:
             continue
         val = data[f.name]
-        f_type = f.type
-        if _is_dataclass_type(f_type) and isinstance(val, dict):
-            kwargs[f.name] = _coerce_dataclass(f_type, val)
-        else:
-            origin = get_origin(f_type)
-            args = get_args(f_type)
-            if origin is Union:
-                nested = next((a for a in args if _is_dataclass_type(a)), None)
-                if nested and isinstance(val, dict):
-                    kwargs[f.name] = _coerce_dataclass(nested, val)
-                    continue
-            kwargs[f.name] = val
+        kwargs[f.name] = _coerce_value(f.type, val)
     return cls(**kwargs)
 
 
@@ -208,18 +222,29 @@ def _coerce_nested_dataclasses(obj):
     updates = {}
     for f in fields(obj):
         val = getattr(obj, f.name)
-        f_type = f.type
-        if _is_dataclass_type(f_type) and isinstance(val, dict):
-            updates[f.name] = _coerce_dataclass(f_type, val)
-        elif is_dataclass(val):
-            updates[f.name] = _coerce_nested_dataclasses(val)
-        else:
-            origin = get_origin(f_type)
-            args = get_args(f_type)
-            if origin is Union:
-                nested = next((a for a in args if _is_dataclass_type(a)), None)
-                if nested and isinstance(val, dict):
-                    updates[f.name] = _coerce_dataclass(nested, val)
+        coerced = _coerce_value(f.type, val)
+        if is_dataclass(coerced):
+            coerced = _coerce_nested_dataclasses(coerced)
+        elif isinstance(coerced, list) and coerced:
+            new_list = []
+            changed = False
+            for item in coerced:
+                new_item = _coerce_nested_dataclasses(item) if is_dataclass(item) else item
+                changed = changed or (new_item is not item)
+                new_list.append(new_item)
+            if changed:
+                coerced = new_list
+        elif isinstance(coerced, dict) and coerced:
+            new_dict = {}
+            changed = False
+            for k, v in coerced.items():
+                new_v = _coerce_nested_dataclasses(v) if is_dataclass(v) else v
+                changed = changed or (new_v is not v)
+                new_dict[k] = new_v
+            if changed:
+                coerced = new_dict
+        if coerced is not val:
+            updates[f.name] = coerced
     if updates:
         return replace(obj, **updates)
     return obj

@@ -28,9 +28,10 @@ def _ungzip(path: Path) -> None:
 def _download_all(data_args: DataArguments, target_dir: Path) -> None:
     for link in data_args.source.links:
         dest = target_dir / link.lang
+        dest.mkdir(parents=True, exist_ok=True)
         local_path = Downloader.download(link.url, dest)
         logger.info('Downloaded %s to %s', link.url, local_path)
-        #_ungzip(local_path)
+        _ungzip(local_path)
 
 
 def main(data_args: DataArguments) -> None:

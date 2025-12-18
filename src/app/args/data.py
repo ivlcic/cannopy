@@ -3,10 +3,23 @@ from typing import Dict, Any, List
 
 
 @dataclass
+class TranslateModelConfig:
+    provider: str = ''
+    parameters: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class TranslateModelsConfig:
+    default: TranslateModelConfig = field(default_factory=TranslateModelConfig)
+    fallback: TranslateModelConfig = field(default_factory=TranslateModelConfig)
+
+
+@dataclass
 class TranslateConfig:
     src_lang: str = 'en'
     lang: str = ''
     prompt: str = ''
+    models: TranslateModelsConfig = field(default_factory=TranslateModelsConfig)
 
 
 @dataclass
