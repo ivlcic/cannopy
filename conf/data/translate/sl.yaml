@@ -11,31 +11,6 @@ data:
           verbosity: low
           top_p: 1
           stream: False
-#            type: json_schema
-#            json_schema:
-#              name: tr
-#              strict: true
-#              schema:
-#                type: object
-#                properties:
-#                  trans:
-#                    type: array
-#                    items:
-#                      type: object
-#                      properties:
-#                        en:
-#                          type: string
-#                          description: English source text to translate
-#                        sl:
-#                          type: string
-#                          description: Slovenian translation (may be empty)
-#                      required:
-#                        - en
-#                        - sl
-#                      additionalProperties: false
-#                required:
-#                  - trans
-#                additionalProperties: false
 
       precise:
         provider: openai
@@ -52,6 +27,5 @@ data:
       - Preserve meaning exactly.
       - Use neutral, standard Slovene.
       - Do NOT add explanations.
-      - Keep JSON structure, tags, and formatting unchanged.
       - Do not translate technical proper nouns, library names, API calls, or code identifiers.
       - Preserve formatting like <tags> or markdown.
