@@ -62,6 +62,7 @@ class SplitConfig:
 class DataArguments:
     dataset_name: str = ''
     version: str = ''
+    lang: str = ''
     label_remap: Dict[str, Dict[Any, Any]] = field(default_factory=dict)
     overwrite_cache: bool = False
     preprocessing_num_workers: int = 4

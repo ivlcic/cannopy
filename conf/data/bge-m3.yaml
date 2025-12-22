@@ -1,0 +1,6 @@
+data:
+  dataset_name: bge-m3
+  version: 1.0
+  source:
+    links:
+      - url: https://huggingface.co/datasets/Shitao/bge-m3-data/resolve/main/bge-m3-data.tar.gz

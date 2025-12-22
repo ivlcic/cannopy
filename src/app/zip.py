@@ -1,9 +1,11 @@
 import pyzipper
 import shutil
+import gzip
+import tarfile
 
 from pathlib import Path
-from typing import Optional
-from app.common import PathLike
+from typing import Optional, List
+from ..app.common import PathLike
 
 
 class Zip:
@@ -44,3 +46,41 @@ class Zip:
                 zf.pwd = password.encode()
             Zip._safe_extract_zipfile(zf, output_dir)
         return output_dir.resolve()
+
+    @staticmethod
+    def ungzip(path: Path) -> Optional[Path]:
+        if path.suffix != '.gz':
+            return None
+
+        target = path.with_suffix('')
+        tmp = target.with_suffix(target.suffix + '.part')
+        with gzip.open(path, 'rb') as src, tmp.open('wb') as dst:
+            # noinspection PyTypeChecker
+            shutil.copyfileobj(src, dst)
+        tmp.replace(target)
+        path.unlink(missing_ok=True)
+        return target
+
+    @staticmethod
+    def untar(path: Path) -> List[Path]:
+        out_dir = path.parent
+
+        with tarfile.open(path, mode="r:*") as tf:
+            roots = set()
+
+            for m in tf.getmembers():
+                name = (m.name or "").lstrip("./")
+                if not name:
+                    continue
+
+                root = name.split("/", 1)[0]
+
+                # Only count as a "root dir" if it is a dir entry OR it has children (implied dir)
+                is_explicit_root_dir = m.isdir() and name.rstrip("/") == root
+                is_implied_dir = "/" in name
+                if is_explicit_root_dir or is_implied_dir:
+                    roots.add(root)
+
+            tf.extractall(path=out_dir)
+
+        return sorted((out_dir / r) for r in roots)

@@ -1,7 +1,6 @@
 import csv
 import json
 import shutil
-from collections import defaultdict
 
 from logging import Logger
 from pathlib import Path
@@ -16,76 +15,84 @@ __api_clients: Dict[str, Any] = {}
 
 
 def _iter_topic_files(topic_dir: Path) -> List[Path]:
-    return sorted([p for p in topic_dir.glob("topics.*") if p.is_file()])
+    return sorted([p for p in topic_dir.glob('topics.*') if p.is_file()])
 
 
 def _translate_text(payload: List[str], prompt: str, models: TranslateModelsConfig) -> List[str]:
     model = models.default
     if 'openai' in model.provider:
         if 'openai' in __api_clients:
-            client = __api_clients["openai"]
+            client = __api_clients['openai']
         else:
             from openai import OpenAI
             client = OpenAI()
-            __api_clients["openai"] = client
-            logger.debug("Calling OpenAI with model=%s", model.parameters["model"])
+            __api_clients['openai'] = client
+            logger.debug('Calling OpenAI with model=%s', model.parameters['model'])
 
         body = {
-            "messages": [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": '\n'.join(payload) if len(payload) > 1 else payload[0]},
+            'messages': [
+                {'role': 'system', 'content': prompt},
+                {'role': 'user', 'content': '\n'.join(payload) if len(payload) > 1 else payload[0]},
             ],
         }
         body = body | model.parameters
         response = client.chat.completions.create(**body)
         if len(payload) > 1:
-            return response.choices[0].message.content.strip().split("\n")
+            return response.choices[0].message.content.strip().split('\n')
         else:
             return [response.choices[0].message.content.strip()]
     return []
 
 
 def _copy_related(t_cfg: TranslateConfig, source_dir, target_dir) -> None:
-    qrels_files = sorted([p for p in source_dir.glob("qrels.*") if p.is_file()])
+    qrels_files = sorted([p for p in source_dir.glob('qrels.*') if p.is_file()])
     if not qrels_files:
-        logger.warning("No query related files found in %s", source_dir)
+        logger.warning('No query related files found in %s', source_dir)
         return
 
     for qrels_file in qrels_files:
-        file_name = qrels_file.name.replace(f"-{t_cfg.src_lang}-", f"-{t_cfg.lang}-")
+        file_name = qrels_file.name.replace(f'-{t_cfg.src_lang}-', f'-{t_cfg.lang}-')
         out_file = target_dir / file_name
         if not out_file.exists():
             shutil.copyfile(qrels_file, out_file)
-            logger.info("Copied %s to %s", qrels_file, out_file)
+            logger.info('Copied %s to %s', qrels_file, out_file)
 
 
 def _translate_topics(t_cfg: TranslateConfig, source_dir, target_dir) -> None:
-    topic_files = sorted([p for p in source_dir.glob("topics.*") if p.is_file()])
+    topic_files = sorted([p for p in source_dir.glob('topics.*') if p.is_file()])
     if not topic_files:
-        logger.warning("No topics files found in %s", source_dir)
+        logger.warning('No topics files found in %s', source_dir)
         return
 
     total = 0
     for topic_file in topic_files:
-        file_name = topic_file.name.replace(f"-{t_cfg.src_lang}-", f"-{t_cfg.lang}-")
+        file_name = topic_file.name.replace(f'-{t_cfg.src_lang}-', f'-{t_cfg.lang}-')
         out_file = target_dir / file_name
-        existing = 0
+        existing = set()
         if out_file.exists():
-            with out_file.open("r", encoding="utf-8", newline="") as f_existing:
-                existing = sum(1 for _ in f_existing)
-
-        with topic_file.open("r", encoding="utf-8", newline="") as f_in, \
-                out_file.open("a", encoding="utf-8", newline="") as f_out:
-            reader = csv.reader(f_in, delimiter="\t")
-            writer = csv.writer(f_out, delimiter="\t")
+            with out_file.open('r', encoding='utf-8', newline='') as f_existing:
+                reader = csv.reader(f_existing, delimiter='\t')
+                for line_no, row in enumerate(reader, start=1):
+                    if len(row) < 2:
+                        break
+                    existing.add(row[0])
+        invalid = False
+        skipped = 0
+        with topic_file.open('r', encoding='utf-8', newline='') as f_in, \
+                out_file.open('a', encoding='utf-8', newline='') as f_out:
+            reader = csv.reader(f_in, delimiter='\t')
+            writer = csv.writer(f_out, delimiter='\t')
             count = 0
             batch: List[str] = []
             idx_batch: List[str] = []
             for line_no, row in enumerate(reader, start=1):
                 if len(row) < 2:
-                    raise RuntimeError(f"Data in {topic_file} line {line_no} has less than 2 columns!")
-                if line_no <= existing:
-                    continue  # already translated
+                    raise RuntimeError(f'Data in {topic_file} line {line_no} has less than 2 columns!')
+                if row[0] in existing and not invalid:
+                    skipped += 1
+                    continue
+                else:
+                    invalid = True
                 idx, text = row[0], row[1]
                 batch.append(text)
                 idx_batch.append(idx)
@@ -103,75 +110,28 @@ def _translate_topics(t_cfg: TranslateConfig, source_dir, target_dir) -> None:
                     writer.writerow([idx_batch[i], translation])
                     count += 1
             total += count
-        if count == 0 and existing > 0:
-            logger.info("Skipped %s (already %d rows translated)", topic_file.name, existing)
+        if count == 0 and skipped > 0:
+            logger.info('Skipped %s (already %d rows translated)', topic_file.name, existing)
         else:
-            logger.info("Translated %d new rows from %s -> %s", count, topic_file.name, out_file)
+            logger.info('Translated %d new rows from %s -> %s', count, topic_file.name, out_file)
 
-    logger.info("Translated %d total rows into %s", total, target_dir)
-
-
-def _load_topic(fn):
-    qid2topic = {}
-    with open(fn, encoding="utf-8") as f:
-        for line in f:
-            qid, topic = line.strip().split('\t')
-            qid2topic[qid] = topic
-    return qid2topic
-
-
-def _load_qrels(fn):
-    if fn is None:
-        return None
-
-    qrels = defaultdict(dict)
-    with open(fn, encoding="utf-8") as f:
-        for line in f:
-            qid, _, docid, rel = line.strip().split('\t')
-            qrels[qid][docid] = int(rel)
-    return qrels
-
-
-def _select_translation_docs(data_args: DataArguments, source_dir: Path, target_dir: Path) -> None:
-    t_cfg = data_args.translate
-    out_file = target_dir.parent / f'docs-qrels-{t_cfg.src_lang}.jsonl'
-    if out_file.exists():
-        return
-
-    docids = []
-    for split in ["dev", "train"]:
-        topic_file = source_dir / f"topics.miracl-v{data_args.version}-{t_cfg.src_lang}-{split}.tsv"
-        qrels_file = source_dir / f"qrels.miracl-v{data_args.version}-{t_cfg.src_lang}-{split}.tsv"
-        qid2topic = _load_topic(topic_file)
-        qrels = _load_qrels(qrels_file)
-        for qid in qid2topic:
-            docids.extend(qrels[qid].keys())
-
-    doc_files = sorted([p for p in source_dir.glob("*.jsonl") if p.is_file()])
-    if not doc_files:
-        logger.warning("No doc files found in %s", source_dir)
-        return
-
-    for doc_file in doc_files:
-        with doc_file.open("r", encoding="utf-8") as f_in, out_file.open("a", encoding="utf-8") as f_out:
-            for line_no, line in enumerate(f_in, start=1):
-                f_out.write(line)
+    logger.info('Translated %d total rows into %s', total, target_dir)
 
 
 def _translate_docs(t_cfg: TranslateConfig, target_dir: Path) -> None:
     doc_file = target_dir.parent / f'docs-qrels-{t_cfg.src_lang}.jsonl'
     if not doc_file.exists():
-        logger.warning("No source docs language qrels file found in %s", target_dir)
+        logger.warning('No source docs language qrels file found in %s', target_dir)
         return
 
-    separator = "\n\n------\n\n"
+    separator = '\n\n------\n\n'
     out_file = target_dir / f'docs-qrels-{t_cfg.lang}.jsonl'
     existing = 0
     if out_file.exists():
-        with out_file.open("r", encoding="utf-8") as f_existing:
+        with out_file.open('r', encoding='utf-8') as f_existing:
             existing = sum(1 for _ in f_existing)
 
-    with doc_file.open("r", encoding="utf-8") as f_in, out_file.open("a", encoding="utf-8") as f_out:
+    with doc_file.open('r', encoding='utf-8') as f_in, out_file.open('a', encoding='utf-8') as f_out:
         for line_no, line in enumerate(f_in, start=1):
             if line_no <= existing:
                 continue
@@ -181,37 +141,36 @@ def _translate_docs(t_cfg: TranslateConfig, target_dir: Path) -> None:
             try:
                 obj = json.loads(line)
             except json.JSONDecodeError:
-                logger.warning("Skipping malformed JSON in %s line %d", doc_file.name, line_no)
+                logger.warning('Skipping malformed JSON in %s line %d', doc_file.name, line_no)
                 continue
-            title = obj.get("title", "")
-            text = obj.get("text", "")
-            doc_id = obj.get("docid", "")
-            payload = [f"{title}{separator}{text}"]
+            title = obj.get('title', '')
+            text = obj.get('text', '')
+            doc_id = obj.get('docid', '')
+            payload = [f'{title}{separator}{text}']
             translated = _translate_text(payload, t_cfg.prompt, t_cfg.models)
-            translated_pair = translated[0] if translated else ""
+            translated_pair = translated[0] if translated else ''
             translated = translated_pair.split(separator)
             if len(translated) == 2:
                 title = translated[0].strip()
                 text = translated[1].strip()
             else:
                 text = translated[0]
-            out_obj = {"docid": doc_id, "title": title, "text": text}
-            f_out.write(json.dumps(out_obj, ensure_ascii=False) + "\n")
+            out_obj = {'docid': doc_id, 'title': title, 'text': text}
+            f_out.write(json.dumps(out_obj, ensure_ascii=False) + '\n')
 
-        logger.info("Translated docs from %s -> %s", doc_file.name, out_file)
+        logger.info('Translated docs from %s -> %s', doc_file.name, out_file)
 
 
 def main(data_args: DataArguments) -> None:
     t_cfg = data_args.translate
 
-    source_dir = paths["base"]["data"] / "download" / "miracl" / t_cfg.src_lang
+    source_dir = paths['base']['data'] / 'prepare' / 'miracl' / t_cfg.src_lang
     if not source_dir.exists():
-        logger.error("Source MIRACL directory not found: %s", source_dir)
+        logger.error('Source [prepare] MIRACL directory not found: %s', source_dir)
         return
 
-    target_dir = paths["translate"]["data"] / "miracl" / t_cfg.lang
+    target_dir = paths['translate']['data'] / 'miracl' / t_cfg.lang
     target_dir.mkdir(parents=True, exist_ok=True)
     _copy_related(t_cfg, source_dir, target_dir)
     _translate_topics(t_cfg, source_dir, target_dir)
-    _select_translation_docs(data_args, source_dir, target_dir)
     _translate_docs(t_cfg, target_dir)

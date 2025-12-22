@@ -1,28 +1,13 @@
-import gzip
-import shutil
-
 from logging import Logger
 from pathlib import Path
 from typing import Any, Dict
 
+from ...app.zip import Zip
 from ...app.args.data import DataArguments
 from ...app.downloader import Downloader
 
 logger: Logger
 paths: Dict[str, Any]
-
-
-def _ungzip(path: Path) -> None:
-    if path.suffix != '.gz':
-        return
-
-    target = path.with_suffix('')
-    tmp = target.with_suffix(target.suffix + '.part')
-    with gzip.open(path, 'rb') as src, tmp.open('wb') as dst:
-        shutil.copyfileobj(src, dst)
-    tmp.replace(target)
-    path.unlink(missing_ok=True)
-    logger.info('Decompressed %s to %s', path, target)
 
 
 def _download_all(data_args: DataArguments, target_dir: Path) -> None:
@@ -31,7 +16,8 @@ def _download_all(data_args: DataArguments, target_dir: Path) -> None:
         dest.mkdir(parents=True, exist_ok=True)
         local_path = Downloader.download(link.url, dest)
         logger.info('Downloaded %s to %s', link.url, local_path)
-        _ungzip(local_path)
+        unzipped = Zip.ungzip(local_path)
+        logger.info('Decompressed %s to %s', local_path, unzipped)
 
 
 def main(data_args: DataArguments) -> None:
