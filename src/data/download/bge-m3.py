@@ -1,3 +1,5 @@
+import shutil
+
 from logging import Logger
 from pathlib import Path
 from typing import Any, Dict
@@ -27,8 +29,9 @@ def _download_all(data_args: DataArguments, target_dir: Path) -> None:
             logger.info('Decompressed %s to %s.', local_path, unzipped)
             root_dir = dest.parent / stem
             if root_dir.exists():
-                root_dir.rename(dest.parent / data_args.dataset_name)
-                logger.info('Renamed %s to %s.', root_dir, dest)
+                new_path = dest.parent / data_args.dataset_name
+                shutil.move(root_dir, new_path)
+                logger.info('Renamed %s to %s.', root_dir.name, new_path.name)
             local_path.unlink()
 
 
