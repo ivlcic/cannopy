@@ -19,10 +19,16 @@ def _download_all(data_args: DataArguments, target_dir: Path) -> None:
             logger.info('Downloaded %s to %s.', link.url, local_path)
         else:
             local_path = dest
-        if str(local_path).endswith('.tar.gz'):
+        file_name = dest.name
+        stem = file_name.split('.')[0]
+        if file_name.endswith('.tar.gz'):
             logger.info('Decompressing %s...', local_path)
             unzipped = Zip.untar(local_path)
             logger.info('Decompressed %s to %s.', local_path, unzipped)
+            root_dir = dest.parent / stem
+            if root_dir.exists():
+                root_dir.rename(dest.parent / data_args.dataset_name)
+                logger.info('Renamed %s to %s.', root_dir, dest)
             local_path.unlink()
 
 

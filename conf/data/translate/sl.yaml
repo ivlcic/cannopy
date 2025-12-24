@@ -28,4 +28,4 @@ data:
       - Use neutral, standard Slovene.
       - Do NOT add explanations.
       - Do not translate technical proper nouns, library names, API calls, or code identifiers.
-      - Preserve formatting like <tags> or markdown.
+      - Preserve formatting like <tags>, JSON or markdown.
