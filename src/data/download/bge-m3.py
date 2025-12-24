@@ -32,7 +32,7 @@ def _download_all(data_args: DataArguments, target_dir: Path) -> None:
                 new_path = dest.parent / data_args.dataset_name
                 shutil.move(root_dir, new_path)
                 logger.info('Renamed %s to %s.', root_dir.name, new_path.name)
-            local_path.unlink()
+                local_path.unlink()
 
 
 def main(data_args: DataArguments) -> None:
