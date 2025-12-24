@@ -431,7 +431,7 @@ class NerUkParser(NerDatasetParser):
         return output
 
 
-def _write_outputs(output_dir: Path, aggregated: Dict[str, List[Sentence]], file_suffix: str = ""):
+def write_outputs(output_dir: Path, aggregated: Dict[str, List[Sentence]], file_suffix: str = ""):
     """
     Write per-language CSVs.
     """
@@ -451,9 +451,9 @@ def _write_outputs(output_dir: Path, aggregated: Dict[str, List[Sentence]], file
 
 
 def main(data_args: DataArguments) -> None:
-    logger.info('Preparing NER datasets')
+    logger.info(f'Preparing {data_args.dataset_name} datasets')
 
-    download_root = paths['base']['data'] / 'download' / 'ner'
+    download_root = paths['base']['data'] / 'download' / data_args.dataset_name
     output_dir = paths['prepare']['data']
 
     label_remap = data_args.label_remap
@@ -496,11 +496,11 @@ def main(data_args: DataArguments) -> None:
             logger.info('Parsed %d sentences for %s', len(sentences), lang)
 
     if not aggregated:
-        logger.warning('No NER sentences parsed; nothing to write')
+        logger.warning(f'No {data_args.dataset_name} sentences parsed; nothing to write')
         return
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    _write_outputs(output_dir, aggregated)
+    write_outputs(output_dir, aggregated)
 
     logger.info('Wrote %d language files to %s', len(aggregated), output_dir)
 

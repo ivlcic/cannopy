@@ -1,13 +1,12 @@
-import csv
 import json
 import shutil
 from collections import defaultdict
 
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-from ...app.args.data import DataArguments, TranslateConfig, TranslateModelsConfig
+from ...app.args.data import DataArguments
 
 logger: Logger
 paths: Dict[str, Any]
@@ -78,7 +77,7 @@ def _select_translation_docs(data_args: DataArguments, source_dir: Path, target_
                 try:
                     obj = json.loads(line)
                 except json.JSONDecodeError:
-                    logger.warning("Skipping malformed JSON in %s line %d", doc_file.name, line_no)
+                    logger.warning("Skipping malformed JSON in %s line %d!", doc_file.name, line_no)
                     continue
                 doc_id = obj.get("docid", "")
                 if doc_id in docids:
@@ -90,7 +89,7 @@ def main(data_args: DataArguments) -> None:
 
     source_dir = paths["base"]["data"] / "download" / "miracl" / t_cfg.src_lang
     if not source_dir.exists():
-        logger.error("Source MIRACL directory not found: %s", source_dir)
+        logger.error("Source MIRACL directory not found: %s.", source_dir)
         return
 
     target_dir = paths["prepare"]["data"] / "miracl" / t_cfg.lang

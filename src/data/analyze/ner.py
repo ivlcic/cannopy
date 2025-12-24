@@ -12,6 +12,18 @@ logger: Logger
 paths: Dict[str, Any]
 
 
+def aggregate_csv_file(csv_file: Path, lang: str, aggregated: DefaultDict[str, List[Sentence]]):
+    with csv_file.open('r', encoding='utf-8', newline='') as f:
+        reader = csv.reader(f)
+        next(reader, None)  # header
+        for row in reader:
+            if len(row) < 2:
+                continue
+            tokens = row[0].split(' ')
+            labels = row[1].split(' ')
+            aggregated[lang].append((tokens, labels))
+
+
 def _load_sentences(source_dir: Path, split_suffix: str | None = None) -> Dict[str, List[Sentence]]:
     aggregated: DefaultDict[str, List[Sentence]] = defaultdict(list)
     for csv_file in sorted(source_dir.glob('ner-*.csv')):
@@ -28,15 +40,7 @@ def _load_sentences(source_dir: Path, split_suffix: str | None = None) -> Dict[s
                 # skip split files when loading base data
                 continue
             lang = stem.replace('ner-', '')
-        with csv_file.open('r', encoding='utf-8', newline='') as f:
-            reader = csv.reader(f)
-            next(reader, None)  # header
-            for row in reader:
-                if len(row) < 2:
-                    continue
-                tokens = row[0].split(' ')
-                labels = row[1].split(' ')
-                aggregated[lang].append((tokens, labels))
+        aggregate_csv_file(csv_file, lang, aggregated)
     return aggregated
 
 

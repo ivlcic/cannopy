@@ -23,14 +23,14 @@ def _download_all(data_args: DataArguments, target_dir: Path) -> None:
             logger.info('Decompressing %s...', local_path)
             unzipped = Zip.untar(local_path)
             logger.info('Decompressed %s to %s.', local_path, unzipped)
+            local_path.unlink()
 
 
 def main(data_args: DataArguments) -> None:
     logger.info('Downloading dataset %s', data_args.dataset_name)
     if not data_args.source.links:
-        logger.error('No dataset_urls provided for %s.', data_args.dataset_name)
+        logger.error('No dataset.source.links provided for %s.', data_args.dataset_name)
         return
 
-    target_dir = paths['download']['data'] / data_args.dataset_name
-    target_dir.mkdir(parents=True, exist_ok=True)
+    target_dir = paths['download']['data']
     _download_all(data_args, target_dir)

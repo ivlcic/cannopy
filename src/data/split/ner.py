@@ -1,11 +1,11 @@
-import csv
 import random
 from collections import defaultdict
 from logging import Logger
 from pathlib import Path
 from typing import Any, DefaultDict, Dict, List
 
-from ..prepare.ner import Sentence, _write_outputs
+from ..prepare.ner import Sentence, write_outputs
+from ..analyze.ner import aggregate_csv_file
 from ...app.args.data import DataArguments
 
 logger: Logger
@@ -22,15 +22,7 @@ def _load_prepared_sentences(source_dir: Path) -> Dict[str, List[Sentence]]:
             # skip already split files such as lang.train.csv
             continue
         lang = stem.replace('ner-', '')
-        with csv_file.open('r', encoding='utf-8', newline='') as f:
-            reader = csv.reader(f)
-            next(reader, None)  # header
-            for row in reader:
-                if len(row) < 2:
-                    continue
-                tokens = row[0].split(' ')
-                labels = row[1].split(' ')
-                aggregated[lang].append((tokens, labels))
+        aggregate_csv_file(csv_file, lang, aggregated)
     return aggregated
 
 
@@ -60,7 +52,7 @@ def _split_language_data(aggregated: Dict[str, List[Sentence]], train_ratio: flo
 
 
 def main(data_args: DataArguments) -> None:
-    logger.info('Splitting NER datasets')
+    logger.info('Splitting NER datasets...')
 
     source_dir = paths['base']['data'] / 'prepare'
     target_dir = paths['split']['data']
@@ -68,7 +60,7 @@ def main(data_args: DataArguments) -> None:
 
     aggregated = _load_prepared_sentences(source_dir)
     if not aggregated:
-        logger.warning('No prepared NER data found in %s', source_dir)
+        logger.warning('No prepared NER data found in %s!', source_dir)
         return
 
     train_ratio = data_args.split.train
@@ -79,9 +71,9 @@ def main(data_args: DataArguments) -> None:
     split_data = _split_language_data(aggregated, train_ratio, dev_ratio, test_ratio, seed)
     for split_name, sentences_by_lang in split_data.items():
         suffix = f'.{split_name}'
-        _write_outputs(target_dir, sentences_by_lang, suffix)
+        write_outputs(target_dir, sentences_by_lang, suffix)
 
     logger.info(
-        'Wrote split files (train/dev/test) to %s using seed=%s and ratios train=%.3f dev=%.3f test=%.3f',
+        'Wrote split files (train/dev/test) to %s using seed=%s and ratios train=%.3f dev=%.3f test=%.3f.',
         target_dir, seed, train_ratio, dev_ratio, test_ratio
     )
