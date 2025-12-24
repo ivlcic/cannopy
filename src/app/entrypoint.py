@@ -311,14 +311,18 @@ def _config_logger(args, script: str, path: Path, level: str = "INFO") -> Tuple[
 # Runner
 # ---------------------------
 
-def _build_parser(script: str, src: Path) -> argparse.ArgumentParser:
+def _build_parser(argv: List[str], script: str, src: Path) -> argparse.ArgumentParser:
+    dashes = any("-" in arg[1:-1] for arg in argv if len(arg) >= 3)
+
     parser = argparse.ArgumentParser(prog=script, description=f"{script} actions")
     subparsers = parser.add_subparsers(dest="sub_action", metavar="sub_action", required=True)
 
     subactions = _list_subactions(src, script)
     for sa in subactions:
         p = subparsers.add_parser(sa, help=f"{script} {sa}")
-        names = list_names(src, script, sa)
+        original_names = list_names(src, script, sa)
+        names = [n.replace('_', '-') for n in original_names] if dashes else original_names.copy()
+
         # name optional; validate choices if provided
         p.add_argument(
             "name", nargs="?", choices=names if names else None,
@@ -371,17 +375,17 @@ def _call_module(script: str, sub_action: str, name: str | None, module_globals:
     fn = None
     mod = None
     if name:
-        mod_name = f"{base_dir}.{script}.{sub_action}.{name}"
+        mod_name = f"{base_dir}.{script}.{sub_action}.{name}".replace('-', '_')
         if _module_exists(mod_name):
             mod = importlib.import_module(mod_name)
             fn = getattr(mod, "main", None)
         else:
-            pkg_path = f"{script}.{sub_action}"
+            pkg_path = f"{script}.{sub_action}".replace('-', '_')
             if _module_exists(pkg_path, None):
                 mod = importlib.import_module(pkg_path)
                 fn = getattr(mod, name, None)
     else:
-        pkg_path = f"{base_dir}.{script}.{sub_action}"
+        pkg_path = f"{base_dir}.{script}.{sub_action}".replace('-', '_')
         if _module_exists(pkg_path):
             mod = importlib.import_module(pkg_path)
             fn = getattr(mod, "main", None)
@@ -407,7 +411,7 @@ def main(argv: List[str]) -> int:
         script = Path(sys.argv[0]).name
 
     paths = _project_paths()
-    parser = _build_parser(script, paths["src"])
+    parser = _build_parser(argv, script, paths["src"])
     args = parser.parse_args(argv)
 
     cfg_names = [Path(c).stem for c in args.config] if args.config else []
