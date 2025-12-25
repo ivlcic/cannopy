@@ -73,12 +73,15 @@ Download and prepare Slavic NER dataset:
 
 ## 3. Multilingual Slavic Retrieval task
 
-Download MIRACL EN and MSMARCO v2.1 datasets:
+Download BGE-M3 dataset (beware it's size is `~24GB`):
 ```shell
-./data download miracl
-./data download msmarco
+# download and extract the BGE-M3 dataset
+./data download bge-m3
+# copy English language source documents
+./data prepare bge-m3
+# translate the data to the Slovenian language 
+./data translate bge-m3 -c sl.yaml
 ```
-MIRACL download now also pulls the English miracl-corpus shards alongside topics/qrels.
 
 ## 4. Extreme Multilingual Multilabel Text Classification  
 
@@ -87,6 +90,11 @@ MIRACL download now also pulls the English miracl-corpus shards alongside topics
 Download EURLEX57K dataset:
 ```shell
 ./data download eurlex
+```
+
+Download NewsMon dataset (due to a license you need a password to decrypt the archive):
+```shell
+./data download newsmon
 ```
 
 ## 5. TODO :D

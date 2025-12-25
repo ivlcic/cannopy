@@ -3,7 +3,7 @@ import json
 
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Callable
 
 from ...app.translator import Translator
 from ...app.args.data import DataArguments, TranslateConfig
@@ -15,45 +15,104 @@ paths: Dict[str, Any]
 __api_clients: Dict[str, Any] = {}
 
 
-def _translate_docs(t_cfg: TranslateConfig, source: Path, target_dir: Path) -> None:
-    doc_file = target_dir.parent / f'docs-qrels-{t_cfg.src_lang}.jsonl'
-    if not doc_file.exists():
-        logger.warning('No source docs language qrels file found in %s', target_dir)
-        return
+def _parse_sample(line: str, line_no: int, source: Path) -> Optional[Dict[str, Any]]:
+    line = line.strip()
+    if not line:
+        return None
+    try:
+        obj = json.loads(line)
+    except json.JSONDecodeError:
+        logger.warning('Skipping malformed JSON in %s line %d.', source.name, line_no)
+        return None
+    if 'query' not in obj:
+        logger.warning(
+            'Skipping malformed JSON in %s line %d, missing query.', source.name, line_no
+        )
+        return None
+    if 'pos' not in obj:
+        logger.warning(
+            'Skipping malformed JSON in %s line %d, missing positive samples.', source.name, line_no
+        )
+        return None
+    if 'neg' not in obj:
+        logger.warning(
+            'Skipping malformed JSON in %s line %d, missing negative samples.', source.name, line_no
+        )
+        return None
+    return obj
 
-    out_file = target_dir / f'{t_cfg.lang}-{source.name}.jsonl'
+
+def translate_batched(texts: List[str], translate_fn: Translator.fn, max_chars: int = 2_000) -> List[str]:
+    out: List[str] = []
+    i = 0
+
+    while i < len(texts):
+        batch: List[str] = []
+        total = 0
+
+        while i < len(texts):
+            s = texts[i]
+            batch.append(s)
+            total += len(s)
+            i += 1
+
+            # break AFTER exceeding (or hitting) the limit
+            if total >= max_chars:
+                break
+        translated = translate_fn(batch)
+        out.extend(translated)
+
+    return out
+
+
+def _translate_docs(t_cfg: TranslateConfig, source: Path, target: Path) -> None:
     existing = 0
-    if out_file.exists():
-        with out_file.open('r', encoding='utf-8') as f_existing:
+    if target.exists():
+        with target.open('r', encoding='utf-8') as f_existing:
             existing = sum(1 for _ in f_existing)
 
-    with doc_file.open('r', encoding='utf-8') as f_in, out_file.open('a', encoding='utf-8') as f_out:
+    with source.open('r', encoding='utf-8') as f_in, target.open('a', encoding='utf-8') as f_out:
         for line_no, line in enumerate(f_in, start=1):
             if line_no <= existing:
                 continue
-            line = line.strip()
-            if not line:
+
+            obj = _parse_sample(line, line_no, source)
+            if obj is None:
+                f_out.write(json.dumps({}, ensure_ascii=False) + '\n')
                 continue
-            try:
-                obj = json.loads(line)
-            except json.JSONDecodeError:
-                logger.warning('Skipping malformed JSON in %s line %d', doc_file.name, line_no)
-                continue
+
             query: str = obj['query']
-            pos: List[str] = obj['pos']
-            neg: List[str] = obj['neg']
+            positives: List[str] = obj['pos']
+            negatives: List[str] = obj['neg']
+
+            source_texts: List[str] = [query] + positives + negatives
+            translated = translate_batched(
+                texts=source_texts,
+                translate_fn=lambda batch: Translator.translate(batch, t_cfg.prompt, t_cfg.models),
+                max_chars=3_000,
+            )
+
+            # translate query and a positive samples
+            if len(translated) != len(source_texts):
+                logger.warning(
+                    'Invalid translated lines [%s] in %s line %d.', translated, source.name, line_no
+                )
+                break
+
+            out_obj: Dict[str, Any] = {
+                'query': translated[0],
+                'pos': [translated[1]],
+                'neg': translated[2:],
+            }
             pos_scores: List[float] = obj.get('pos_scores', [])
             neg_scores: List[float] = obj.get('neg_scores', [])
-            translated = Translator.translate([query] + pos, t_cfg.prompt, t_cfg.models)
-            out_obj = {'query': translated[0], 'pos': translated[1:]}
-            translated = Translator.translate(neg, t_cfg.prompt, t_cfg.models)
-            out_obj['neg'] = translated
             if pos_scores and neg_scores:
                 out_obj['pos_scores'] = pos_scores
                 out_obj['neg_scores'] = neg_scores
-            f_out.write(json.dumps(out_obj, ensure_ascii=False) + '\n')
 
-        logger.info('Translated docs from %s -> %s', doc_file.name, out_file)
+            f_out.write(json.dumps(out_obj, ensure_ascii=False))
+            f_out.write('\n')
+            f_out.flush()
 
 
 def main(data_args: DataArguments) -> None:
@@ -67,5 +126,20 @@ def main(data_args: DataArguments) -> None:
     target_dir = paths['translate']['data'] / data_args.dataset_name
     target_dir.mkdir(parents=True, exist_ok=True)
     files_paths = get_files_paths(source_dir)
-    for files_path in files_paths:
-        _translate_docs(t_cfg, files_path, target_dir)
+    files: Dict[Path, Path] = {}
+    for file_or_path in files_paths:
+        if file_or_path.is_file() and file_or_path.suffix == '.jsonl':
+            d = target_dir / file_or_path.parent.name / t_cfg.lang
+            d.mkdir(parents=True, exist_ok=True)
+            files[file_or_path] = d / file_or_path.name
+        if file_or_path.is_dir():
+            d = target_dir / file_or_path.name / t_cfg.lang
+            d.mkdir(parents=True, exist_ok=True)
+            for child in file_or_path.iterdir():
+                if child.is_file() and child.suffix == '.jsonl':
+                    files[file_or_path] = d / child.name
+
+    for source, target in files.items():
+        logger.info('Translating docs from %s -> %s...', source.name, target.name)
+        _translate_docs(t_cfg, source, target)
+        logger.info('Translated docs from %s -> %s.', source.name, target.name)
