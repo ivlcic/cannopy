@@ -1,9 +1,8 @@
-import csv
 import json
 
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional
 
 from ...app.translator import Translator
 from ...app.args.data import DataArguments, TranslateConfig
@@ -86,18 +85,22 @@ def _translate_docs(t_cfg: TranslateConfig, source: Path, target: Path) -> None:
             negatives: List[str] = obj['neg']
 
             source_texts: List[str] = [query] + positives + negatives
-            translated = translate_batched(
-                texts=source_texts,
-                translate_fn=lambda batch: Translator.translate(batch, t_cfg.prompt, t_cfg.models),
-                max_chars=3_000,
-            )
-
-            # translate query and a positive samples
-            if len(translated) != len(source_texts):
-                logger.warning(
-                    'Invalid translated lines [%s] in %s line %d.', translated, source.name, line_no
+            retries = 3
+            while retries > 0:
+                translated = translate_batched(
+                    texts=source_texts,
+                    translate_fn=lambda batch: Translator.translate(batch, t_cfg.prompt, t_cfg.models),
+                    max_chars=2_000,
                 )
-                break
+                retries -= 1
+                if len(translated) != len(source_texts):
+                    logger.warning(
+                        'Invalid translated lines [%s:%s] in %s line %d.',
+                        len(translated), len(source_texts), source.name, line_no
+                    )
+                    continue
+                else:
+                    break
 
             out_obj: Dict[str, Any] = {
                 'query': translated[0],
@@ -113,6 +116,7 @@ def _translate_docs(t_cfg: TranslateConfig, source: Path, target: Path) -> None:
             f_out.write(json.dumps(out_obj, ensure_ascii=False))
             f_out.write('\n')
             f_out.flush()
+            logger.info('Translated doc in %s line %d.', source.name, line_no)
 
 
 def main(data_args: DataArguments) -> None:
@@ -137,7 +141,7 @@ def main(data_args: DataArguments) -> None:
             d.mkdir(parents=True, exist_ok=True)
             for child in file_or_path.iterdir():
                 if child.is_file() and child.suffix == '.jsonl':
-                    files[file_or_path] = d / child.name
+                    files[child] = d / child.name
 
     for source, target in files.items():
         logger.info('Translating docs from %s -> %s...', source.name, target.name)
