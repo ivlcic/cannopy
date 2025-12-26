@@ -1,8 +1,9 @@
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from ...app.translator import Translator
 from ...app.args.data import DataArguments, TranslateConfig
@@ -143,7 +144,18 @@ def main(data_args: DataArguments) -> None:
                 if child.is_file() and child.suffix == '.jsonl':
                     files[child] = d / child.name
 
-    for source, target in files.items():
-        logger.info('Translating docs from %s -> %s...', source.name, target.name)
-        _translate_docs(t_cfg, source, target)
-        logger.info('Translated docs from %s -> %s.', source.name, target.name)
+    def _translate_file(item: Tuple[Path, Path]) -> Tuple[str, str]:
+        src, tgt = item
+        logger.info('Translating docs from %s -> %s...', src.name, tgt.name)
+        _translate_docs(t_cfg, src, tgt)
+        logger.info('Translated docs from %s -> %s.', src.name, tgt.name)
+        return src.name, tgt.name
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(_translate_file, item): item for item in files.items()}
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as exc:
+                src, tgt = futures[future]
+                logger.error('Translation failed for %s -> %s: %s', src, tgt, exc)
