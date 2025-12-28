@@ -65,7 +65,117 @@ def translate_batched(texts: List[str], translate_fn: Translator.fn, max_chars: 
     return out
 
 
+def _translate_sample_once(obj: Dict[str, Any], line_no: int, source: Path,
+                           t_cfg: TranslateConfig) -> Optional[Dict[str, Any]]:
+    query: str = obj['query']
+    positives: List[str] = obj['pos']
+    negatives: List[str] = obj['neg']
+
+    source_texts: List[str] = [query] + positives + negatives
+    translated = translate_batched(
+        texts=source_texts,
+        translate_fn=lambda batch: Translator.translate(batch, t_cfg.prompt, t_cfg.models),
+        max_chars=2000,
+    )
+    if len(translated) != len(source_texts):
+        logger.warning(
+            'Invalid translated lines [%s:%s] in %s line %d. Going to a safe mode.',
+            len(translated), len(source_texts), source.name, line_no
+        )
+        translated = []
+        for text in [source_texts[i:i+2] for i in range(0, len(source_texts), 2)]:
+            translated.extend(
+                translate_batched(
+                    texts=text,
+                    translate_fn=lambda batch: Translator.translate(batch, t_cfg.prompt, t_cfg.models),
+                    max_chars=2000,
+                )
+            )
+        if len(translated) != len(source_texts):
+            logger.warning(
+                'Invalid translated lines [%s:%s] in %s line %d.',
+                len(translated), len(source_texts), source.name, line_no
+            )
+            exit(1)
+
+    out_obj: Dict[str, Any] = {
+        'query': translated[0],
+        'pos': [translated[1]],
+        'neg': translated[2:],
+    }
+    pos_scores: List[float] = obj.get('pos_scores', [])
+    neg_scores: List[float] = obj.get('neg_scores', [])
+    if pos_scores and neg_scores:
+        out_obj['pos_scores'] = pos_scores
+        out_obj['neg_scores'] = neg_scores
+    return out_obj
+
+
+def _translate_chunk(chunk: List[Tuple[int, Dict[str, Any]]], source: Path, t_cfg: TranslateConfig, f_out) -> None:
+    attempts = 10
+    while attempts > 0:
+        attempts -= 1
+        results: Dict[int, Optional[Dict[str, Any]]] = {}
+        placeholders: Dict[int, Dict[str, Any]] = {
+            line_no: {} for line_no, obj in chunk if obj is None
+        }
+        with ThreadPoolExecutor(max_workers=len(chunk)) as executor:
+            future_map = {
+                executor.submit(_translate_sample_once, obj, line_no, source, t_cfg): line_no
+                for line_no, obj in chunk if obj is not None
+            }
+            for future in as_completed(future_map):
+                line_no = future_map[future]
+                try:
+                    results[line_no] = future.result()
+                except Exception as exc:
+                    logger.error('Translation error in %s line %d: %s', source.name, line_no, exc)
+                    results[line_no] = None
+
+        if all((results.get(line_no) or placeholders.get(line_no) is not None) for line_no, _ in chunk):
+            # All good: write in original order
+            for line_no, _ in chunk:
+                out_obj = results.get(line_no) or placeholders.get(line_no) or {}
+                f_out.write(json.dumps(out_obj, ensure_ascii=False))
+                f_out.write('\n')
+            f_out.flush()
+            return
+        else:
+            logger.warning(
+                'Retrying chunk in %s lines %s (%d attempts left)',
+                source.name, [ln for ln, _ in chunk], attempts
+            )
+
+    logger.error(
+        'Failed to translate chunk in %s lines %s after 10 attempts; skipping.',
+        source.name, [ln for ln, _ in chunk]
+    )
+
+
 def _translate_docs(t_cfg: TranslateConfig, source: Path, target: Path) -> None:
+    existing = 0
+    if target.exists():
+        with target.open('r', encoding='utf-8') as f_existing:
+            existing = sum(1 for _ in f_existing)
+
+    with source.open('r', encoding='utf-8') as f_in, target.open('a', encoding='utf-8') as f_out:
+        chunk: List[Tuple[int, Dict[str, Any]]] = []
+        for line_no, line in enumerate(f_in, start=1):
+            if line_no <= existing:
+                continue
+
+            obj = _parse_sample(line, line_no, source)
+            chunk.append((line_no, obj))
+
+            if len(chunk) == 2:
+                _translate_chunk(chunk, source, t_cfg, f_out)
+                chunk = []
+
+        if chunk:
+            _translate_chunk(chunk, source, t_cfg, f_out)
+
+
+def _translate_file(translator: Translator, source: Path, target: Path) -> None:
     existing = 0
     if target.exists():
         with target.open('r', encoding='utf-8') as f_existing:
@@ -77,47 +187,10 @@ def _translate_docs(t_cfg: TranslateConfig, source: Path, target: Path) -> None:
                 continue
 
             obj = _parse_sample(line, line_no, source)
-            if obj is None:
-                f_out.write(json.dumps({}, ensure_ascii=False) + '\n')
-                continue
-
-            query: str = obj['query']
-            positives: List[str] = obj['pos']
-            negatives: List[str] = obj['neg']
-
-            source_texts: List[str] = [query] + positives + negatives
-            retries = 3
-            while retries > 0:
-                translated = translate_batched(
-                    texts=source_texts,
-                    translate_fn=lambda batch: Translator.translate(batch, t_cfg.prompt, t_cfg.models),
-                    max_chars=2_000,
-                )
-                retries -= 1
-                if len(translated) != len(source_texts):
-                    logger.warning(
-                        'Invalid translated lines [%s:%s] in %s line %d.',
-                        len(translated), len(source_texts), source.name, line_no
-                    )
-                    continue
-                else:
-                    break
-
-            out_obj: Dict[str, Any] = {
-                'query': translated[0],
-                'pos': [translated[1]],
-                'neg': translated[2:],
-            }
-            pos_scores: List[float] = obj.get('pos_scores', [])
-            neg_scores: List[float] = obj.get('neg_scores', [])
-            if pos_scores and neg_scores:
-                out_obj['pos_scores'] = pos_scores
-                out_obj['neg_scores'] = neg_scores
-
+            out_obj = translator.trans(obj, ['query', 'pos', 'neg'])
             f_out.write(json.dumps(out_obj, ensure_ascii=False))
             f_out.write('\n')
             f_out.flush()
-            logger.info('Translated doc in %s line %d.', source.name, line_no)
 
 
 def main(data_args: DataArguments) -> None:
@@ -143,19 +216,8 @@ def main(data_args: DataArguments) -> None:
             for child in file_or_path.iterdir():
                 if child.is_file() and child.suffix == '.jsonl':
                     files[child] = d / child.name
-
-    def _translate_file(item: Tuple[Path, Path]) -> Tuple[str, str]:
-        src, tgt = item
+    translator: Translator = Translator.create(t_cfg)
+    for src, tgt in files.items():
         logger.info('Translating docs from %s -> %s...', src.name, tgt.name)
-        _translate_docs(t_cfg, src, tgt)
+        _translate_file(translator, src, tgt)
         logger.info('Translated docs from %s -> %s.', src.name, tgt.name)
-        return src.name, tgt.name
-
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(_translate_file, item): item for item in files.items()}
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except Exception as exc:
-                src, tgt = futures[future]
-                logger.error('Translation failed for %s -> %s: %s', src, tgt, exc)

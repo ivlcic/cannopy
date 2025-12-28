@@ -11,6 +11,7 @@ data:
           verbosity: low
           top_p: 1
           stream: False
+          max_completion_tokens: 128000
 
       precise:
         provider: openai
