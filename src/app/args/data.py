@@ -19,6 +19,9 @@ class TranslateConfig:
     src_lang: str = 'en'
     lang: str = ''
     prompt: str = ''
+    max_worker_threads: int = 5
+    max_batch_threads: int = 5
+    max_chars_per_payload: int = 2000
     models: TranslateModelsConfig = field(default_factory=TranslateModelsConfig)
 
 

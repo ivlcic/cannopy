@@ -39,9 +39,9 @@ class Translator(ABC):
         self.config = config
         self.model: TranslateModelConfig = self.config.models.default
         self.sys_prompt = self.config.prompt
-        self.max_workers = 5
-        self.max_batch_workers = 5
-        self.max_chars_per_payload = 2000
+        self.max_worker_threads = self.config.max_worker_threads
+        self.max_batch_threads = self.config.max_batch_threads
+        self.max_chars_per_payload = self.config.max_chars_per_payload
 
     # noinspection PyMethodMayBeStatic
     def _encapsulate(self, payload: Dict[str, Any], keys: List[str]) -> Tuple[List[str], Dict[str, Pattern]]:
@@ -151,7 +151,7 @@ class Translator(ABC):
         num_payload = self._count_translatable_fields(payload, keys)
 
         results: List[Dict[str, Any]] = [{} for _ in parts]
-        with ThreadPoolExecutor(max_workers=min(self.max_workers, len(parts))) as executor:
+        with ThreadPoolExecutor(max_workers=min(self.max_worker_threads, len(parts))) as executor:
             future_map = {executor.submit(self._translate_payload, p, keys): idx for idx, p in enumerate(parts)}
             for future in as_completed(future_map):
                 idx = future_map[future]
@@ -184,7 +184,7 @@ class Translator(ABC):
             return []
 
         results: List[Dict[str, Any]] = [{} for _ in items]
-        with ThreadPoolExecutor(max_workers=min(len(items), self.max_batch_workers)) as executor:
+        with ThreadPoolExecutor(max_workers=min(len(items), self.max_batch_threads)) as executor:
             future_map = {executor.submit(self.translate, p, keys): idx for idx, p in enumerate(items)}
             for future in as_completed(future_map):
                 idx = future_map[future]
@@ -208,7 +208,7 @@ class OpenaiTranslator(Translator):
         body = {
             'messages': [
                 {'role': 'system', 'content': self.sys_prompt},
-                {'role': 'user', 'content': '\n\n'.join(lines)},
+                {'role': 'user', 'content': '\n'.join(lines)},
             ],
         }
 

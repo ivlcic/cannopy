@@ -2,16 +2,19 @@ data:
   translate:
     src_lang: en
     lang: sl
+    max_worker_threads: 5
+    max_batch_threads: 5
+    max_chars_per_payload: 2000
     models:
       default:
         provider: openai
         parameters:
           model: gpt-5-mini
-          reasoning_effort: minimal
+          reasoning_effort: low
           verbosity: low
           top_p: 1
           stream: False
-          max_completion_tokens: 128000
+          max_completion_tokens: 10000
 
       precise:
         provider: openai

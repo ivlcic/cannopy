@@ -94,13 +94,13 @@ def main(data_args: DataArguments) -> None:
         if file_or_path.is_file() and file_or_path.suffix == '.jsonl':
             d = target_dir / file_or_path.parent.name
             d.mkdir(parents=True, exist_ok=True)
-            files[file_or_path] = d / t_cfg.lang + '-' + file_or_path.name
+            files[file_or_path] = d / (t_cfg.lang + '-' + file_or_path.name)
         if file_or_path.is_dir():
             d = target_dir / file_or_path.name
             d.mkdir(parents=True, exist_ok=True)
             for child in file_or_path.iterdir():
                 if child.is_file() and child.suffix == '.jsonl':
-                    files[child] = d / t_cfg.lang + '-' + child.name
+                    files[child] = d / (t_cfg.lang + '-' + child.name)
     translator: Translator = Translator.create(t_cfg)
     for src, tgt in files.items():
         logger.info('Translating docs from %s -> %s...', src.name, tgt.name)
