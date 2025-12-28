@@ -37,11 +37,11 @@ class Translator(ABC):
 
     def __init__(self, config: TranslateConfig) -> None:
         self.config = config
-        self.model: TranslateModelConfig = self.config.models.default
-        self.sys_prompt = self.config.prompt
-        self.max_worker_threads = self.config.max_worker_threads
-        self.max_batch_threads = self.config.max_batch_threads
-        self.max_chars_per_payload = self.config.max_chars_per_payload
+        self.model: TranslateModelConfig = config.models.default
+        self.sys_prompt = config.prompt
+        self.max_payload_threads = config.max_payload_threads
+        self.max_batch_threads = config.max_batch_threads
+        self.max_chars_per_payload = config.max_chars_per_payload
 
     # noinspection PyMethodMayBeStatic
     def _encapsulate(self, payload: Dict[str, Any], keys: List[str]) -> Tuple[List[str], Dict[str, Pattern]]:
@@ -79,7 +79,7 @@ class Translator(ABC):
             elif len(trans) == 1:
                 result[k] = trans[0]
             else:
-                raise ValueError(f'Invalid translation for {k}')
+                raise ValueError(f'Invalid translation [{trans}] for [{k}] from response text: [{response_text}]')
         return result
 
     @abstractmethod
@@ -151,7 +151,7 @@ class Translator(ABC):
         num_payload = self._count_translatable_fields(payload, keys)
 
         results: List[Dict[str, Any]] = [{} for _ in parts]
-        with ThreadPoolExecutor(max_workers=min(self.max_worker_threads, len(parts))) as executor:
+        with ThreadPoolExecutor(max_workers=min(self.max_payload_threads, len(parts))) as executor:
             future_map = {executor.submit(self._translate_payload, p, keys): idx for idx, p in enumerate(parts)}
             for future in as_completed(future_map):
                 idx = future_map[future]
@@ -168,7 +168,7 @@ class Translator(ABC):
             # try to translate each field and field list item separately
             logger.warning(f"Translation result count mismatch after merge [{num_translated},{num_payload}]")
             logger.warning(f"Going in to a slow safe exec mode ...")
-            merged = self._translate_item(merged, keys, 1)
+            merged = self._translate_item(payload, keys, 1)
             num_translated = self._count_translatable_fields(merged, keys)
             if num_translated != num_payload:
                 raise ValueError(

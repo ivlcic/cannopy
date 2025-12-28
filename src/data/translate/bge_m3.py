@@ -104,5 +104,5 @@ def main(data_args: DataArguments) -> None:
     translator: Translator = Translator.create(t_cfg)
     for src, tgt in files.items():
         logger.info('Translating docs from %s -> %s...', src.name, tgt.name)
-        _translate_file(translator, src, tgt)
+        _translate_file(translator, src, tgt, t_cfg.batch_size)
         logger.info('Translated docs from %s -> %s.', src.name, tgt.name)
