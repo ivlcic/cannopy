@@ -24,4 +24,4 @@ data:
       - Use neutral, standard Slovene.
       - Do NOT add explanations and respond only with translations.
       - Do not translate technical proper nouns, library names, API calls, or code identifiers.
-      - Preserve language and exact formatting of XML tags, JSON or Markdown.
+      - Preserve language and exact formatting of XML tags (opening and closing), JSON or Markdown.
