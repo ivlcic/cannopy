@@ -186,14 +186,23 @@ class Translator(ABC):
     def translate_batch(self, items: List[Dict[str, Any]], keys: List[str]) -> List[Dict[str, Any]]:
         if not items:
             return []
-
-        results: List[Dict[str, Any]] = [{} for _ in items]
-        with ThreadPoolExecutor(max_workers=min(len(items), self.max_batch_threads)) as executor:
-            future_map = {executor.submit(self.translate, p, keys): idx for idx, p in enumerate(items)}
-            for future in as_completed(future_map):
-                idx = future_map[future]
-                results[idx] = future.result()
-        return results
+        num_retries = 5
+        while num_retries > 0:
+            try:
+                results: List[Dict[str, Any]] = [{} for _ in items]
+                with ThreadPoolExecutor(max_workers=min(len(items), self.max_batch_threads)) as executor:
+                    future_map = {executor.submit(self.translate, p, keys): idx for idx, p in enumerate(items)}
+                    for future in as_completed(future_map):
+                        idx = future_map[future]
+                        results[idx] = future.result()
+                return results
+            except Exception as e:
+                logger.error(e)
+                num_retries -= 1
+                if num_retries == 0:
+                    raise e
+                else:
+                    logger.info(f'Retrying [{num_retries}]...')
 
 
 @Translator.register("openai")
