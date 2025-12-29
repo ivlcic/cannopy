@@ -1,5 +1,9 @@
 import re
+import os
 import logging
+import importlib.util
+import sys
+import subprocess
 
 from re import Pattern
 from abc import ABC, abstractmethod
@@ -197,9 +201,48 @@ class OpenaiTranslator(Translator):
 
     def __init__(self, config: TranslateConfig) -> None:
         super().__init__(config)
+        pkg = "openai"
+        ver = "2.14.0"
+        if importlib.util.find_spec(pkg) is None:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
         from openai import OpenAI
         self.client = OpenAI()
-        logger.debug('Creating OpenAI client with model=%s', self.model.parameters['model'])
+        logger.info('Creating OpenAI client with model=%s', self.model.parameters['model'])
+
+    def _translate_payload(self, payload: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
+        if not payload:
+            return payload
+        lines, regs = self._encapsulate(payload, keys)
+        body = {
+            'messages': [
+                {'role': 'system', 'content': self.sys_prompt},
+                {'role': 'user', 'content': '\n'.join(lines)},
+            ],
+        }
+
+        body = body | self.model.parameters
+        response = self.client.chat.completions.create(**body)
+        response_text = response.choices[0].message.content.strip()
+        result = self._decapsulate(response_text, regs)
+        return result
+
+
+@Translator.register("groq")
+class GroqTranslator(Translator):
+
+    def __init__(self, config: TranslateConfig) -> None:
+        super().__init__(config)
+        pkg = "groq"
+        ver = "1.0.0"
+        if importlib.util.find_spec(pkg) is None:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
+        from groq import Groq
+        api_key = os.environ.get("GROQ_API_KEY")
+        self.client = Groq()
+        logger.info(
+            'Creating Groq client with model=%s with api key=%s...',
+            self.model.parameters['model'], api_key[0:7]
+        )
 
     def _translate_payload(self, payload: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
         if not payload:
