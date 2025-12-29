@@ -4,8 +4,9 @@ data:
     lang: sl
     max_worker_threads: 5
     max_chars_per_payload: 2000
-    max_batch_threads: 2
-    batch_size: 2
+    # for large docs lower this two if rate-limit hits:
+    max_batch_threads: 5
+    batch_size: 5
     models:
       default:
         provider: groq
