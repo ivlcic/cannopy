@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .args.data import TranslateModelConfig, TranslateConfig
 
-logger = logging.getLogger('core.labels')
+logger = logging.getLogger('core.translator')
 
 
 class Translator(ABC):
