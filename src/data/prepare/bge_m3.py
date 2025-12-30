@@ -49,14 +49,13 @@ def remove_lines_containing_any(path: Path, terms: List[str], enc: str = "utf-8"
         terms = [t.lower() for t in terms]
 
     removed = 0
-
     with tempfile.NamedTemporaryFile(mode="w", delete=False, dir=str(path.parent), encoding=enc, newline="") as tmp:
         tmp_path = Path(tmp.name)
 
         with path.open("r", encoding=enc, newline="") as f:
             for line_no, line in enumerate(f, start=1):
                 hay = line.lower() if not cs else line
-                if any(term in hay for term in terms):
+                if any(term in hay for term in terms) and line_no > 130000:
                     removed += 1
                     logger.info(f"Removing line [%s::%s] offensive [%s] .", line_no, path, hay)
                     continue
@@ -82,6 +81,8 @@ def _copy_downloaded(files_paths: List[Path], target_dir: Path) -> None:
                 if child.is_file() and child.suffix == '.jsonl':
                     logger.info(f"Copying %s to %s.", child, d)
                     shutil.copy2(child, d)
+                    if 'msmarco' in child.name.lower():
+                        continue
                     remove_lines_containing_any(d / child.name, offensive, enc="utf-8", cs=True)
 
 
