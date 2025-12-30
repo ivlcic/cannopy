@@ -59,7 +59,9 @@ def remove_lines_containing_any(path: Path, terms: List[str], enc: str = "utf-8"
                 if any(term in hay for term in terms):
                     removed += 1
                     tmp.write(prev)
-                    logger.info(f"Removing line [%s::%s] offensive [%s] .", line_no, path, hay)
+                    logger.info(
+                        f"Replacing line [%s::%s] offensive [%s] with [%s].", line_no, path, hay, prev
+                    )
                     continue
                 tmp.write(line)
                 prev = line
