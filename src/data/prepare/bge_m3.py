@@ -53,13 +53,16 @@ def remove_lines_containing_any(path: Path, terms: List[str], enc: str = "utf-8"
         tmp_path = Path(tmp.name)
 
         with path.open("r", encoding=enc, newline="") as f:
+            prev = ''
             for line_no, line in enumerate(f, start=1):
                 hay = line.lower() if not cs else line
-                if any(term in hay for term in terms) and line_no > 130000:
+                if any(term in hay for term in terms):
                     removed += 1
+                    tmp.write(prev)
                     logger.info(f"Removing line [%s::%s] offensive [%s] .", line_no, path, hay)
                     continue
                 tmp.write(line)
+                prev = line
 
     os.replace(tmp_path, path)
     return removed
