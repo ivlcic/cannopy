@@ -187,9 +187,9 @@ class Translator(ABC):
         if not items:
             return []
         num_retries = 5
+        results: List[Dict[str, Any]] = [{} for _ in items]
         while num_retries > 0:
             try:
-                results: List[Dict[str, Any]] = [{} for _ in items]
                 with ThreadPoolExecutor(max_workers=min(len(items), self.max_batch_threads)) as executor:
                     future_map = {executor.submit(self.translate, p, keys): idx for idx, p in enumerate(items)}
                     for future in as_completed(future_map):
@@ -203,6 +203,7 @@ class Translator(ABC):
                     raise e
                 else:
                     logger.info(f'Retrying [{num_retries}]...')
+        return results  # this never happens
 
 
 @Translator.register("openai")
