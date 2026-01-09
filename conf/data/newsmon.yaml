@@ -7,4 +7,5 @@ data:
     seed: 2611
   source:
     links:
-      - url: https://kt-cloud.ijs.si/index.php/s/xMeNyGFYtjbdGD2/download?path=%2F&files=newsmon.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/xMeNyGFYtjbdGD2/download?path=%2F&files=newsmon-data.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/xMeNyGFYtjbdGD2/download?path=%2F&files=newsmon-data-2023_03-ada_002.zip

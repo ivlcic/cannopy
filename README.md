@@ -31,6 +31,11 @@ Oneliner to reinitialize:
 rm -Rf .venv && python -m venv .venv && source .venv/bin/activate && pip install -U pip setuptools && pip install -r requirements.txt
 ```
 
+Set environment variables
+```shell
+set -a; source .env; set +a
+```
+
 ## 1. Dataset mining / creation task
 
 Prerequisites:
