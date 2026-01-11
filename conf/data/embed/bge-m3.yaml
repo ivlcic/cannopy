@@ -1,0 +1,4 @@
+model:
+  short_name: bge-m3
+  model_name_or_path: 'BAAI/bge-m3'
+  max_seq_length: 8192

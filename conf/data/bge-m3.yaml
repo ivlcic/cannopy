@@ -1,4 +1,5 @@
 data:
+  # don't confuse that with the BGE-M3 model
   dataset_name: bge-m3
   version: 1.0
   source:

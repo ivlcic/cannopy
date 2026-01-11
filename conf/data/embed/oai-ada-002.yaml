@@ -1,0 +1,4 @@
+model:
+  short_name: oai-ada-002
+  model_name_or_path: 'OpenAI/text-embedding-ada-002'
+  max_seq_length: 8192

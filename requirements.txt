@@ -8,3 +8,5 @@ evaluate==0.4.6
 seqeval==1.2.2
 PyYAML==6.0.3
 syntok==1.4.4
+networkx==3.4.2
+sentence-transformers==3.4.0

@@ -84,7 +84,7 @@ Download BGE-M3 dataset (beware it's size is `~24GB`):
 ./data download bge-m3
 # copy English language source documents
 ./data prepare bge-m3
-# translate the data to the Slovenian language 
+# translate the data to the Slovenian language (see conf/data/translate for other languages)
 ./data translate bge-m3 -c sl.yaml
 ```
 
@@ -102,11 +102,24 @@ Download NewsMon dataset (due to a license you need a password to decrypt the ar
 ./data download newsmon
 ```
 
-## 5. TODO :D
+## 5. News Stories
+
+Download NewsMon dataset (due to a license you need a password to decrypt the archive):
+```shell
+./data download newsmon
+```
+
+Embed the newsmon dataset to a :
+```shell
+./data embed newsmon -c oai-ada-002.yaml -c stories.yaml
+# or other models (see conf/data/embed for other embedding models)
+./data embed newsmon -c bge.yaml
+```
+
+
+## 100. TODO :D
 ```shell
 
-./data download newsmon
-./data download eurlex
 ./data prepare newsmon
 ./data prepare eurlex
 ./data embed newsmon -c bge-m3.yaml -c sl.yaml
