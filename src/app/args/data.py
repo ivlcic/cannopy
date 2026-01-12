@@ -37,6 +37,7 @@ class ConnectionConfig:
 class SourceSelectConfig:
     start: str = ''
     end: str = ''
+    subset: str = ''
     query: Dict[str, Any] = field(default_factory=dict)
 
 

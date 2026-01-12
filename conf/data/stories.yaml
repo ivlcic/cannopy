@@ -1,5 +1,8 @@
 data:
   source:
     select:
+      subset: 'stories'
       start: '2023-03-01'
       end: '2023-04-01'
+      query:
+        country: 'SI'
