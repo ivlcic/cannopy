@@ -26,10 +26,12 @@ def _load_embeddings(file_name) -> Dict[str, List[float]]:
                 if 'id' not in obj:
                     logger.warning('Missing id in %s line %d.', file_name, line_no)
                     continue
-                if 'embeddings' not in obj:
+                # accept both embeddings/embedding keys
+                vec = obj.get('embeddings', obj.get('embedding'))
+                if vec is None:
                     logger.warning('Missing embeddings in %s line %d.', file_name, line_no)
                     continue
-                embeddings[obj['id']] = obj['embeddings']
+                embeddings[obj['id']] = vec
             except json.JSONDecodeError:
                 logger.warning('Skipping malformed JSON in %s line %d.', file_name.name, line_no)
                 raise
@@ -105,10 +107,25 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             )
             tgt_ebd = _load_embeddings(tgt_ebd_file)
 
-        batch_size = 8
         with (src_file.open('r', encoding='utf-8') as f_in,
               tgt_file.open('w', encoding='utf-8') as f_out,
               tmp_tgt_ebd_file.open('w', encoding='utf-8') as f_ebd_out):
+            batch_ids: List[str] = []
+            batch_texts: List[str] = []
+
+            def flush_batch() -> None:
+                if not batch_ids:
+                    return
+                vectors = embedder.embed(batch_texts)
+                if len(vectors) != len(batch_ids):
+                    raise RuntimeError(
+                        f'Embedding count mismatch (got {len(vectors)} vectors for {len(batch_ids)} ids)'
+                    )
+                for sid, vec in zip(batch_ids, vectors):
+                    f_ebd_out.write(json.dumps({'id': sid, 'embedding': vec}, ensure_ascii=False) + '\n')
+                batch_ids.clear()
+                batch_texts.clear()
+
             for line_no, line in enumerate(f_in, start=1):
                 line = line.strip()
                 if not line:
@@ -121,20 +138,21 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
                     if _filter_out_sample(data_args, obj):
                         continue
 
-                    ebd = src_ebd.get(obj['id'], None)
-                    if not ebd:
-                        ebd = tgt_ebd.get(obj['id'], None)
-                        if not ebd:
-                            text = _get_text(obj)
-                            ebd = {
-                                'id': obj['id'],
-                                'embedding': embedder.embed(text)
-                            }
-                    f_ebd_out.write(json.dumps(ebd, ensure_ascii=False) + '\n')
+                    sample_id = obj['id']
+                    cached_vec = src_ebd.get(sample_id) or tgt_ebd.get(sample_id)
+                    if cached_vec:
+                        f_ebd_out.write(json.dumps({'id': sample_id, 'embedding': cached_vec}, ensure_ascii=False) + '\n')
+                    else:
+                        batch_ids.append(sample_id)
+                        batch_texts.append(_get_text(obj))
+                        if len(batch_ids) >= model_args.batch_size:
+                            flush_batch()
+
                     f_out.write(json.dumps(obj, ensure_ascii=False) + "\n")
                 except json.JSONDecodeError:
                     logger.warning('Skipping malformed JSON in %s line %d.', src_file.name, line_no)
                     raise
+            flush_batch()
 
         shutil.move(tmp_tgt_ebd_file, tgt_ebd_file)
         cur = next_month

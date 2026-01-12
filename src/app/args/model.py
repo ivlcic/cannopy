@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelArguments:
+    batch_size: int = 32
     model_name_or_path: str = ''
     config_name: str = ''
     tokenizer_name: str = ''
