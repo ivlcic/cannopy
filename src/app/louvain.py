@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, Hashable, Iterable, List, Optional
-
 import networkx as nx
+import numpy as np
+
+from dataclasses import dataclass
+from typing import Dict, Hashable, Iterable, List, Optional, Any
 
 
 @dataclass

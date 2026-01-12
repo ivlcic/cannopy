@@ -1,0 +1,10 @@
+data:
+  cluster:
+    attributes:
+      sim_threshold: 0.96
+
+model:
+  batch_size: 8
+  short_name: ada_002
+  model_name_or_path: 'OpenAI/text-embedding-ada-002'
+  max_seq_length: 8192

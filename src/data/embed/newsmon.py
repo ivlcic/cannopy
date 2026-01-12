@@ -1,3 +1,4 @@
+import csv
 import json
 import shutil
 
@@ -13,8 +14,20 @@ from ...app.embedder import TextEmbedder
 logger: Logger
 paths: Dict[str, Any]
 
+def read_csv_to_dict(path: str, key_col: str = "id") -> dict[str, dict[str, str]]:
+    out: dict[str, dict[str, str]] = {}
+    with open(path, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            key = row.get(key_col)
+            if not key:
+                raise ValueError(f"Missing '{key_col}' value in row: {row}")
+            if key in out:
+                raise ValueError(f"Duplicate '{key_col}' value: {key}")
+            out[key] = row
+    return out
 
-def _load_embeddings(file_name) -> Dict[str, List[float]]:
+
+def load_embeddings(file_name) -> Dict[str, List[float]]:
     embeddings: Dict[str, List[float]] = {}
     with file_name.open('r', encoding='utf-8') as f_in:
         for line_no, line in enumerate(f_in, start=1):
@@ -58,6 +71,8 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
         logger.error(f'Source [download] {data_args.dataset_name} directory not found: %s', source_dir)
         return
 
+    map_media = read_csv_to_dict(source_dir / f'map_media.csv')
+
     target_dir = paths['embed']['data'] / data_args.dataset_name
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -88,6 +103,13 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             raise FileNotFoundError(
                 f"Data file not found: {src_file}, check data.source.select.start and data.source.select.end"
             )
+        map_file = source_dir / f'map_articles_{start.year}_{cur.month:02d}.csv'
+        if not map_file.exists():
+            raise FileNotFoundError(
+                f"Map file not found: {src_file}, check data.source.select.start and data.source.select.end"
+            )
+        map_articles = read_csv_to_dict(map_file)
+
         tgt_file = target_dir / f'{subset}data_{start.year}_{cur.month:02d}.jsonl'
 
         src_ebd_file = source_dir / f'data_{start.year}_{cur.month:02d}-{model_args.short_name}.jsonl'
@@ -96,7 +118,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             logger.info(
                 f"Source embedding data {src_ebd_file} for model {model_args.short_name} exists. Will use that!"
             )
-            src_ebd = _load_embeddings(src_ebd_file)
+            src_ebd = load_embeddings(src_ebd_file)
 
         tgt_ebd_file = target_dir / f'{subset}data_{start.year}_{cur.month:02d}-{model_args.short_name}.jsonl'
         tmp_tgt_ebd_file = target_dir / f'tmp.{subset}data_{start.year}_{cur.month:02d}-{model_args.short_name}.jsonl'
@@ -105,7 +127,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             logger.info(
                 f"Target embedding data {tgt_ebd_file} for model {model_args.short_name} exists. Will use that!"
             )
-            tgt_ebd = _load_embeddings(tgt_ebd_file)
+            tgt_ebd = load_embeddings(tgt_ebd_file)
 
         with (src_file.open('r', encoding='utf-8') as f_in,
               tgt_file.open('w', encoding='utf-8') as f_out,
@@ -137,6 +159,22 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
                         continue
                     if _filter_out_sample(data_args, obj):
                         continue
+
+                    article = map_articles[obj['id']]
+                    reach = 0
+                    if obj['m_id'] in map_media:
+                        source = map_media[obj['m_id']]
+                        if 'reach' in source:
+                            reach = int(source['reach'])
+                    else:
+                        logger.warning(
+                            'Missing %s article media in %s line %d.', obj['m_id'], src_file, line_no
+                        )
+                    created = datetime.fromisoformat(article['created'].replace('Z', '+00:00'))
+                    published = datetime.fromisoformat(article['published'].replace('Z', '+00:00'))
+                    obj['reach'] = reach
+                    obj['published'] = published.isoformat().replace("+00:00", "Z")
+                    obj['created'] = created.isoformat().replace("+00:00", "Z")
 
                     sample_id = obj['id']
                     cached_vec = src_ebd.get(sample_id) or tgt_ebd.get(sample_id)
