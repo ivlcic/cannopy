@@ -1,8 +1,11 @@
 data:
+  cluster:
+    interval_hrs: 120
+    seed: 2611
   source:
     select:
       subset: 'stories'
       start: '2023-03-01'
       end: '2023-04-01'
-      query:
+      filter:
         country: 'SI'

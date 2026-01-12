@@ -39,6 +39,7 @@ class SourceSelectConfig:
     end: str = ''
     subset: str = ''
     query: Dict[str, Any] = field(default_factory=dict)
+    filter: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -53,6 +54,11 @@ class SourceConfig:
     conn: ConnectionConfig = field(default_factory=ConnectionConfig)
     lang: str = ''
     links: List[SourceConfigLink] = field(default_factory=list)
+
+
+@dataclass
+class ClusterConfig:
+    attributes: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -75,3 +81,4 @@ class DataArguments:
     subdata_order: List[str] = field(default_factory=list)
     translate: TranslateConfig = field(default_factory=TranslateConfig)
     source: SourceConfig = field(default_factory=SourceConfig)
+    cluster: ClusterConfig = field(default_factory=ClusterConfig)

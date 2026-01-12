@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, IO
 
 from ...app.translator import Translator
 from ...app.args.data import DataArguments
-from ..prepare.bge_m3 import get_files_paths
+from ..prepare.bge_m3_ds import get_files_paths
 
 logger: Logger
 paths: Dict[str, Any]

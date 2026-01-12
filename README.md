@@ -36,19 +36,19 @@ Set environment variables
 set -a; source .env; set +a
 ```
 
-## 1. Dataset mining / creation task
+## 1. Dataset mining / creation tasks
 
 Prerequisites:
 - An access to archive servers.
 - The `CPTM_SPASS` environment variable is needed in `.env` file. 
 
-### ESG Slovene News Dataset
+### 1.1 ESG Slovene News Dataset
 Create environmental, social, and governance dataset from Slovene news data source:
 ```shell
 ./data create esg
 ```
 
-### Multilingual Keyword Match Slovene News Dataset
+### 1.2 Multilingual Keyword Match Slovene News Dataset
 Create a dataset from a multilingual keywords matching data source:
 ```shell
 ./data create ml-kw-match
@@ -56,7 +56,7 @@ Create a dataset from a multilingual keywords matching data source:
 
 ## 2. Multilingual Slavic NER task
 
-### Dataset preparation
+### 2.1 Dataset preparation
 
 Download and prepare Slavic NER dataset:
 ```shell
@@ -66,7 +66,7 @@ Download and prepare Slavic NER dataset:
 ./data analyze ner
 ```
 
-### Training and evaluation
+### 2.2 Training and evaluation
 ```shell
 ./data train ner -c xlmr.yaml
 ./data train ner -c mm-bert.yaml
@@ -77,15 +77,16 @@ Download and prepare Slavic NER dataset:
 ```
 
 ## 3. Multilingual Slavic Retrieval task
+Note: work in progress
 
 Download BGE-M3 dataset (beware it's size is `~24GB`):
 ```shell
 # download and extract the BGE-M3 dataset
-./data download bge-m3
+./data download bge-m3-ds
 # copy English language source documents
-./data prepare bge-m3
+./data prepare bge-m3-ds
 # translate the data to the Slovenian language (see conf/data/translate for other languages)
-./data translate bge-m3 -c sl.yaml
+./data translate bge-m3-ds -c sl.yaml
 ```
 
 ## 4. Extreme Multilingual Multilabel Text Classification  
@@ -111,9 +112,9 @@ Download NewsMon dataset (due to a license you need a password to decrypt the ar
 
 Embed the newsmon dataset to a :
 ```shell
-./data embed newsmon -c oai-ada-002.yaml -c stories.yaml
+./data embed newsmon -c oai-ada_002.yaml -c stories.yaml
 # or other models (see conf/data/embed for other embedding models)
-./data embed newsmon -c bge.yaml
+./data embed newsmon -c bge-m3.yaml -c stories.yaml
 ```
 
 
