@@ -1,5 +1,5 @@
 data:
-  # don't confuse that with the BGE-M3 model
+  # don't confuse this with the BGE-M3 model it's the BGE-M3 training dataset
   dataset_name: bge-m3-ds
   version: 1.0
   source:

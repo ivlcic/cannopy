@@ -110,7 +110,7 @@ Download NewsMon dataset (due to a license you need a password to decrypt the ar
 ./data download newsmon
 ```
 
-Embed the newsmon dataset to a :
+Embed the newsmon dataset to a ada_002 or BGE-M3 embeddings:
 ```shell
 ./data embed newsmon -c oai-ada_002.yaml -c stories.yaml
 # or other models (see conf/data/embed for other embedding models)

@@ -79,7 +79,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     if data_args.source.select.subset:
         subset = f'{data_args.source.select.subset}_'
 
-    while cur <= end:
+    while cur < end:
         next_month = cur + relativedelta(months=1)
         src_file = source_dir / f'data_{start.year}_{cur.month:02d}.jsonl'
         if not src_file.exists():
@@ -105,6 +105,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             )
             tgt_ebd = _load_embeddings(tgt_ebd_file)
 
+        batch_size = 8
         with (src_file.open('r', encoding='utf-8') as f_in,
               tgt_file.open('w', encoding='utf-8') as f_out,
               tmp_tgt_ebd_file.open('w', encoding='utf-8') as f_ebd_out):
