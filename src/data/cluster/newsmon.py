@@ -30,7 +30,11 @@ def cluster_louvain(articles: List[Dict[str, Any]], embed_field_name: str, sim_t
     [embeddings.append(x[embed_field_name]) for x in articles]
     embeddings = np.array(embeddings)
     x = cosine_similarity_matrix(embeddings)
+
     similarity_matrix = x > sim_threshold
+    # Remove self-loops (diagonal True values)
+    np.fill_diagonal(similarity_matrix, False)
+
     G = nx.from_numpy_array(similarity_matrix)
     communities = nx.algorithms.community.louvain_communities(G, resolution=0.1, seed=seed)
 
@@ -112,7 +116,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
 
     # Iterate month-by-month with per-month clipped ranges
     cur = start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-
+    neki = datetime.fromisoformat('2023-02-28T23:00:00.000Z'.replace('Z', '+00:00')).astimezone()
     # is data only a subset
     subset = ''
     if data_args.source.select.subset:
