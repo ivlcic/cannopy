@@ -1,4 +1,5 @@
 data:
   cluster:
     attributes:
+      output_excel: True
       sim_threshold: 0.96

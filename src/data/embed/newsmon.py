@@ -130,7 +130,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             tgt_ebd = load_embeddings(tgt_ebd_file)
 
         with (src_file.open('r', encoding='utf-8') as f_in,
-              tgt_file.open('w', encoding='utf-8') as f_out,
+              #tgt_file.open('w', encoding='utf-8') as f_out,
               tmp_tgt_ebd_file.open('w', encoding='utf-8') as f_ebd_out):
             batch_ids: List[str] = []
             batch_texts: List[str] = []
@@ -163,6 +163,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
                     article = map_articles[obj['id']]
                     reach = 0
                     source_type = None
+                    source_name = None
                     url = None
                     if obj['m_id'] in map_media:
                         source = map_media[obj['m_id']]
@@ -170,6 +171,8 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
                             reach = int(source['reach'])
                         if 'type' in source:
                             source_type = source['type']
+                        if 'name' in source:
+                            source_name = source['name']
                     else:
                         logger.warning(
                             'Missing %s article media in %s line %d.', obj['m_id'], src_file, line_no
@@ -180,7 +183,9 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
                     published = datetime.fromisoformat(article['published'].replace('Z', '+00:00'))
                     obj['reach'] = reach
                     obj['type'] = source_type
+                    obj['source'] = source_name
                     obj['url'] = url
+                    obj['uuid'] = article['uuid']
                     obj['published'] = published.isoformat().replace("+00:00", "Z")
                     obj['created'] = created.isoformat().replace("+00:00", "Z")
 
@@ -194,7 +199,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
                         if len(batch_ids) >= model_args.batch_size:
                             flush_batch()
 
-                    f_out.write(json.dumps(obj, ensure_ascii=False) + "\n")
+                    #f_out.write(json.dumps(obj, ensure_ascii=False) + "\n")
                 except json.JSONDecodeError:
                     logger.warning('Skipping malformed JSON in %s line %d.', src_file.name, line_no)
                     raise

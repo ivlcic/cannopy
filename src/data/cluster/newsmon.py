@@ -4,7 +4,7 @@ import numpy as np
 import networkx as nx
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from logging import Logger
 from typing import Any, Dict, List
 
@@ -62,17 +62,21 @@ def cluster_prep(clusters: Dict[int, List[Dict[str, Any]]], key: str, start: dat
         cl = articles[0]
         size = len(articles)
         cluster = {'id': cl['id'], 'size': size, 'idx': c, 'title': cl['title']['text'], 'articles': []}
-        articles.sort(key=lambda article: article.created)
+        articles.sort(key=lambda article: article["created"])
         data['clusters'].append(cluster)
         for x, a in enumerate(articles):
             cl_article = {
-                'id': a['is'],
-                'published': a['published'],
-                'created': a['crated'],
-                'media': a['m_id'],
+                'id': a['id'],
+                'uuid': a['uuid'],
+                'published': datetime.isoformat(a['published']),
+                'created': datetime.isoformat(a['created']),
+                'source_id': a['m_id'],
+                'source': a['source'],
                 'language': a['lang'],
                 'country': a['country'],
                 'reach': a['reach'],
+                'type': a['type'],
+                'url': a['url'],
                 'title': a['title']['text'],
                 'body': a['body']['text']
             }
@@ -91,7 +95,13 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     start = datetime.fromisoformat(data_args.source.select.start)
+    if start.tzinfo is None:
+        start = start.astimezone()
+
     end = datetime.fromisoformat(data_args.source.select.end)
+    if end.tzinfo is None:
+        end = end.astimezone()
+
     # Validate year == 2023 as Newsmon is 2023 only
     if start.year != 2023 or end.year != 2023:
         raise ValueError(
@@ -114,6 +124,9 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
 
     num_days = data_args.cluster.attributes['num_days']
     sim_threshold = data_args.cluster.attributes['sim_threshold']
+    output_excel = False
+    if 'output_excel' in data_args.cluster.attributes:
+        output_excel = data_args.cluster.attributes['output_excel']
     while cur < end:
         next_month = cur + relativedelta(months=1)
         src_file = source_dir / f'{subset}data_{start.year}_{cur.month:02d}.jsonl'
@@ -136,7 +149,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
                     continue
                 try:
                     article = json.loads(line)
-                    created = datetime.fromisoformat(article['created'].replace('Z', '+00:00'))
+                    created = datetime.fromisoformat(article['created'].replace('Z', '+00:00')).astimezone()
                     delta = created - cur
                     bucket_start_date = cur + timedelta(days=(delta.days // num_days) * num_days)
                     bucket_key = bucket_start_date.strftime('%Y-%m-%d')
@@ -150,8 +163,8 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
                 except json.JSONDecodeError:
                     logger.warning('Skipping malformed JSON in %s line %d.', src_file.name, line_no)
                     raise
-
-        tgt_file = target_dir / f'{subset}data_{start.year}_{cur.month:02d}.jsonl'
+        base_name = f'{subset}data_clusters_{start.year}_{cur.month:02d}-{model_args.short_name}@{sim_threshold}'
+        tgt_file = target_dir / f'{base_name}.jsonl'
         clusters: List[Dict[str, Any]] = []
         with (tgt_file.open('w', encoding='utf-8') as f_out):
             for key, articles in collected.items():
@@ -161,10 +174,14 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
                 max_created = max(created_values)
                 logger.info(
                     "Computed [%s] %s days clusters [%s from %s to %s] ",
-                    len(bucket_clusters), num_days, key
+                    len(bucket_clusters), num_days, key, min_created, max_created
                 )
                 bucket_clusters = cluster_prep(bucket_clusters, key, min_created, max_created)
                 f_out.write(json.dumps(bucket_clusters, ensure_ascii=False) + "\n")
                 clusters.append(bucket_clusters)
-
+        if output_excel:
+            from .__newsmon_xlsx import ClusterExcel
+            tgt_file = target_dir / f'{base_name}.xlsx'
+            excel = ClusterExcel(tgt_file)
+            excel.write_xlsx(clusters)
         cur = next_month

@@ -209,4 +209,5 @@ __marimo__/
 result/**/*.jsonl
 result/**/*.csv
 result/**/*.tsv
+result/**/*.xlsx
 tmp/**
