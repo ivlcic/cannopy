@@ -115,6 +115,8 @@ Embed the newsmon dataset to a ada_002 or BGE-M3 embeddings:
 ./data embed newsmon -c oai-ada_002.yaml -c stories.yaml
 # or other models (see conf/data/embed for other embedding models)
 ./data embed newsmon -c bge-m3.yaml -c stories.yaml
+./data embed newsmon -c oai-txt_ebd_3s.yaml -c stories.yaml
+./data embed newsmon -c qwen3-ebd06.yaml -c stories.yaml
 ```
 
 

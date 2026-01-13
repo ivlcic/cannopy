@@ -137,20 +137,36 @@ class OpenaiTextEmbedder(TextEmbedder):
         ver = "2.14.0"
         if importlib.util.find_spec(pkg) is None:
             subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
+        pkg = "tiktoken"
+        ver = "0.12.0"
+        if importlib.util.find_spec(pkg) is None:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
         from openai import OpenAI
 
         if not model_args.model_name_or_path:
             raise ValueError("OpenAI embedder requires model_name_or_path to be set.")
         self.client = OpenAI()
+        self.model_name = model_args.model_name_or_path.replace("OpenAI/", '')
+        self.max_seq_length = model_args.max_seq_length
+        import tiktoken
+
+        self.encoder = tiktoken.encoding_for_model(self.model_name)
         logger.info('Creating OpenAI client with model=%s', model_args.model_name_or_path)
+
+    def _truncate_text_to_tokens(self, text: str) -> str:
+        tokens = self.encoder.encode(text)
+        if len(tokens) <= self.max_seq_length:
+            return text
+        return self.encoder.decode(tokens[:self.max_seq_length])
 
     def embed(self, texts: EmbeddingInput) -> Union[Vector, List[Vector]]:
         single = isinstance(texts, str)
         batch = [texts] if single else list(texts)
         if not batch:
             return [] if single else []
+        batch = [self._truncate_text_to_tokens(b) for b in batch]
         response = self.client.embeddings.create(
-            model=self.model_args.model_name_or_path,
+            model=self.model_name,
             input=batch,
         )
         data = [item.embedding for item in response.data]
