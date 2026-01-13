@@ -46,13 +46,9 @@ class TextEmbedder(ABC):
     def __init__(self, model_args: ModelArguments) -> None:
         self.model_args = model_args
 
+    @abstractmethod
     def embed(self, texts: EmbeddingInput) -> Union[Vector, List[Vector]]:
-        arr = self.embed2np(texts)
-        if isinstance(arr, list):
-            return arr
-        if isinstance(texts, str) and arr.ndim > 1:
-            arr = arr[0]
-        return arr.tolist()
+        raise NotImplementedError
 
     @abstractmethod
     def embed2np(self, texts: EmbeddingInput) -> np.ndarray:
@@ -69,32 +65,43 @@ class STEmbedder(TextEmbedder):
         model_name = model_args.model_name_or_path
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.batch_size = getattr(model_args, "batch_size", 32)
-        self.model = SentenceTransformer(model_name, device=self.device)
+        self.model = SentenceTransformer(model_name, device=self.device, trust_remote_code=True)
         if model_args.max_seq_length:
             self.model.max_seq_length = model_args.max_seq_length
         logger.info('Loaded SentenceTransformer model=%s on %s', model_name, self.device)
 
-    def embed2pt(self, texts: EmbeddingInput) -> torch.Tensor:
+    def _embed(self, texts: EmbeddingInput, pt: bool = True) -> np.ndarray | torch.Tensor:
         single = isinstance(texts, str)
         batch = [texts] if single else list(texts)
         if not batch:
-            return torch.empty((0, 0), device=self.device)
+            if pt:
+                return torch.empty((0, 0), device='cpu')
+            else:
+                return np.empty((0, 0))
         with torch.inference_mode():
             vectors = self.model.encode(
                 batch,
                 batch_size=self.batch_size,
                 normalize_embeddings=True,
-                convert_to_tensor=True,
+                convert_to_numpy=not pt,
+                convert_to_tensor=pt,
                 device=self.device
             )
-        return vectors[0] if single else vectors
-
-    def embed2np(self, texts: EmbeddingInput) -> np.ndarray:
-        tensor = self.embed2pt(texts)
-        cpu_tensor = tensor.detach().to("cpu")
+        if pt:
+            vectors = vectors.detach().to("cpu")
         if self.device == "cuda":
             torch.cuda.empty_cache()
-        return cpu_tensor.numpy()
+        return vectors[0] if single else vectors
+
+    def embed2pt(self, texts: EmbeddingInput) -> torch.Tensor:
+        return self._embed(texts)
+
+    def embed(self, texts: EmbeddingInput) -> Union[Vector, List[Vector]]:
+        arr = self._embed(texts)
+        return arr.tolist()
+
+    def embed2np(self, texts: EmbeddingInput) -> np.ndarray:
+        return self._embed(texts, pt=False)
 
 
 @TextEmbedder.register("BAAI/bge-m3")
@@ -104,6 +111,18 @@ class BgeM3Embedder(STEmbedder):
 
 
 @TextEmbedder.register("Qwen/Qwen3-Embedding-0.6B")
+class Qwen3Embedder(STEmbedder):
+    def __init__(self, model_args: ModelArguments) -> None:
+        super().__init__(model_args)
+
+
+@TextEmbedder.register("jinaai/jina-embeddings-v3")
+class Qwen3Embedder(STEmbedder):
+    def __init__(self, model_args: ModelArguments) -> None:
+        super().__init__(model_args)
+
+
+@TextEmbedder.register("Alibaba-NLP/gte-multilingual-base")
 class Qwen3Embedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
         super().__init__(model_args)
@@ -125,19 +144,27 @@ class OpenaiTextEmbedder(TextEmbedder):
         self.client = OpenAI()
         logger.info('Creating OpenAI client with model=%s', model_args.model_name_or_path)
 
-    def embed2pt(self, texts: EmbeddingInput) -> torch.Tensor:
+    def embed(self, texts: EmbeddingInput) -> Union[Vector, List[Vector]]:
         single = isinstance(texts, str)
         batch = [texts] if single else list(texts)
         if not batch:
-            return torch.empty((0, 0))
+            return [] if single else []
         response = self.client.embeddings.create(
             model=self.model_args.model_name_or_path,
             input=batch,
         )
         data = [item.embedding for item in response.data]
+        return data[0] if single else data
+
+    def embed2pt(self, texts: EmbeddingInput) -> torch.Tensor:
+        out = self.embed(texts)
+        single = isinstance(texts, str)
+        data = [out] if single else out
         tensor = torch.tensor(data, dtype=torch.float32)
         return tensor[0] if single else tensor
 
     def embed2np(self, texts: EmbeddingInput) -> np.ndarray:
-        tensor = self.embed2pt(texts)
-        return tensor.numpy()
+        out = self.embed(texts)
+        single = isinstance(texts, str)
+        data = [out] if single else out
+        return np.array(data, dtype=np.float32 if data else float)
