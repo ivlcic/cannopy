@@ -162,17 +162,25 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
 
                     article = map_articles[obj['id']]
                     reach = 0
+                    source_type = None
+                    url = None
                     if obj['m_id'] in map_media:
                         source = map_media[obj['m_id']]
                         if 'reach' in source:
                             reach = int(source['reach'])
+                        if 'type' in source:
+                            source_type = source['type']
                     else:
                         logger.warning(
                             'Missing %s article media in %s line %d.', obj['m_id'], src_file, line_no
                         )
+                    if 'url' in article:
+                        url = article['url']
                     created = datetime.fromisoformat(article['created'].replace('Z', '+00:00'))
                     published = datetime.fromisoformat(article['published'].replace('Z', '+00:00'))
                     obj['reach'] = reach
+                    obj['type'] = source_type
+                    obj['url'] = url
                     obj['published'] = published.isoformat().replace("+00:00", "Z")
                     obj['created'] = created.isoformat().replace("+00:00", "Z")
 

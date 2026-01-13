@@ -60,6 +60,7 @@ class TextEmbedder(ABC):
 
 
 class STEmbedder(TextEmbedder):
+
     def __init__(self, model_args: ModelArguments) -> None:
         super().__init__(model_args)
         model_name = model_args.model_name_or_path
@@ -68,17 +69,44 @@ class STEmbedder(TextEmbedder):
         self.model = SentenceTransformer(model_name, device=self.device, trust_remote_code=True)
         if model_args.max_seq_length:
             self.model.max_seq_length = model_args.max_seq_length
+        self.tokenizer = self.model.tokenizer
+        self.truncate = getattr(model_args, "truncate", False)
         logger.info('Loaded SentenceTransformer model=%s on %s', model_name, self.device)
+
+    def _truncate_text(self, text: str) -> str:
+        tok = self.tokenizer
+
+        # Reserve space for special tokens the model will add
+        special = tok.num_special_tokens_to_add(pair=False)
+        budget = max(0, self.model.max_seq_length - special)
+
+        ids = tok.encode(text, add_special_tokens=False)
+        if len(ids) <= budget:
+            return text
+
+        return tok.decode(ids[:budget], skip_special_tokens=True)
+
+    def _ret_empty(self, batch: List[str], single: bool = False, pt: bool = True):
+        if single:
+            if pt:
+                return torch.empty((self.model.get_sentence_embedding_dimension()), device='cpu')
+            else:
+                return np.empty((self.model.get_sentence_embedding_dimension()))
+        else:
+            if pt:
+                return torch.empty((len(batch), self.model.get_sentence_embedding_dimension()), device='cpu')
+            else:
+                return np.empty((len(batch), self.model.get_sentence_embedding_dimension()))
 
     def _embed(self, texts: EmbeddingInput, pt: bool = True) -> np.ndarray | torch.Tensor:
         single = isinstance(texts, str)
         batch = [texts] if single else list(texts)
         if not batch:
-            if pt:
-                return torch.empty((0, 0), device='cpu')
-            else:
-                return np.empty((0, 0))
-        with torch.inference_mode():
+            return self._ret_empty(batch, single, pt)
+        if self.truncate:
+            batch = [self._truncate_text(b) for b in batch]
+        try:
+            # with torch.inference_mode():
             vectors = self.model.encode(
                 batch,
                 batch_size=self.batch_size,
@@ -87,6 +115,9 @@ class STEmbedder(TextEmbedder):
                 convert_to_tensor=pt,
                 device=self.device
             )
+        except torch.OutOfMemoryError:
+            logger.warning("Hitting memory problems")
+            return self._ret_empty(batch, single, pt)
         if pt:
             vectors = vectors.detach().to("cpu")
         if self.device == "cuda":
@@ -114,16 +145,17 @@ class BgeM3Embedder(STEmbedder):
 class Qwen3Embedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
         super().__init__(model_args)
+        # self.truncate = True
 
 
 @TextEmbedder.register("jinaai/jina-embeddings-v3")
-class Qwen3Embedder(STEmbedder):
+class JinaV3Embedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
         super().__init__(model_args)
 
 
 @TextEmbedder.register("Alibaba-NLP/gte-multilingual-base")
-class Qwen3Embedder(STEmbedder):
+class GteMultilingualEmbedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
         super().__init__(model_args)
 
@@ -153,7 +185,7 @@ class OpenaiTextEmbedder(TextEmbedder):
         self.encoder = tiktoken.encoding_for_model(self.model_name)
         logger.info('Creating OpenAI client with model=%s', model_args.model_name_or_path)
 
-    def _truncate_text_to_tokens(self, text: str) -> str:
+    def _truncate_text(self, text: str) -> str:
         tokens = self.encoder.encode(text)
         if len(tokens) <= self.max_seq_length:
             return text
@@ -164,7 +196,7 @@ class OpenaiTextEmbedder(TextEmbedder):
         batch = [texts] if single else list(texts)
         if not batch:
             return [] if single else []
-        batch = [self._truncate_text_to_tokens(b) for b in batch]
+        batch = [self._truncate_text(b) for b in batch]
         response = self.client.embeddings.create(
             model=self.model_name,
             input=batch,

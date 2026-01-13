@@ -1,7 +1,9 @@
 import json
+
 import numpy as np
 import networkx as nx
 
+from collections import defaultdict
 from datetime import datetime, timedelta
 from logging import Logger
 from typing import Any, Dict, List
@@ -53,6 +55,31 @@ def cluster_louvain(articles: List[Dict[str, Any]], embed_field_name: str, sim_t
     return consistent
 
 
+def cluster_prep(clusters: Dict[int, List[Dict[str, Any]]], key: str, start: datetime, end: datetime):
+    data: Dict[str, Any] = {'key': key, 'from': start.isoformat(), 'to': end.isoformat(), 'clusters': []}
+    for c, k in enumerate(clusters.keys()):
+        articles: List[Dict[str, Any]] = clusters[k]
+        cl = articles[0]
+        size = len(articles)
+        cluster = {'id': cl['id'], 'size': size, 'idx': c, 'title': cl['title']['text'], 'articles': []}
+        articles.sort(key=lambda article: article.created)
+        data['clusters'].append(cluster)
+        for x, a in enumerate(articles):
+            cl_article = {
+                'id': a['is'],
+                'published': a['published'],
+                'created': a['crated'],
+                'media': a['m_id'],
+                'language': a['lang'],
+                'country': a['country'],
+                'reach': a['reach'],
+                'title': a['title']['text'],
+                'body': a['body']['text']
+            }
+            cluster['articles'].append(cl_article)
+    return data
+
+
 def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     logger.info(f'Clustering {data_args.dataset_name}')
     source_dir = paths['base']['data'] / 'embed' / data_args.dataset_name
@@ -89,7 +116,6 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     sim_threshold = data_args.cluster.attributes['sim_threshold']
     while cur < end:
         next_month = cur + relativedelta(months=1)
-        cur = datetime.fromisoformat('2023-03-01T00:00:00.000+00:00')
         src_file = source_dir / f'{subset}data_{start.year}_{cur.month:02d}.jsonl'
         if not src_file.exists():
             raise FileNotFoundError(
@@ -102,35 +128,43 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             )
         src_ebd = load_embeddings(src_ebd_file)
 
-        collected: Dict[str, List[Dict[str, Any]]] = {}
+        collected: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         with (src_file.open('r', encoding='utf-8') as f_in):
             for line_no, line in enumerate(f_in, start=1):
                 line = line.strip()
                 if not line:
                     continue
                 try:
-                    obj = json.loads(line)
-                    created = datetime.fromisoformat(obj['created'].replace('Z', '+00:00'))
+                    article = json.loads(line)
+                    created = datetime.fromisoformat(article['created'].replace('Z', '+00:00'))
                     delta = created - cur
                     bucket_start_date = cur + timedelta(days=(delta.days // num_days) * num_days)
                     bucket_key = bucket_start_date.strftime('%Y-%m-%d')
-                    obj['created'] = created
-                    obj['date'] = datetime.fromisoformat(obj['date'].replace('Z', '+00:00'))
-                    obj['published'] = datetime.fromisoformat(obj['published'].replace('Z', '+00:00'))
-                    obj['embedding'] = src_ebd[obj['id']]
-                    if bucket_key not in collected:
-                        collected[bucket_key] = []
-                    collected[bucket_key].append(obj)
+
+                    article['created'] = created
+                    article['date'] = datetime.fromisoformat(article['date'].replace('Z', '+00:00'))
+                    article['published'] = datetime.fromisoformat(article['published'].replace('Z', '+00:00'))
+                    article['embedding'] = src_ebd[article['id']]
+
+                    collected[bucket_key].append(article)
                 except json.JSONDecodeError:
                     logger.warning('Skipping malformed JSON in %s line %d.', src_file.name, line_no)
                     raise
 
-        for key, articles in collected.items():
-            daily_clusters = cluster_louvain(articles, 'embedding', sim_threshold, seed)
-            logger.info(
-                "Computed [%s] %s days clusters [%s from %s::%s] ",
-                len(daily_clusters), num_days, key, cur, end
-            )
+        tgt_file = target_dir / f'{subset}data_{start.year}_{cur.month:02d}.jsonl'
+        clusters: List[Dict[str, Any]] = []
+        with (tgt_file.open('w', encoding='utf-8') as f_out):
+            for key, articles in collected.items():
+                bucket_clusters = cluster_louvain(articles, 'embedding', sim_threshold, seed)
+                created_values = [a["created"] for a in articles if a.get("created") is not None]
+                min_created = min(created_values)
+                max_created = max(created_values)
+                logger.info(
+                    "Computed [%s] %s days clusters [%s from %s to %s] ",
+                    len(bucket_clusters), num_days, key
+                )
+                bucket_clusters = cluster_prep(bucket_clusters, key, min_created, max_created)
+                f_out.write(json.dumps(bucket_clusters, ensure_ascii=False) + "\n")
+                clusters.append(bucket_clusters)
 
-        # tgt_file = target_dir / f'{subset}data_{start.year}_{cur.month:02d}.jsonl'
         cur = next_month
