@@ -71,6 +71,8 @@ class STEmbedder(TextEmbedder):
             self.model.max_seq_length = model_args.max_seq_length
         self.tokenizer = self.model.tokenizer
         self.truncate = getattr(model_args, "truncate", False)
+        self.task = None
+        self.prompt_name = None
         logger.info('Loaded SentenceTransformer model=%s on %s', model_name, self.device)
 
     def _truncate_text(self, text: str) -> str:
@@ -113,6 +115,8 @@ class STEmbedder(TextEmbedder):
                 normalize_embeddings=True,
                 convert_to_numpy=not pt,
                 convert_to_tensor=pt,
+                task=self.task,
+                prompt_name=self.prompt_name,
                 device=self.device
             )
         except torch.OutOfMemoryError:
@@ -154,6 +158,11 @@ class Qwen3Embedder(STEmbedder):
 class JinaV3Embedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
         super().__init__(model_args)
+        # intentional inline install and import
+        pkg = "einops"
+        ver = "0.8.1"
+        if importlib.util.find_spec(pkg) is None:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
 
 
 @TextEmbedder.register("Alibaba-NLP/gte-multilingual-base")
@@ -171,6 +180,7 @@ class OpenaiTextEmbedder(TextEmbedder):
         ver = "2.14.0"
         if importlib.util.find_spec(pkg) is None:
             subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
+        # intentional inline install and import
         pkg = "tiktoken"
         ver = "0.12.0"
         if importlib.util.find_spec(pkg) is None:
