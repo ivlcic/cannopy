@@ -4,7 +4,7 @@ import numpy as np
 import networkx as nx
 
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from logging import Logger
 from typing import Any, Dict, List
 
@@ -18,11 +18,11 @@ logger: Logger
 paths: Dict[str, Any]
 
 
-def cosine_similarity_matrix(X, eps=1e-12):
-    X = np.asarray(X, dtype=float)
-    norms = np.linalg.norm(X, axis=1, keepdims=True)
-    X = X / np.clip(norms, eps, None)
-    return X @ X.T
+def cosine_similarity_matrix(x, eps=1e-12):
+    x = np.asarray(x, dtype=float)
+    norms = np.linalg.norm(x, axis=1, keepdims=True)
+    x = x / np.clip(norms, eps, None)
+    return x @ x.T
 
 
 def cluster_louvain(articles: List[Dict[str, Any]], embed_field_name: str, sim_threshold: float = 0.84, seed=None):
@@ -35,8 +35,8 @@ def cluster_louvain(articles: List[Dict[str, Any]], embed_field_name: str, sim_t
     # Remove self-loops (diagonal True values)
     np.fill_diagonal(similarity_matrix, False)
 
-    G = nx.from_numpy_array(similarity_matrix)
-    communities = nx.algorithms.community.louvain_communities(G, resolution=0.1, seed=seed)
+    graph = nx.from_numpy_array(similarity_matrix)
+    communities = nx.algorithms.community.louvain_communities(graph, resolution=0.1, seed=seed)
 
     labels = [0] * len(embeddings)
     for community in communities:
@@ -116,7 +116,6 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
 
     # Iterate month-by-month with per-month clipped ranges
     cur = start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    neki = datetime.fromisoformat('2023-02-28T23:00:00.000Z'.replace('Z', '+00:00')).astimezone()
     # is data only a subset
     subset = ''
     if data_args.source.select.subset:

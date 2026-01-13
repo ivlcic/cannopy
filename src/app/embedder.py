@@ -106,7 +106,7 @@ class STEmbedder(TextEmbedder):
         if self.truncate:
             batch = [self._truncate_text(b) for b in batch]
         try:
-            # with torch.inference_mode():
+            # noinspection PyTypeChecker
             vectors = self.model.encode(
                 batch,
                 batch_size=self.batch_size,
@@ -119,6 +119,7 @@ class STEmbedder(TextEmbedder):
             logger.warning("Hitting memory problems")
             return self._ret_empty(batch, single, pt)
         if pt:
+            # noinspection PyUnresolvedReferences
             vectors = vectors.detach().to("cpu")
         if self.device == "cuda":
             torch.cuda.empty_cache()
@@ -135,6 +136,7 @@ class STEmbedder(TextEmbedder):
         return self._embed(texts, pt=False)
 
 
+# noinspection SpellCheckingInspection
 @TextEmbedder.register("BAAI/bge-m3")
 class BgeM3Embedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
@@ -173,6 +175,7 @@ class OpenaiTextEmbedder(TextEmbedder):
         ver = "0.12.0"
         if importlib.util.find_spec(pkg) is None:
             subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
+        # noinspection PyPackageRequirements
         from openai import OpenAI
 
         if not model_args.model_name_or_path:
@@ -180,6 +183,7 @@ class OpenaiTextEmbedder(TextEmbedder):
         self.client = OpenAI()
         self.model_name = model_args.model_name_or_path.replace("OpenAI/", '')
         self.max_seq_length = model_args.max_seq_length
+        # noinspection PyPackageRequirements
         import tiktoken
 
         self.encoder = tiktoken.encoding_for_model(self.model_name)

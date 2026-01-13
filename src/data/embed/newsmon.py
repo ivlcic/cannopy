@@ -14,6 +14,7 @@ from ...app.embedder import TextEmbedder
 logger: Logger
 paths: Dict[str, Any]
 
+
 def read_csv_to_dict(path: str, key_col: str = "id") -> dict[str, dict[str, str]]:
     out: dict[str, dict[str, str]] = {}
     with open(path, newline="", encoding="utf-8") as f:
@@ -130,7 +131,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             tgt_ebd = load_embeddings(tgt_ebd_file)
 
         with (src_file.open('r', encoding='utf-8') as f_in,
-              #tgt_file.open('w', encoding='utf-8') as f_out,
+              tgt_file.open('w', encoding='utf-8') as f_out,
               tmp_tgt_ebd_file.open('w', encoding='utf-8') as f_ebd_out):
             batch_ids: List[str] = []
             batch_texts: List[str] = []
@@ -192,14 +193,16 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
                     sample_id = obj['id']
                     cached_vec = src_ebd.get(sample_id) or tgt_ebd.get(sample_id)
                     if cached_vec:
-                        f_ebd_out.write(json.dumps({'id': sample_id, 'embedding': cached_vec}, ensure_ascii=False) + '\n')
+                        f_ebd_out.write(
+                            json.dumps({'id': sample_id, 'embedding': cached_vec}, ensure_ascii=False) + '\n'
+                        )
                     else:
                         batch_ids.append(sample_id)
                         batch_texts.append(_get_text(obj))
                         if len(batch_ids) >= model_args.batch_size:
                             flush_batch()
 
-                    #f_out.write(json.dumps(obj, ensure_ascii=False) + "\n")
+                    f_out.write(json.dumps(obj, ensure_ascii=False) + "\n")
                 except json.JSONDecodeError:
                     logger.warning('Skipping malformed JSON in %s line %d.', src_file.name, line_no)
                     raise

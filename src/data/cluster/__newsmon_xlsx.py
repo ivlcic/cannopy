@@ -14,10 +14,13 @@ class ClusterExcel:
         self.file = file
         pkg = "openpyxl"
         ver = "3.1.5"
+        # noinspection PyUnresolvedReferences
         if importlib.util.find_spec(pkg) is None:
             subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
 
+        # noinspection PyPackageRequirements
         from openpyxl import Workbook
+        # noinspection PyPackageRequirements
         from openpyxl.styles import Font, Alignment, NamedStyle, PatternFill
 
         self.wb = Workbook(write_only=True)
@@ -65,7 +68,9 @@ class ClusterExcel:
         self.wb.add_named_style(created_style)
 
     def cluster_print_sheet(self, sheet_name: Optional[str], cluster_bucket: List[Dict[str, Any]]):
+        # noinspection PyPackageRequirements
         from openpyxl.cell import Cell, WriteOnlyCell
+        # noinspection PyPackageRequirements
         from openpyxl.styles import Border, Side
 
         if sheet_name:
@@ -73,8 +78,9 @@ class ClusterExcel:
         else:
             ws = self.wb.create_sheet()
 
-        def _xlsx_cluster_cell_border(size: int, x: int, x_cell: Cell):
-            if x == 0 and size > 1:
+        def _xlsx_cluster_cell_border(c_size: int, x: int, x_cell: Cell):
+            if x == 0 and c_size > 1:
+                # noinspection PyDunderSlots, PyUnresolvedReferences
                 x_cell.border = Border(
                     top=Side(style='thin'),
                 )
@@ -107,6 +113,7 @@ class ClusterExcel:
                     broadcast = published.replace(tzinfo=None)
 
                 kl_token = os.environ.get('KMAP_TOKEN', None)
+                kl_url = os.environ.get('KMAP_URL', None)
                 preview_url = ''
                 pdf_url = ''
                 url = ''
@@ -114,14 +121,12 @@ class ClusterExcel:
                     rel_path = os.path.join(
                         str(created.year), f"{created.month:02d}", f"{created.day:02d}", article['uuid']
                     )
+                    params = '&purpose=2&language=en&summaryType=override&showHighlights=true'
                     if article['url']:
-                        url = 'https://www.klipingmap.com/v3.0/media/redirect?filePath=' + rel_path
-                        url += '&purpose=2&language=en&summaryType=override&showHighlights=true&&dcStringToken=' + kl_token
+                        url = f'{kl_url}/redirect?filePath={rel_path}&{params}&dcStringToken={kl_token}'
 
-                    preview_url = 'https://www.klipingmap.com/v3.0/media/html?filePath=' + rel_path
-                    preview_url += '&purpose=2&language=en&summaryType=override&showHighlights=true&dcStringToken=' + kl_token
-                    pdf_url = 'https://www.klipingmap.com/v3.0/media/pdf?filePath=' + rel_path
-                    pdf_url += '&purpose=2&language=en&summaryType=override&showHighlights=true&&dcStringToken=' + kl_token
+                    preview_url = f'{kl_url}/html?filePath={rel_path}&{params}&dcStringToken={kl_token}'
+                    pdf_url = f'{kl_url}/pdf?filePath={rel_path}&{params}&dcStringToken={kl_token}'
 
                 row = []
                 a_cell = WriteOnlyCell(ws, value=cluster['id'])
