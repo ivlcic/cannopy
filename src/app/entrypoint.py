@@ -335,13 +335,14 @@ def _build_parser(argv: List[str], script: str, src: Path) -> argparse.ArgumentP
     return parser
 
 
-def _ensure_dirs(paths: Dict[str, Path], sub_action: str, name: str) -> Dict[str, Dict[str, Path]]:
+def _ensure_dirs(paths: Dict[str, Path], script: str, sub_action: str, name: str) -> Dict[str, Dict[str, Path]]:
     run = {
         'base': {
             "tmp": paths["repo"] / "tmp",
             "log": paths["repo"] / "log",
             "result": paths["repo"] / "result",
             "data": paths["repo"] / "result" / "data",
+            script: paths["repo"] / "result" / script,
         }
     }
 
@@ -350,6 +351,7 @@ def _ensure_dirs(paths: Dict[str, Path], sub_action: str, name: str) -> Dict[str
             "tmp": paths["repo"] / "tmp" / sub_action,
             "result": paths["repo"] / "result" / sub_action,
             "data": paths["repo"] / "result" / "data" / sub_action,
+            script: paths["repo"] / "result" / script / sub_action,
         }
 
     if name and sub_action != name:
@@ -357,6 +359,7 @@ def _ensure_dirs(paths: Dict[str, Path], sub_action: str, name: str) -> Dict[str
             "tmp": paths["repo"] / "tmp" / name,
             "result": paths["repo"] / "result" / name,
             "data": paths["repo"] / "result" / "data" / name,
+            script: paths["repo"] / "result" / script / name,
         }
 
     for p in run['base'].values():
@@ -426,7 +429,7 @@ def main(argv: List[str]) -> int:
     merged_cfg, loaded = _load_and_merge_configs(paths["conf"], script, args.sub_action, args.name, args.config)
 
     # Prepare directories
-    run_dirs = _ensure_dirs(paths, args.sub_action, args.name)
+    run_dirs = _ensure_dirs(paths, script, args.sub_action, args.name)
 
     # Hugging Face args
     model_args, data_args, training_args, extras = _parse_hf_args(merged_cfg)

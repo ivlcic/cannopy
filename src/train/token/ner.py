@@ -89,7 +89,7 @@ class NerDataset(Dataset):
 
 def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
     model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
-    output_dir = paths['token']['result'] / model_name
+    output_dir = paths['ner']['train'] / model_name
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
@@ -167,7 +167,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         eval_dataset=datasets['eval'],
         data_collator=collator,
         tokenizer=tokenizer,
-        metrics=metrics.compute_metrics
+        compute_metrics=metrics.compute_metrics
     )
 
     train_result = trainer.train()
