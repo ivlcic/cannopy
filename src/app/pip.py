@@ -9,9 +9,7 @@ class Pip:
 
     @classmethod
     def install_packages(cls, pkg: str, ver: str, args: Optional[List[str]] = None):
-        if sys.prefix != sys.base_prefix:
-            print(f"Running inside venv: {sys.prefix}")
-        else:
+        if sys.prefix == sys.base_prefix:
             raise RuntimeError("Virtual environment is NOT active")
 
         if importlib.util.find_spec(pkg) is None:

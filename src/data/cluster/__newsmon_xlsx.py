@@ -1,7 +1,4 @@
-import importlib
 import os
-import subprocess
-import sys
 from datetime import datetime
 from typing import List, Dict, Optional, Any
 
@@ -14,10 +11,6 @@ class ClusterExcel:
     def __init__(self, file: PathLike):
         self.file = file
         Pip.install_packages('openpyxl', '3.1.5')
-        # noinspection PyUnresolvedReferences
-        if importlib.util.find_spec(pkg) is None:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
-
         # noinspection PyPackageRequirements,PyUnresolvedReferences
         from openpyxl import Workbook
         # noinspection PyPackageRequirements,PyUnresolvedReferences

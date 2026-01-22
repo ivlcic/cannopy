@@ -95,7 +95,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     # is data only a subset
     subset = ''
     if data_args.source.select.subset:
-        subset = f'{data_args.source.select.subset}_'
+        subset = f'{data_args.source.select.subset}.'
 
     while cur < end:
         next_month = cur + relativedelta(months=1)
@@ -111,8 +111,6 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             )
         map_articles = read_csv_to_dict(map_file)
 
-        tgt_file = target_dir / f'{subset}data_{start.year}_{cur.month:02d}.jsonl'
-
         src_ebd_file = source_dir / f'data_{start.year}_{cur.month:02d}-{model_args.short_name}.jsonl'
         src_ebd: Dict[str, List[float]] = {}
         if src_ebd_file.exists():
@@ -121,8 +119,10 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             )
             src_ebd = load_embeddings(src_ebd_file)
 
-        tgt_ebd_file = target_dir / f'{subset}data_{start.year}_{cur.month:02d}-{model_args.short_name}.jsonl'
-        tmp_tgt_ebd_file = target_dir / f'tmp.{subset}data_{start.year}_{cur.month:02d}-{model_args.short_name}.jsonl'
+        tgt_file = target_dir / f'{subset}data_{start.year}_{cur.month:02d}.jsonl'
+        tgt_ebd_name = f'{subset}ebd_{start.year}_{cur.month:02d}.{model_args.short_name}.jsonl'
+        tgt_ebd_file = target_dir / tgt_ebd_name
+        tmp_tgt_ebd_file = target_dir / f'tmp.{tgt_ebd_name}'
         tgt_ebd: Dict[str, List[float]] = {}
         if tgt_ebd_file.exists():
             logger.info(

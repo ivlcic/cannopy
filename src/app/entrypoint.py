@@ -266,7 +266,7 @@ def _parse_hf_args(merged: Dict[str, Any]) -> Tuple[ModelArguments, DataArgument
 
 def _config_logger(args, script: str, path: Path, level: str = "INFO") -> Tuple[Logger, str]:
     cfg_names = [Path(c).stem for c in args.config] if args.config else []
-    postfix = '.'.join(cfg_names[0]) if cfg_names else ''
+    postfix = '.'.join(cfg_names) if cfg_names else ''
     logger_name = f"{script}.{args.sub_action}"
     logger_file = f"{script}_{args.sub_action}"
     run_name = ''

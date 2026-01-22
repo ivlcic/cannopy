@@ -1,4 +1,6 @@
 data:
   cluster:
     attributes:
-      sim_threshold: 0.75
+      output_excel: True
+      seed: 2611
+      sim_threshold: 0.897

@@ -113,22 +113,28 @@ Download NewsMon dataset (due to a license you need a password to decrypt the ar
 
 Embed the newsmon dataset to a ada_002 or BGE-M3 embeddings:
 ```shell
-./data embed newsmon -c oai-ada_002.yaml -c stories.yaml
+./data embed newsmon -c stories.yaml -c oai-ada_002.yaml
 # or other models (see conf/data/embed for other embedding models)
-./data embed newsmon -c bge-m3.yaml -c stories.yaml
-./data embed newsmon -c oai-txt_ebd_3s.yaml -c stories.yaml
-./data embed newsmon -c qwen3-ebd06.yaml -c stories.yaml
+./data embed newsmon -c stories.yaml -c bge-m3.yaml
+./data embed newsmon -c stories.yaml -c oai-txt_ebd_3s.yaml
+./data embed newsmon -c stories.yaml -c qwen3-ebd06.yaml
+./data embed newsmon -c stories.yaml -c jina-ebd-v3.yaml
 ```
 
+Now we can cluster the dataset with Louvain communities algorithm:
+```shell
+./data cluster newsmon -c stories.yaml -c oai-ada_002.yaml
+./data cluster newsmon -c stories.yaml -c bge-m3.yaml
+./data cluster newsmon -c stories.yaml -c oai-txt_ebd_3s.yaml
+./data cluster newsmon -c stories.yaml -c qwen3-ebd06.yaml
+./data cluster newsmon -c stories.yaml -c jina-ebd-v3.yaml
+```
 
 ## 100. TODO :D
 ```shell
 
 ./data prepare newsmon
 ./data prepare eurlex
-./data embed newsmon -c bge-m3.yaml -c sl.yaml
-./data embed newsmon -c m-gte.yaml
-./data embed newsmon -c emb-gemma3.yaml -c sl.yaml
 ./data resample newsmon -c sl.yaml
 ./data resample newsmon -c sr.yaml
 ./data resample newsmon
@@ -143,11 +149,6 @@ Embed the newsmon dataset to a ada_002 or BGE-M3 embeddings:
 ./train seqence newsmon -c mm-bert.yaml
 ./train seqence eurlex -c xlmr.yaml
 ./train seqence eurlex -c mm-bert.yaml
-./train token ner -c xlmr.yaml
-./train token ner -c m-bert.yaml
-./train token ner -c mm-bert.yaml
-./train token ner -c gemma3-200m.yaml
-./train token ner -c gemma3-1b.yaml
 ./train hard_neg newsmon -c bge-m3.yaml
 ./train hard_neg newsmon -c m-gte.yaml
 ./train hard_neg newsmon -c emb-gemma3.yaml
