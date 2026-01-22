@@ -1,0 +1,15 @@
+data:
+  translate:
+    max_worker_threads: 5
+    max_chars_per_payload: 2000
+    # for large docs with many negative samples lower this batch vars down to 1 if rate-limit hits:
+    max_batch_threads: 1
+    batch_size: 1
+    model:
+      provider: openai
+      parameters:
+        model: gpt-5-mini
+        reasoning_effort: minimal
+        verbosity: low
+        top_p: 1
+        stream: False

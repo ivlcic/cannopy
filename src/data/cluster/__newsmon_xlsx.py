@@ -6,21 +6,21 @@ from datetime import datetime
 from typing import List, Dict, Optional, Any
 
 from app.common import PathLike
+from app.pip import Pip
 
 
 class ClusterExcel:
 
     def __init__(self, file: PathLike):
         self.file = file
-        pkg = "openpyxl"
-        ver = "3.1.5"
+        Pip.install_packages('openpyxl', '3.1.5')
         # noinspection PyUnresolvedReferences
         if importlib.util.find_spec(pkg) is None:
             subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
 
-        # noinspection PyPackageRequirements
+        # noinspection PyPackageRequirements,PyUnresolvedReferences
         from openpyxl import Workbook
-        # noinspection PyPackageRequirements
+        # noinspection PyPackageRequirements,PyUnresolvedReferences
         from openpyxl.styles import Font, Alignment, NamedStyle, PatternFill
 
         self.wb = Workbook(write_only=True)
@@ -68,9 +68,9 @@ class ClusterExcel:
         self.wb.add_named_style(created_style)
 
     def cluster_print_sheet(self, sheet_name: Optional[str], cluster_bucket: List[Dict[str, Any]]):
-        # noinspection PyPackageRequirements
+        # noinspection PyPackageRequirements,PyUnresolvedReferences
         from openpyxl.cell import Cell, WriteOnlyCell
-        # noinspection PyPackageRequirements
+        # noinspection PyPackageRequirements,PyUnresolvedReferences
         from openpyxl.styles import Border, Side
 
         if sheet_name:

@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import importlib.util
 import logging
-import subprocess
-import sys
-
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
@@ -13,6 +9,7 @@ import torch
 from sentence_transformers import SentenceTransformer
 
 from .args.model import ModelArguments
+from .pip import Pip
 
 logger = logging.getLogger('core.embedder')
 
@@ -37,6 +34,10 @@ class TextEmbedder(ABC):
     @classmethod
     def create(cls, model_args: ModelArguments) -> "TextEmbedder":
         name = model_args.model_name_or_path.strip()
+        if not name:
+            raise ValueError(
+                "model_name_or_path is empty. Check the loaded config files (e.g. -c jina-ebd-v3.yaml)."
+            )
         key = name.lower()
         embedder_cls = cls._registry.get(key)
         if embedder_cls is None:
@@ -66,7 +67,15 @@ class STEmbedder(TextEmbedder):
         model_name = model_args.model_name_or_path
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.batch_size = getattr(model_args, "batch_size", 32)
-        self.model = SentenceTransformer(model_name, device=self.device, trust_remote_code=True)
+        try:
+            self.model = SentenceTransformer(model_name, device=self.device, trust_remote_code=True)
+        except FileNotFoundError as exc:
+            msg = (
+                "Failed to load HF dynamic module; cache might be corrupted. "
+                "Try removing ~/.cache/huggingface/modules/transformers_modules/jinaai "
+                "and re-run the command."
+            )
+            raise FileNotFoundError(msg) from exc
         if model_args.max_seq_length:
             self.model.max_seq_length = model_args.max_seq_length
         self.tokenizer = self.model.tokenizer
@@ -157,12 +166,10 @@ class Qwen3Embedder(STEmbedder):
 @TextEmbedder.register("jinaai/jina-embeddings-v3")
 class JinaV3Embedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
+        Pip.install_packages("einops", "0.8.1")
+        Pip.install_packages("ninja", "1.13.0")
+        Pip.install_packages("flash-attn", "2.8.3", ["--no-build-isolation"])
         super().__init__(model_args)
-        # intentional inline install and import
-        pkg = "einops"
-        ver = "0.8.1"
-        if importlib.util.find_spec(pkg) is None:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
 
 
 @TextEmbedder.register("Alibaba-NLP/gte-multilingual-base")
@@ -176,16 +183,9 @@ class OpenaiTextEmbedder(TextEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
         super().__init__(model_args)
         # intentional inline install and import
-        pkg = "openai"
-        ver = "2.14.0"
-        if importlib.util.find_spec(pkg) is None:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
-        # intentional inline install and import
-        pkg = "tiktoken"
-        ver = "0.12.0"
-        if importlib.util.find_spec(pkg) is None:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
-        # noinspection PyPackageRequirements
+        Pip.install_packages("openai", "2.14.0")
+        Pip.install_packages("tiktoken", "0.12.0")
+        # noinspection PyUnresolvedReferences,PyPackageRequirements
         from openai import OpenAI
 
         if not model_args.model_name_or_path:
@@ -193,9 +193,9 @@ class OpenaiTextEmbedder(TextEmbedder):
         self.client = OpenAI()
         self.model_name = model_args.model_name_or_path.replace("OpenAI/", '')
         self.max_seq_length = model_args.max_seq_length
-        # noinspection PyPackageRequirements
+        # noinspection PyUnresolvedReferences,PyPackageRequirements
         import tiktoken
-
+        # noinspection PyUnresolvedReferences
         self.encoder = tiktoken.encoding_for_model(self.model_name)
         logger.info('Creating OpenAI client with model=%s', model_args.model_name_or_path)
 

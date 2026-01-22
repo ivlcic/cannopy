@@ -15,7 +15,7 @@ Simple ML research framework that focuses on repeatability and supports flexible
 - `requirements.txt`, `pyproject.toml`: dependencies and script entrypoints.
 
 ```shell
-python -m venv .venv && source .venv/bin/activate
+python3.13 -m venv .venv && source .venv/bin/activate
 ```
 
 ```shell
@@ -28,7 +28,8 @@ pip install -r requirements.txt
 
 Oneliner to reinitialize:
 ```shell
-rm -Rf .venv && python -m venv .venv && source .venv/bin/activate && pip install -U pip setuptools && pip install -r requirements.txt
+
+rm -Rf .venv && python3.13 -m venv .venv && source .venv/bin/activate && pip install -U pip setuptools && pip install -r requirements.txt
 ```
 
 Set environment variables
@@ -68,12 +69,12 @@ Download and prepare Slavic NER dataset:
 
 ### 2.2 Training and evaluation
 ```shell
-./data train ner -c xlmr.yaml
-./data train ner -c mm-bert.yaml
-./data train ner -c mbert.yaml
-./data train ner -c gemma3-270m.yaml
-./data train ner -c gemma3-1b-pt.yaml
-./data train ner -c qwen3-1.7b.yaml
+./train ner -c xlmr.yaml
+./train ner -c mm-bert.yaml
+./train ner -c mbert.yaml
+./train ner -c gemma3-270m.yaml
+./train ner -c gemma3-1b-pt.yaml
+./train ner -c qwen3-1.7b.yaml
 ```
 
 ## 3. Multilingual Slavic Retrieval task
@@ -86,7 +87,7 @@ Download BGE-M3 dataset (beware it's size is `~24GB`):
 # copy English language source documents
 ./data prepare bge-m3-ds
 # translate the data to the Slovenian language (see conf/data/translate for other languages)
-./data translate bge-m3-ds -c sl.yaml
+./data translate bge-m3-ds -c sl.yaml -c gpt-oss-120b.yaml
 ```
 
 ## 4. Extreme Multilingual Multilabel Text Classification  

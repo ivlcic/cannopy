@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cu130
 numpy==2.3.5
 requests==2.32.5
 pyzipper==0.3.6

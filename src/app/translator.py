@@ -1,16 +1,13 @@
-import re
-import os
 import logging
-import importlib.util
-import sys
-import subprocess
-
-from re import Pattern
+import os
+import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Type, Callable, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from re import Pattern
+from typing import Any, Dict, List, Type, Callable, Tuple
 
 from .args.data import TranslateModelConfig, TranslateConfig
+from .pip import Pip
 
 logger = logging.getLogger('core.translator')
 
@@ -32,7 +29,7 @@ class Translator(ABC):
 
     @classmethod
     def create(cls, config: TranslateConfig) -> "Translator":
-        name = config.models.default.provider
+        name = config.model.provider
         key = name.strip().lower()
         if key not in cls._registry:
             raise ValueError(f"Unknown translator '{name}'. Available: {sorted(cls._registry)}")
@@ -41,7 +38,7 @@ class Translator(ABC):
 
     def __init__(self, config: TranslateConfig) -> None:
         self.config = config
-        self.model: TranslateModelConfig = config.models.default
+        self.model: TranslateModelConfig = config.model
         self.sys_prompt = config.prompt
         self.max_payload_threads = config.max_payload_threads
         self.max_batch_threads = config.max_batch_threads
@@ -206,15 +203,15 @@ class Translator(ABC):
         return results  # this never happens
 
 
+# noinspection DuplicatedCode
 @Translator.register("openai")
 class OpenaiTranslator(Translator):
 
     def __init__(self, config: TranslateConfig) -> None:
         super().__init__(config)
-        pkg = "openai"
-        ver = "2.14.0"
-        if importlib.util.find_spec(pkg) is None:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
+        # intentional inline install and import
+        Pip.install_packages("openai", "2.14.0")
+        # noinspection PyUnresolvedReferences,PyPackageRequirements
         from openai import OpenAI
         self.client = OpenAI()
         logger.info('Creating OpenAI client with model=%s', self.model.parameters['model'])
@@ -237,15 +234,15 @@ class OpenaiTranslator(Translator):
         return result
 
 
+# noinspection DuplicatedCode
 @Translator.register("groq")
 class GroqTranslator(Translator):
 
     def __init__(self, config: TranslateConfig) -> None:
         super().__init__(config)
-        pkg = "groq"
-        ver = "1.0.0"
-        if importlib.util.find_spec(pkg) is None:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", f'{pkg}=={ver}'])
+        # intentional inline install and import
+        Pip.install_packages("groq", "1.0.0")
+        # noinspection PyUnresolvedReferences,PyPackageRequirements
         from groq import Groq
         api_key = os.environ.get("GROQ_API_KEY")
         self.client = Groq()

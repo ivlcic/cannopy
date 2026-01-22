@@ -9,12 +9,6 @@ class TranslateModelConfig:
 
 
 @dataclass
-class TranslateModelsConfig:
-    default: TranslateModelConfig = field(default_factory=TranslateModelConfig)
-    fallback: TranslateModelConfig = field(default_factory=TranslateModelConfig)
-
-
-@dataclass
 class TranslateConfig:
     src_lang: str = 'en'
     lang: str = ''
@@ -23,7 +17,7 @@ class TranslateConfig:
     max_chars_per_payload: int = 2000
     batch_size: int = 5
     max_batch_threads: int = 5
-    models: TranslateModelsConfig = field(default_factory=TranslateModelsConfig)
+    model: TranslateModelConfig = field(default_factory=TranslateModelConfig)
 
 
 @dataclass

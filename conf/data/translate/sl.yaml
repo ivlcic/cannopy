@@ -2,21 +2,6 @@ data:
   translate:
     src_lang: en
     lang: sl
-    max_worker_threads: 5
-    max_chars_per_payload: 2000
-    # for large docs with many negative samples lower this batch vars down to 1 if rate-limit hits:
-    max_batch_threads: 1
-    batch_size: 1
-    models:
-      default:
-        provider: groq
-        parameters:
-          model: openai/gpt-oss-120b
-          reasoning_effort: medium
-          temperature: 0.7
-          top_p: 0.8
-          stream: False
-          max_completion_tokens: 10000
     prompt: |
       You are a high-precision dataset translator.
       Translate from English to Slovene.
