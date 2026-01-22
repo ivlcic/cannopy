@@ -7,6 +7,7 @@ from typing import Optional, Literal, Dict, Any
 from numpy import floating
 from sklearn.metrics import ndcg_score, precision_score, recall_score, f1_score, accuracy_score, hamming_loss
 
+
 class MetricsAtK:
 
     def __init__(self, y_true: np.ndarray, y_prob: np.ndarray, k: Optional[int] = None):
