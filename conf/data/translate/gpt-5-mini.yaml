@@ -6,6 +6,7 @@ data:
     max_batch_threads: 1
     batch_size: 1
     model:
+      short_name: openai-gpt-5-mini
       provider: openai
       parameters:
         model: gpt-5-mini

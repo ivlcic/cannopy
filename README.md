@@ -69,12 +69,12 @@ Download and prepare Slavic NER dataset:
 
 ### 2.2 Training and evaluation
 ```shell
-./train ner -c xlmr.yaml
-./train ner -c mm-bert.yaml
-./train ner -c mbert.yaml
-./train ner -c gemma3-270m.yaml
-./train ner -c gemma3-1b-pt.yaml
-./train ner -c qwen3-1.7b.yaml
+./train token ner -c xlmr.yaml
+./train token ner -c mm-bert.yaml
+./train token ner -c mbert.yaml
+./train token ner -c gemma3-270m.yaml
+./train token ner -c gemma3-1b-pt.yaml
+./train token ner -c qwen3-1.7b.yaml
 ```
 
 ## 3. Multilingual Slavic Retrieval task

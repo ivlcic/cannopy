@@ -6,6 +6,7 @@ data:
     max_batch_threads: 1
     batch_size: 1
     model:
+      short_name: grok-gpt-oss-120b
       provider: groq
       parameters:
         model: openai/gpt-oss-120b

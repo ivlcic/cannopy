@@ -4,6 +4,7 @@ from typing import Dict, Any, List
 
 @dataclass
 class TranslateModelConfig:
+    short_name: str = ''
     provider: str = ''
     parameters: Dict[str, Any] = field(default_factory=dict)
 
