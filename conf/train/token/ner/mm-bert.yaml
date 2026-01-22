@@ -13,6 +13,8 @@ train:
   seed: 2611
 
 model:
+  #attn_implementation: flash_attention_2,
+  #torch_dtype: torch.float16,
   short_name: mm-bert
   model_name_or_path: 'jhu-clsp/mmBERT-base'
   max_seq_length: 8192
