@@ -15,7 +15,12 @@ Simple ML research framework that focuses on repeatability and supports flexible
 - `requirements.txt`, `pyproject.toml`: dependencies and script entrypoints.
 
 ```shell
+python -m venv .venv && source .venv/bin/activate
+# or
+python3 -m venv .venv && source .venv/bin/activate
+# or
 python3.13 -m venv .venv && source .venv/bin/activate
+# as of this time not all libs support 3.14
 ```
 
 ```shell
