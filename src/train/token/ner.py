@@ -172,6 +172,9 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
 
     train_result = trainer.train()
     trainer.save_model(train_args.output_dir)
+    state_path = Path(train_args.output_dir) / "trainer_state.json"
+    trainer.state.save_to_json(str(state_path))
+    logger.info("Saved trainer state to %s", state_path)
     logger.info('Training complete; global steps=%s, training_loss=%.6f',
                 train_result.global_step, train_result.training_loss)
 
