@@ -23,7 +23,7 @@ paths: Dict[str, Any]
 
 def compute_train_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
     model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
-    output_dir = paths['token']['train'] / model_name
+    output_dir = paths['base']['train'] / 'token' / model_name
     if not output_dir.exists():
         raise FileNotFoundError(output_dir)
     return output_dir
