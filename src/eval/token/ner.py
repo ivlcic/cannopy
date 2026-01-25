@@ -21,7 +21,7 @@ logger: Logger
 paths: Dict[str, Any]
 
 
-def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
+def compute_train_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
     model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
     output_dir = paths['token']['train'] / model_name
     if not output_dir.exists():
@@ -29,11 +29,18 @@ def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: Tr
     return output_dir
 
 
+def compute_output_name(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
+    model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
+    output_dir = paths['ner']['eval'] / model_name + '.json'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
 def main(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments) -> None:
     logger.info('Evaluating NER')
 
     data_root, cache_root = init_dirs(paths)
-    train_args.output_dir = str(compute_output_dir(model_args, data_args, train_args))
+    train_args.output_dir = str(compute_train_dir(model_args, data_args, train_args))
 
     languages = data_args.subdata_order or []
     if not languages:
@@ -64,4 +71,6 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         compute_metrics=metrics.compute_metrics,
     )
     metrics = trainer.evaluate()
+    output_name = compute_output_name(model_args, data_args, train_args)
+    trainer.state.save_to_json(str(output_name))
     logger.info('Test metrics: %s', metrics)
