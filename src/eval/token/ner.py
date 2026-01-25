@@ -30,8 +30,8 @@ def compute_train_dir(m_args: ModelArguments, d_args: DataArguments, t_args: Tra
 
 
 def compute_output_name(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
-    model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
-    output_dir = paths['ner']['eval'] / model_name + '.json'
+    model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}.json'
+    output_dir = paths['ner']['eval'] / model_name
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
@@ -39,9 +39,10 @@ def compute_output_name(m_args: ModelArguments, d_args: DataArguments, t_args: T
 def main(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments) -> None:
     logger.info('Evaluating NER')
 
-    data_root, cache_root = init_dirs(paths)
     train_args.output_dir = str(compute_train_dir(model_args, data_args, train_args))
+    output_name = compute_output_name(model_args, data_args, train_args)
 
+    data_root, cache_root = init_dirs(paths)
     languages = data_args.subdata_order or []
     if not languages:
         languages = [p.stem.split('.')[0] for p in data_root.glob('ner-*.train.csv')]
@@ -71,6 +72,5 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         compute_metrics=metrics.compute_metrics,
     )
     metrics = trainer.evaluate()
-    output_name = compute_output_name(model_args, data_args, train_args)
     trainer.state.save_to_json(str(output_name))
     logger.info('Test metrics: %s', metrics)
