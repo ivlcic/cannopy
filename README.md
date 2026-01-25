@@ -74,9 +74,9 @@ Download and prepare Slavic NER dataset:
 
 ### 2.2 Training and evaluation
 ```shell
+./train token ner -c bert-mc.yaml
 ./train token ner -c xlmr.yaml
 ./train token ner -c mm-bert.yaml
-./train token ner -c mbert.yaml
 ./train token ner -c gemma3-270m.yaml
 ./train token ner -c gemma3-1b-pt.yaml
 ./train token ner -c qwen3-1.7b.yaml
