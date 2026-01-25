@@ -1,6 +1,6 @@
 train:
-  learning_rate: 2e-5
-  num_train_epochs: 20
+  learning_rate: 0.00002 # 2e-5
+  num_train_epochs: 30
   eval_strategy: epoch
   save_strategy: epoch
   load_best_model_at_end: true
@@ -11,8 +11,3 @@ train:
   per_device_train_batch_size: 32
   per_device_eval_batch_size: 32
   seed: 2611
-
-model:
-  short_name: gemma3-270m
-  model_name_or_path: 'google/gemma-3-270m'
-  max_seq_length: 32768

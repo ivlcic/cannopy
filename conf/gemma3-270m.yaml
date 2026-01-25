@@ -1,0 +1,4 @@
+model:
+  short_name: gemma3-270m
+  model_name_or_path: 'google/gemma-3-270m'
+  max_seq_length: 32768

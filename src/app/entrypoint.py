@@ -114,6 +114,14 @@ def _resolve_config_stack(conf_dir: Path, script: str, sub_action: str, name: st
     for fn in ordered:
         paths.append(conf_dir / fn)
 
+    # conf/{sub_action}
+    for fn in ordered:
+        paths.append(conf_dir / sub_action / fn)
+
+    # conf/{sub_action}/{name}
+    for fn in ordered:
+        paths.append(conf_dir / sub_action / name / fn)
+
     # conf/{script}
     for fn in ordered:
         paths.append(conf_dir / script / fn)
@@ -342,6 +350,9 @@ def _ensure_dirs(paths: Dict[str, Path], script: str, sub_action: str, name: str
             "log": paths["repo"] / "log",
             "result": paths["repo"] / "result",
             "data": paths["repo"] / "result" / "data",
+            "test": paths["repo"] / "result" / "test",
+            "train": paths["repo"] / "result" / "train",
+            "eval": paths["repo"] / "result" / "eval",
             script: paths["repo"] / "result" / script,
         }
     }
