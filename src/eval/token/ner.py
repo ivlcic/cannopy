@@ -31,9 +31,9 @@ def compute_train_dir(m_args: ModelArguments, d_args: DataArguments, t_args: Tra
 
 def compute_output_name(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
     model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}.json'
-    output_dir = paths['ner']['eval'] / model_name
-    output_dir.mkdir(parents=True, exist_ok=True)
-    return output_dir
+    output = paths['ner']['eval'] / model_name
+    output.parent.mkdir(parents=True, exist_ok=True)
+    return output
 
 
 def main(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments) -> None:
