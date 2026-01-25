@@ -80,12 +80,12 @@ class NerSamplesLoader:
 
         return sorted(labels, key=_label_key)
 
-    def __init__(self, path: Path, splits: List[str], languages: List[str]) -> None:
+    def __init__(self, path: Path, languages: List[str]) -> None:
         self.samples_by_lang: Dict[str, Dict[str, List[Sentence]]] = {}
         self.path: Path = path
-        self.splits: List[str] = splits
+        self.splits: List[str] = ['train', 'eval', 'test']
         self.languages: List[str] = languages
-        for split in splits:
+        for split in self.splits:
             self.samples_by_lang[split]: Dict[str, List[Sentence]] = {}
             for lang in languages:
                 file_path = path / f'ner-{lang}.{split}.csv'
@@ -96,7 +96,7 @@ class NerSamplesLoader:
                 logger.info('Loaded %s %d samples for %s', split, len(lang_samples), lang)
                 self.samples_by_lang[split][lang] = lang_samples
 
-        for split in ['train', 'eval']:
+        for split in self.splits:
             if not self.samples_by_lang[split]:
                 raise ValueError(f'No {split} samples loaded from {path}')
 
