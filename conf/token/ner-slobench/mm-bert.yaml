@@ -1,0 +1,8 @@
+model:
+  attn_implementation: flash_attention_2
+  dtype: float16
+
+# this is just to infer the trained model path
+train:
+  learning_rate: 0.00002 # 2e-5
+  per_device_train_batch_size: 32

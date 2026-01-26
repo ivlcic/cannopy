@@ -82,6 +82,12 @@ Download and prepare Slavic NER dataset:
 ./train token ner -c qwen3-1.7b.yaml
 ```
 
+### 2.3 Submit to SLOBENCH
+
+./data download ner_slobench
+./eval token ner-slobench -c mm-bert.yaml
+./eval token ner-slobench -c xlmr.yaml
+
 ## 3. Multilingual Slavic Retrieval task
 Note: work in progress
 
