@@ -3,7 +3,7 @@ import torch
 
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from transformers import (
     AutoModelForTokenClassification,
@@ -57,12 +57,12 @@ def align_subwords_to_words(labels, word_ids):
     return aligned_labels
 
 
-def compute_train_dir(m_args: ModelArguments, t_args: TrainingArguments) -> Path:
+def compute_train_dir(m_args: ModelArguments, t_args: TrainingArguments) -> Optional[str]:
     model_name = f'ner.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
     output_dir = paths['base']['train'] / 'token' / model_name
     if not output_dir.exists():
-        raise FileNotFoundError(output_dir)
-    return output_dir
+        return None
+    return str(output_dir)
 
 
 def compute_output(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
@@ -76,9 +76,11 @@ def compute_output(m_args: ModelArguments, d_args: DataArguments, t_args: Traini
 def main(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments) -> None:
     logger.info('Evaluating NER')
 
-    train_args.output_dir = str(compute_train_dir(model_args, train_args))
+    train_args.output_dir = compute_train_dir(model_args, train_args)
     output_dir = compute_output(model_args, data_args, train_args)
-    input_dir = paths['base']['data'] / 'download' / data_args.dataset_name / 'sample_reference'
+
+    sub_dir = data_args.attributes.get('use_subdir', 'sample_reference')
+    input_dir = paths['base']['data'] / 'download' / data_args.dataset_name / sub_dir
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model_kwargs = {}
@@ -89,16 +91,14 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         if model_args.dtype:
             autocast = True
             model_kwargs['dtype'] = getattr(torch, model_args.dtype)
-    else:
-        # Flash Attention is not supported on CPU; force a safe implementation.
-        model_kwargs['attn_implementation'] = 'eager'
 
     tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(
         tokenizer_name
     )
+    model_name = train_args.output_dir or model_args.model_name_or_path
     model = AutoModelForTokenClassification.from_pretrained(
-        train_args.output_dir,
+        model_name,
         **model_kwargs,
     )
     model.to(device)

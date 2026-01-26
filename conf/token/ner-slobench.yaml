@@ -1,2 +1,5 @@
 data:
   dataset_name: ner-slobench
+  attributes:
+    #use_subdir: sample_reference
+    use_subdir: reference_nolabels

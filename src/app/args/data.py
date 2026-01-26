@@ -77,3 +77,4 @@ class DataArguments:
     translate: TranslateConfig = field(default_factory=TranslateConfig)
     source: SourceConfig = field(default_factory=SourceConfig)
     cluster: ClusterConfig = field(default_factory=ClusterConfig)
+    attributes: Dict[str, Any] = field(default_factory=dict)

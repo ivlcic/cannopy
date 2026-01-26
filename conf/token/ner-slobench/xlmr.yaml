@@ -1,3 +1,4 @@
+# this is just to infer the trained model name and path if exists
 train:
   learning_rate: 0.00002 # 2e-5
   per_device_train_batch_size: 32
