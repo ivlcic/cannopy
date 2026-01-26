@@ -3,7 +3,7 @@ model:
 
 train:
   learning_rate: 0.00002 # 2e-5
-  num_train_epochs: 30
+  num_train_epochs: 40
   eval_strategy: epoch
   save_strategy: epoch
   load_best_model_at_end: true
