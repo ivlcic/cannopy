@@ -1,6 +1,10 @@
 import os
-import torch
+import shutil
 
+import torch
+import zipfile
+
+from datetime import datetime
 from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -68,6 +72,8 @@ def compute_train_dir(m_args: ModelArguments, t_args: TrainingArguments) -> Opti
 def compute_output(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
     model_name = f'ner.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
     output = paths['ner-slobench']['eval'] / model_name
+    if output.exists():
+        shutil.rmtree(output)
     output.mkdir(parents=True, exist_ok=True)
     return output
 
@@ -138,4 +144,14 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
                 for token, label in zip(sentence, labels):
                     f.write(f'{token} {label}\n')
                 f.write('\n')
+
+    # zip output files
+    timestamp = datetime.now().strftime('%Y-%m-%dT%H-%M')
+    zip_path = output_dir / f'submission-{timestamp}.zip'
+    with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
+        for filename in os.listdir(output_dir):
+            if filename.endswith('.conll2002'):
+                file_path = output_dir / filename
+                zipf.write(file_path, arcname=filename)
+
     logger.info(f'Classified tokens from {input_dir} to {output_dir}')

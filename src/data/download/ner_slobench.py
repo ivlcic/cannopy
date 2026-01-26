@@ -1,10 +1,9 @@
-import shutil
 from logging import Logger
 from typing import Dict, Any
 
+from ...app.args.data import DataArguments
 from ...app.downloader import Downloader
 from ...app.zip import Zip
-from ...app.args.data import DataArguments
 
 logger: Logger
 paths: Dict[str, Any]
