@@ -90,12 +90,23 @@ class TokenClassificationMetrics:
             predictions=preds_list,
             references=labels_list
         )
-        return {
+        metrics = {
             "precision": results["overall_precision"],
             "recall": results["overall_recall"],
             "f1": results["overall_f1"],
             "accuracy": results["overall_accuracy"],
         }
+        for label, label_metrics in results.items():
+            if label.startswith("overall"):
+                continue
+            if not isinstance(label_metrics, dict):
+                continue
+            if "precision" not in label_metrics:
+                continue
+            metrics[f"label.{label}.precision"] = label_metrics["precision"]
+            metrics[f"label.{label}.recall"] = label_metrics["recall"]
+            metrics[f"label.{label}.f1"] = label_metrics["f1"]
+        return metrics
 
 
 class Metrics:
