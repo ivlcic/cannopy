@@ -1,3 +1,4 @@
+import json
 from logging import Logger
 from pathlib import Path
 from typing import Any, Dict
@@ -29,24 +30,24 @@ def compute_train_dir(m_args: ModelArguments, d_args: DataArguments, t_args: Tra
     return output_dir
 
 
-def compute_output_name(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
+def compute_output(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
     model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}.json'
     output = paths['ner']['eval'] / model_name
     output.parent.mkdir(parents=True, exist_ok=True)
     return output
 
 
+# noinspection DuplicatedCode
 def main(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments) -> None:
     logger.info('Evaluating NER')
 
     train_args.output_dir = str(compute_train_dir(model_args, data_args, train_args))
-    output_name = compute_output_name(model_args, data_args, train_args)
+    output = compute_output(model_args, data_args, train_args)
 
     data_root, cache_root = init_dirs(paths)
     languages = data_args.subdata_order or []
     if not languages:
         languages = [p.stem.split('.')[0] for p in data_root.glob('ner-*.train.csv')]
-
 
     ner_samples = NerSamplesLoader(data_root, languages)
     metrics = TokenClassificationMetrics(id2label=ner_samples.id2label)
@@ -72,5 +73,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         compute_metrics=metrics.compute_metrics,
     )
     metrics = trainer.evaluate()
-    trainer.state.save_to_json(str(output_name))
+    log = trainer.state.log_history[0]
+    with open(output, 'w', encoding='utf-8') as fp:
+        json.dump(log, fp, ensure_ascii=False, indent=2, sort_keys=False)
     logger.info('Test metrics: %s', metrics)
