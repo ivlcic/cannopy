@@ -74,11 +74,17 @@ Download and prepare Slavic NER dataset:
 
 ### 2.2 Training and evaluation
 ```shell
+# train the google-bert/bert-base-multilingual-cased
 ./train token ner -c bert-mc.yaml
+# train the FacebookAI/xlm-roberta-base
 ./train token ner -c xlmr.yaml
+# train the jhu-clsp/mmBERT-base
 ./train token ner -c mm-bert.yaml
+# not implemented yet
 ./train token ner -c gemma3-270m.yaml
+# not implemented yet
 ./train token ner -c gemma3-1b-pt.yaml
+# not implemented yet
 ./train token ner -c qwen3-1.7b.yaml
 ```
 
