@@ -5,5 +5,4 @@ model:
 train:
   learning_rate: 0.00002 # 2e-5
   per_device_train_batch_size: 32
-  per_device_eval_batch_size: 32
   seed: 2611
