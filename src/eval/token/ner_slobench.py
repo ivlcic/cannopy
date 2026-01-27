@@ -119,6 +119,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
 
         sentences = load_from_file(input_path)
         text_labels = []
+        model.eval()
         for sentence in sentences:
             inputs = tokenizer(
                 sentence, is_split_into_words=True, return_tensors="pt", padding=True, truncation=True

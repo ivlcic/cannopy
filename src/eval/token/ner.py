@@ -61,6 +61,8 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         num_labels=len(ner_samples.label_list),
         id2label=ner_samples.id2label,
         label2id=ner_samples.label2id,
+        dtype=model_args.dtype,
+        attn_implementation=model_args.attn_implementation
     )
 
     datasets: Dict[str, Dataset] = ner_samples.create_split_datasets(tokenizer, model_args.max_seq_length)
@@ -69,7 +71,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         args=train_args,
         eval_dataset=datasets['test'],
         data_collator=collator,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         compute_metrics=metrics.compute_metrics,
     )
     metrics = trainer.evaluate()

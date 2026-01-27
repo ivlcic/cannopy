@@ -64,7 +64,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         train_dataset=datasets['train'],
         eval_dataset=datasets['eval'],
         data_collator=collator,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         compute_metrics=metrics.compute_metrics
     )
 
