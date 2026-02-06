@@ -1,7 +1,9 @@
 data:
   translate:
-    src_lang: en
-    lang: sk
+    src_code: en
+    src_lang: English
+    tgt_code: sk
+    tgt_lang: Slovak
     prompt: |
       You are a high-precision dataset translator.
       Translate from English to Slovak.

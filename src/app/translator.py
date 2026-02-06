@@ -6,6 +6,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from re import Pattern
 from typing import Any, Dict, List, Type, Callable, Tuple
 
+import torch
+import requests
+from transformers import AutoProcessor, SeamlessM4TForTextToText
+
 from .args.data import TranslateModelConfig, TranslateConfig
 from .pip import Pip
 
@@ -38,11 +42,15 @@ class Translator(ABC):
 
     def __init__(self, config: TranslateConfig) -> None:
         self.config = config
-        self.model: TranslateModelConfig = config.model
-        self.sys_prompt = config.prompt
+        self.model_cfg: TranslateModelConfig = config.model
+        self.prompt = config.prompt
         self.max_payload_threads = config.max_payload_threads
         self.max_batch_threads = config.max_batch_threads
         self.max_chars_per_payload = config.max_chars_per_payload
+        self.prompt = self.prompt.replace("{SOURCE_LANG}", self.config.src_lang)
+        self.prompt = self.prompt.replace("{TARGET_LANG}", self.config.tgt_lang)
+        self.prompt = self.prompt.replace("{SOURCE_CODE}", self.config.src_code)
+        self.prompt = self.prompt.replace("{TARGET_CODE}", self.config.tgt_code)
 
     # noinspection PyMethodMayBeStatic
     def _encapsulate(self, payload: Dict[str, Any], keys: List[str]) -> Tuple[List[str], Dict[str, Pattern]]:
@@ -214,22 +222,54 @@ class OpenaiTranslator(Translator):
         # noinspection PyUnresolvedReferences,PyPackageRequirements
         from openai import OpenAI
         self.client = OpenAI()
-        logger.info('Creating OpenAI client with model=%s', self.model.parameters['model'])
+        logger.info('Creating OpenAI client with model=%s', self.model_cfg.parameters['model'])
 
     def _translate_payload(self, payload: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
+        # if not payload:
+        #     return payload
+        # lines, regs = self._encapsulate(payload, keys)
+        # body = {
+        #     'messages': [
+        #         {'role': 'system', 'content': self.sys_prompt},
+        #         {'role': 'user', 'content': '\n'.join(lines)},
+        #     ],
+        # }
+        #
+        # body = body | self.model_cfg.parameters
+        # response = self.client.chat.completions.create(**body)
+        # response_text = response.choices[0].message.content.strip()
+        # result = self._decapsulate(response_text, regs)
         if not payload:
             return payload
+
         lines, regs = self._encapsulate(payload, keys)
+
+        # Responses API uses `input` (and supports role/content message items)
         body = {
-            'messages': [
-                {'role': 'system', 'content': self.sys_prompt},
-                {'role': 'user', 'content': '\n'.join(lines)},
+            "input": [
+                {"role": "system", "content": [{"type": "text", "text": self.prompt}]},
+                {"role": "user", "content": [{"type": "text", "text": "\n".join(lines)}]},
             ],
         }
 
-        body = body | self.model.parameters
-        response = self.client.chat.completions.create(**body)
-        response_text = response.choices[0].message.content.strip()
+        # merge model parameters (e.g., model, temperature, max_output_tokens, etc.)
+        body |= self.model_cfg.parameters
+
+        response = self.client.responses.create(**body)
+
+        # Most commonly you’ll want `output_text` (SDK convenience) if available:
+        response_text = (getattr(response, "output_text", None) or "").strip()
+
+        # Fallback if your SDK version doesn’t expose output_text:
+        if not response_text:
+            # Concatenate any text chunks from an output
+            chunks = []
+            for item in getattr(response, "output", []) or []:
+                for part in getattr(item, "content", []) or []:
+                    if getattr(part, "type", None) == "output_text":
+                        chunks.append(getattr(part, "text", ""))
+            response_text = "".join(chunks).strip()
+
         result = self._decapsulate(response_text, regs)
         return result
 
@@ -248,7 +288,7 @@ class GroqTranslator(Translator):
         self.client = Groq()
         logger.info(
             'Creating Groq client with model=%s with api key=%s...',
-            self.model.parameters['model'], api_key[0:7]
+            self.model_cfg.parameters['model'], api_key[0:7]
         )
 
     def _translate_payload(self, payload: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
@@ -257,13 +297,144 @@ class GroqTranslator(Translator):
         lines, regs = self._encapsulate(payload, keys)
         body = {
             'messages': [
-                {'role': 'system', 'content': self.sys_prompt},
+                {'role': 'system', 'content': self.prompt},
                 {'role': 'user', 'content': '\n'.join(lines)},
             ],
         }
 
-        body = body | self.model.parameters
+        body = body | self.model_cfg.parameters
         response = self.client.chat.completions.create(**body)
         response_text = response.choices[0].message.content.strip()
         result = self._decapsulate(response_text, regs)
+        return result
+
+
+@Translator.register("ollama-translate-gemma")
+class OllamaTranslateGemmaTranslator(Translator):
+
+    def __init__(self, config: TranslateConfig) -> None:
+        super().__init__(config)
+        self.base_url = self.model_cfg.parameters.get("base_url", "http://localhost:11434")
+        self.model_name = self.model_cfg.parameters.get("model", "")
+        if not self.model_name:
+            raise ValueError("Ollama translator requires model.parameters.model to be set.")
+        logger.info('Creating Ollama client with model=%s at %s', self.model_name, self.base_url)
+
+    def _translate_payload(self, payload: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
+        if not payload:
+            return payload
+        # lines, regs = self._encapsulate(payload, keys)
+        result = {}
+        for key in keys:
+            text = payload.get(key, None)
+            body = {
+                "model": self.model_name,
+                "messages": [
+                    {"role": "user", "content": self.prompt + "\n" + text},
+                ],
+                "stream": False,
+            }
+
+            extra = dict(self.model_cfg.parameters)
+            extra.pop("model", None)
+            extra.pop("base_url", None)
+            body = body | extra
+
+            resp = requests.post(f"{self.base_url}/api/chat", json=body, timeout=600)
+            resp.raise_for_status()
+            data = resp.json()
+            response_text = data["message"]["content"].strip()
+            result[key] = response_text
+        return result
+
+
+@Translator.register("local-seamless-m4t")
+class SeamlessM4t(Translator):
+
+    # noinspection SpellCheckingInspection
+    _LANG_MAP = {
+        "en": "eng",
+        "sl": "slv",
+        "sr": "srp",
+        "sr-cyrl": "srp",
+        "hr": "hrv",
+        "cs": "ces",
+        "sk": "slk",
+        "mk": "mkd",
+        "bg": "bul",
+        "pl": "pol",
+        "uk": "ukr",
+        "de": "deu",
+        "fr": "fra",
+        "es": "spa",
+        "it": "ita",
+        "pt": "por",
+        "ru": "rus",
+    }
+
+    @classmethod
+    def _map_lang(cls, lang: str) -> str:
+        if not lang:
+            return lang
+        key = lang.strip().lower()
+        return cls._LANG_MAP.get(key, key)
+
+    @staticmethod
+    def _resolve_dtype(value: Any) -> torch.dtype | None:
+        if not value:
+            return None
+        if isinstance(value, torch.dtype):
+            return value
+        if isinstance(value, str):
+            v = value.strip().lower()
+            if v in {"fp16", "float16", "torch.float16"}:
+                return torch.float16
+            if v in {"bf16", "bfloat16", "torch.bfloat16"}:
+                return torch.bfloat16
+            if v in {"fp32", "float32", "torch.float32"}:
+                return torch.float32
+        return None
+
+    def __init__(self, config: TranslateConfig) -> None:
+        super().__init__(config)
+        model_name = self.model_cfg.parameters.get("model", "facebook/seamless-m4t-v2-large")
+        torch_dtype = self._resolve_dtype(self.model_cfg.parameters.get("torch_dtype"))
+        device = self.model_cfg.parameters.get("device", None)
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.device = device
+        self.processor = AutoProcessor.from_pretrained(model_name)
+        self.model = SeamlessM4TForTextToText.from_pretrained(model_name, torch_dtype=torch_dtype)
+        self.model.to(self.device)
+        self.model.eval()
+        self.src_code = self._map_lang(self.config.src_code)
+        self.tgt_code = self._map_lang(self.config.tgt_code)
+        logger.info('Loaded SeamlessM4T model=%s on %s', model_name, self.device)
+
+    def _translate_payload(self, payload: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
+        if not payload:
+            return payload
+
+        gen_kwargs = dict(self.model_cfg.parameters)
+        gen_kwargs.pop("model", None)
+        gen_kwargs.pop("torch_dtype", None)
+        gen_kwargs.pop("device", None)
+
+        result = {}
+        for key in keys:
+            text = payload.get(key, None)
+            inputs = self.processor(text=text, src_lang=self.src_code, return_tensors="pt")
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            with torch.inference_mode():
+                # noinspection PyUnresolvedReferences
+                output = self.model.generate(
+                    **inputs,
+                    tgt_lang=self.tgt_code,
+                    **gen_kwargs,
+                )
+            decoded = self.processor.decode(output[0], skip_special_tokens=True)
+            result[key] = decoded
+        # if self.device == "cuda":
+        #     torch.cuda.empty_cache()
         return result

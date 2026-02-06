@@ -1,12 +1,6 @@
 data:
   translate:
-    src_lang: en
-    lang: sl
-    prompt: |
-      You are a high-precision dataset translator.
-      Translate from English to Slovene.
-      - Preserve meaning exactly.
-      - Use neutral, standard Slovene.
-      - Do NOT add explanations and respond only with translations.
-      - Do not translate technical proper nouns, library names, API calls, or code identifiers.
-      - Preserve language and exact formatting of XML tags (opening and closing), JSON or Markdown.
+    src_code: en
+    src_lang: English
+    tgt_code: sl
+    tgt_lang: Slovene

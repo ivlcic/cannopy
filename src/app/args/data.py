@@ -11,8 +11,10 @@ class TranslateModelConfig:
 
 @dataclass
 class TranslateConfig:
-    src_lang: str = 'en'
-    lang: str = ''
+    src_code: str = 'en'
+    tgt_code: str = ''
+    src_lang: str = 'English'
+    tgt_lang: str = ''
     prompt: str = ''
     max_payload_threads: int = 5
     max_chars_per_payload: int = 2000

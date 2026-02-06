@@ -1,0 +1,12 @@
+data:
+  translate:
+    max_worker_threads: 5
+    max_chars_per_payload: 2000
+    # for large docs with many negative samples lower this batch vars down to 1 if rate-limit hits:
+    max_batch_threads: 1
+    batch_size: 1
+    model:
+      short_name: seamless-m4t
+      provider: local-seamless-m4t
+      parameters:
+        model: facebook/seamless-m4t-v2-large

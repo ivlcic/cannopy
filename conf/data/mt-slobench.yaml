@@ -1,0 +1,8 @@
+data:
+  dataset_name: mt-slobench
+  source:
+    links:
+      - url: https://slobench.cjvt.si/media/test_datasets/slobench_ensl.en.zip
+        lang: en
+      - url: https://slobench.cjvt.si/media/sample_submissions/sample_submission_I48llPB.zip
+        lang: sl

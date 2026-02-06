@@ -1,0 +1,18 @@
+data:
+  translate:
+    prompt: |
+      You are a professional {SOURCE_LANG} ({SOURCE_CODE}) to {TARGET_LANG} ({TARGET_CODE}) translator. 
+      Your goal is to accurately convey the meaning and nuances of the original {SOURCE_LANG} text while adhering to {TARGET_LANG} grammar, vocabulary, and cultural sensitivities.
+      Produce only the {TARGET_LANG} translation, without any additional explanations or commentary. Please translate the following {SOURCE_LANG} text into {TARGET_LANG}:
+    max_worker_threads: 1
+    max_chars_per_payload: 2000
+    # for large docs with many negative samples lower this batch vars down to 1 if rate-limit hits:
+    max_batch_threads: 1
+    batch_size: 1
+    model:
+      short_name: trans-gemma-27b
+      provider: ollama-translate-gemma
+      parameters:
+        #base_url: http://localhost:11434
+        base_url: http://10.73.78.12:11434
+        model: translategemma:27b

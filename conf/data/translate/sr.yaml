@@ -1,7 +1,9 @@
 data:
   translate:
-    src_lang: en
-    lang: sr
+    src_code: en
+    src_lang: English
+    tgt_code: sr
+    tgt_lang: Serbian
     prompt: |
       You are a high-precision dataset translator.
       Translate from English to Serbian.

@@ -1,16 +1,24 @@
 data:
   translate:
+    prompt: |
+      You are a high-precision dataset translator.
+      Translate from {SOURCE_LANG} to {TARGET_LANG}.
+      - Preserve meaning exactly.
+      - Use neutral, standard {TARGET_LANG}.
+      - Do NOT add explanations and respond only with translations.
+      - Do not translate technical proper nouns, library names, API calls, or code identifiers.
+      - Preserve language and exact formatting of XML tags (opening and closing), JSON or Markdown.
+
     max_worker_threads: 5
     max_chars_per_payload: 2000
     # for large docs with many negative samples lower this batch vars down to 1 if rate-limit hits:
     max_batch_threads: 1
-    batch_size: 1
+    batch_size: 10
     model:
       short_name: openai-gpt-5-mini
       provider: openai
       parameters:
         model: gpt-5-mini
-        reasoning_effort: minimal
-        verbosity: low
-        top_p: 1
+        #reasoning_effort: minimal
+        #verbosity: low
         stream: False

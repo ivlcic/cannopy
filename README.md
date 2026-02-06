@@ -102,12 +102,25 @@ Download and prepare Slavic NER dataset:
 ## 3. Multilingual Slavic Retrieval task
 Note: work in progress
 
+### 3.1 Evaluate Machine Translation methods on Slobench dataset
+```shell
+# download sample and test dataset to be translated
+./data download mt-slobench
+```
+
+### 3.2 Evaluate translation on BGE-M3 dataset
+
 Download BGE-M3 dataset (beware it's size is `~24GB`):
 ```shell
 # download and extract the BGE-M3 dataset
 ./data download bge-m3-ds
 # copy English language source documents
 ./data prepare bge-m3-ds
+```
+
+### 3.3 Evaluate translation on BGE-M3 dataset
+
+```shell
 # translate the data to the Slovenian language (see conf/data/translate for other languages)
 ./data translate bge-m3-ds -c sl.yaml -c gpt-oss-120b.yaml
 ```
