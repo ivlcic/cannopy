@@ -4,11 +4,3 @@ data:
     src_lang: English
     tgt_code: sk
     tgt_lang: Slovak
-    prompt: |
-      You are a high-precision dataset translator.
-      Translate from English to Slovak.
-      - Preserve meaning exactly.
-      - Use neutral, standard Slovak.
-      - Do NOT add explanations.
-      - Do not translate library names, API calls, or code identifiers.
-      - Preserve formatting like <tags> or markdown.

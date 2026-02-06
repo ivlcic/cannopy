@@ -1,0 +1,22 @@
+data:
+  translate:
+    prompt: |
+      You are a high-precision dataset translator.
+      Translate from {SOURCE_LANG} to {TARGET_LANG}.
+      - Preserve meaning exactly.
+      - Use neutral, standard {TARGET_LANG}.
+      - Do NOT add explanations and respond only with translations.
+      - Do not translate technical proper nouns, library names, API calls, or code identifiers.
+      - Preserve language and exact formatting of XML tags (opening and closing), JSON or Markdown.
+
+    max_worker_threads: 1
+    max_chars_per_payload: 2000
+    max_batch_threads: 1
+    batch_size: 1
+    model:
+      short_name: eurollm-9b-it
+      provider: ollama-eurollm-9b-it
+      parameters:
+        base_url: http://localhost:11434
+        #base_url: http://10.73.78.12:11434
+        model: alibayram/erurollm-9b-instruct:latest

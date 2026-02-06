@@ -206,6 +206,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+result/data/download/**/*
 result/**/*.jsonl
 result/**/*.json
 result/**/*.conll2002

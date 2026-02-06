@@ -309,8 +309,7 @@ class GroqTranslator(Translator):
         return result
 
 
-@Translator.register("ollama-translate-gemma")
-class OllamaTranslateGemmaTranslator(Translator):
+class OllamaTranslator(Translator):
 
     def __init__(self, config: TranslateConfig) -> None:
         super().__init__(config)
@@ -320,6 +319,28 @@ class OllamaTranslateGemmaTranslator(Translator):
             raise ValueError("Ollama translator requires model.parameters.model to be set.")
         logger.info('Creating Ollama client with model=%s at %s', self.model_name, self.base_url)
 
+    def _make_body(self, text: str) -> Dict[str, Any]:
+        body = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": self.prompt},
+                {"role": "user", "content": text},
+            ],
+            "stream": False,
+        }
+        return body
+
+    def _make_request(self, body: Dict[str, Any]) -> str:
+        extra = dict(self.model_cfg.parameters)
+        extra.pop("model", None)
+        extra.pop("base_url", None)
+        body = body | extra
+
+        resp = requests.post(f"{self.base_url}/api/chat", json=body, timeout=600)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["message"]["content"].strip()
+
     def _translate_payload(self, payload: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
         if not payload:
             return payload
@@ -327,25 +348,51 @@ class OllamaTranslateGemmaTranslator(Translator):
         result = {}
         for key in keys:
             text = payload.get(key, None)
-            body = {
-                "model": self.model_name,
-                "messages": [
-                    {"role": "user", "content": self.prompt + "\n" + text},
-                ],
-                "stream": False,
-            }
-
-            extra = dict(self.model_cfg.parameters)
-            extra.pop("model", None)
-            extra.pop("base_url", None)
-            body = body | extra
-
-            resp = requests.post(f"{self.base_url}/api/chat", json=body, timeout=600)
-            resp.raise_for_status()
-            data = resp.json()
-            response_text = data["message"]["content"].strip()
-            result[key] = response_text
+            if isinstance(text, list):
+                items = []
+                for item in text:
+                    body = self._make_body(item)
+                    items.append(self._make_request(body))
+                result[key] = items
+            else:
+                body = self._make_body(text)
+                response_text = self._make_request(body)
+                result[key] = response_text
         return result
+
+
+@Translator.register("ollama-eurollm-9b-it")
+class OllamaEuroLLMTranslator(OllamaTranslator):
+
+    def __init__(self, config: TranslateConfig) -> None:
+        super().__init__(config)
+
+    def _make_body(self, text: str) -> Dict[str, Any]:
+        body = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "user", "content": self.prompt + "\n" + text},
+            ],
+            "stream": False,
+        }
+        return body
+
+
+@Translator.register("ollama-translate-gemma")
+class OllamaTranslateGemmaTranslator(OllamaTranslator):
+
+    def __init__(self, config: TranslateConfig) -> None:
+        super().__init__(config)
+
+    def _make_body(self, text: str) -> Dict[str, Any]:
+        body = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "user", "content": self.prompt + "\n" + text},
+            ],
+            "stream": False,
+        }
+        return body
 
 
 @Translator.register("local-seamless-m4t")
