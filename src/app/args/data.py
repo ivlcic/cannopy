@@ -78,6 +78,7 @@ class SamplingConfig:
     seed: int = 2611
     batch_size: int = 64
     stratification: SamplingStratificationConfig = field(default_factory=SamplingStratificationConfig)
+    attributes: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

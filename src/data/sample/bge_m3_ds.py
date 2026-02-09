@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import time
 from collections import defaultdict
 from logging import Logger
 from pathlib import Path
@@ -222,17 +223,25 @@ def main(data_args: DataArguments) -> None:
     stratum_candidates: Dict[str, List[Tuple[int, str, Dict[str, Any]]]] = defaultdict(list)
     stratum_counts: Dict[str, int] = defaultdict(int)
 
+    progress_interval = sampling_cfg.attributes.get("progress_interval", 10000)
+    total_lines = 0
+    total_start = time.monotonic()
+
     # For NER batching: collect queries in small batches per file.
     for file_path in jsonl_files:
         dataset_dir = file_path.parent.name  # e.g., "MSMARCO", "MIRACL"
         flb = _file_len_bucket(file_path.name)
 
         logger.info("Scanning %s/%s ...", dataset_dir, file_path.name)
+        file_start = time.monotonic()
+        file_lines = 0
 
         buffer: List[Tuple[str, str, Dict[str, Any], Dict[str, bool]]] = []
         # buffer entry: (sample_id, provenance, obj, q_flags)
 
         for line_no, obj in _iter_jsonl(file_path):
+            total_lines += 1
+            file_lines += 1
             q = str(obj.get("query", "")).strip()
             if not q:
                 continue
@@ -258,6 +267,16 @@ def main(data_args: DataArguments) -> None:
                     max_strata=max_strata,
                 )
 
+            if progress_interval and total_lines % progress_interval == 0:
+                elapsed = time.monotonic() - total_start
+                rate = total_lines / elapsed if elapsed > 0 else 0.0
+                logger.info(
+                    "Progress: %d lines processed (%.1f lines/s), %d strata",
+                    total_lines,
+                    rate,
+                    len(stratum_candidates),
+                )
+
         if buffer:
             _flush_batch(
                 buffer,
@@ -271,6 +290,14 @@ def main(data_args: DataArguments) -> None:
                 stratum_counts=stratum_counts,
                 max_strata=max_strata,
             )
+        file_elapsed = time.monotonic() - file_start
+        logger.info(
+            "Finished %s/%s: %d lines in %.1fs",
+            dataset_dir,
+            file_path.name,
+            file_lines,
+            file_elapsed,
+        )
 
     # Materialize final sample and write outputs
     final_rows: List[Dict[str, Any]] = []
@@ -320,5 +347,12 @@ def main(data_args: DataArguments) -> None:
     with out_stats.open("w", encoding="utf-8") as w:
         json.dump(stats, w, ensure_ascii=False, indent=2)
 
-    logger.info("Wrote stratified sample: %s (%d rows)", out_jsonl, len(final_rows))
+    total_elapsed = time.monotonic() - total_start
+    logger.info(
+        "Wrote stratified sample: %s (%d rows). Total lines=%d in %.1fs",
+        out_jsonl,
+        len(final_rows),
+        total_lines,
+        total_elapsed,
+    )
     logger.info("Wrote stats: %s", out_stats)
