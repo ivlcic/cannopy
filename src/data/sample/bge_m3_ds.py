@@ -2,58 +2,23 @@ import hashlib
 import json
 import re
 from collections import defaultdict
-from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-# Optional NER (HF transformers). Only loaded if enabled.
-try:
-    import torch
-    from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
-except Exception:  # pragma: no cover
-    torch = None
-    AutoModelForTokenClassification = None
-    AutoTokenizer = None
-    pipeline = None
+from ...app.args.data import DataArguments, SamplingConfig
+from ...app.args.model import ModelArguments
+from ...app.json_helper import JsonHelper
+from ...app.token_classifier import EncoderTokenClassifier
 
 
 logger: Logger
 paths: Dict[str, Any]
 
-
-# ----------------------------
-# Helpers / parsing
-# ----------------------------
-def _parse_sample(line: str, line_no: int, source: Path) -> Optional[Dict[str, Any]]:
-    line = line.strip()
-    if not line:
-        return None
-    try:
-        obj = json.loads(line)
-    except json.JSONDecodeError:
-        logger.warning("Skipping malformed JSON in %s line %d.", source.name, line_no)
-        return None
-    if "query" not in obj:
-        logger.warning("Skipping malformed JSON in %s line %d, missing query.", source.name, line_no)
-        return None
-    if "pos" not in obj:
-        logger.warning(
-            "Skipping malformed JSON in %s line %d, missing positive samples.", source.name, line_no
-        )
-        return None
-    if "neg" not in obj:
-        logger.warning(
-            "Skipping malformed JSON in %s line %d, missing negative samples.", source.name, line_no
-        )
-        return None
-    return obj
-
-
 _len_re = re.compile(r"_len-(\d+)-(\d+|inf)\.jsonl$")
 _num_re = re.compile(r"\b\d[\d,./:-]*\b")  # years, dates, decimals, IDs etc.
 _url_re = re.compile(r"(https?://\S+|www\.\S+)")
-_email_re = re.compile(r"\b[\w\.-]+@[\w\.-]+\.\w+\b")
+_email_re = re.compile(r"\b[\w.-]+@[\w.-]+\.\w+\b")
 _acronym_re = re.compile(r"\b[A-Z]{2,}\b")
 
 
@@ -101,69 +66,6 @@ def _stable_hash_to_u64(s: str, seed: int) -> int:
 
 
 # ----------------------------
-# Optional NER
-# ----------------------------
-@dataclass
-class NerConfig:
-    enabled: bool = False
-    model_id: str = "ivlcic/sour-sarma"
-    batch_size: int = 16
-    device: int = -1  # -1 CPU; 0 GPU
-    aggregation_strategy: str = "simple"  # for HF pipeline
-
-
-class NerTagger:
-    def __init__(self, cfg: NerConfig):
-        if not cfg.enabled:
-            self.pipe = None
-            self.cfg = cfg
-            return
-        if pipeline is None:
-            raise RuntimeError("transformers not available but NER enabled.")
-        if cfg.device >= 0 and torch is not None and torch.cuda.is_available():
-            device = cfg.device
-        else:
-            device = -1
-        tok = AutoTokenizer.from_pretrained(cfg.model_id)
-        mdl = AutoModelForTokenClassification.from_pretrained(cfg.model_id)
-        self.pipe = pipeline(
-            "token-classification",
-            model=mdl,
-            tokenizer=tok,
-            aggregation_strategy=cfg.aggregation_strategy,
-            device=device,
-        )
-        self.cfg = cfg
-
-    def has_entity(self, texts: List[str]) -> List[bool]:
-        """
-        Returns per-text whether it contains at least one entity span.
-        """
-        if self.pipe is None:
-            return [False] * len(texts)
-
-        out: List[bool] = []
-        bs = max(1, self.cfg.batch_size)
-        for i in range(0, len(texts), bs):
-            batch = texts[i : i + bs]
-            preds = self.pipe(batch)
-            # HF pipeline returns list-of-entities per input (or flattened for single input)
-            # Normalize to list-of-list.
-            if isinstance(preds, dict):
-                preds = [preds]
-            if len(batch) == 1 and preds and isinstance(preds[0], dict):
-                preds = [preds]  # type: ignore
-
-            # If something weird happens, be conservative (no entity).
-            for p in preds:
-                try:
-                    out.append(bool(p) and len(p) > 0)
-                except Exception:
-                    out.append(False)
-        return out
-
-
-# ----------------------------
 # Stratification
 # ----------------------------
 def _stratum_key(
@@ -190,7 +92,7 @@ def _stratum_key(
 def _iter_jsonl(path: Path) -> Iterable[Tuple[int, Dict[str, Any]]]:
     with path.open("r", encoding="utf-8") as f:
         for i, line in enumerate(f, start=1):
-            obj = _parse_sample(line, i, path)
+            obj = JsonHelper.read_ir_sample(line, i, path)
             if obj is None:
                 continue
             yield i, obj
@@ -211,9 +113,8 @@ def _make_sample_id(obj: Dict[str, Any], fallback: str) -> str:
     return hashlib.blake2b(base.encode("utf-8", errors="ignore"), digest_size=16).hexdigest()
 
 
-def _select_top_k_by_hash(
-        items: List[Tuple[int, str, Dict[str, Any]]], k: int, seed: int
-) -> List[Tuple[int, str, Dict[str, Any]]]:
+def _select_top_k_by_hash(items: List[Tuple[int, str, Dict[str, Any]]], k: int) \
+        -> List[Tuple[int, str, Dict[str, Any]]]:
     """
     Deterministically pick the K lowest-hash items (stable sampling).
     Each item: (hash_u64, provenance_str, obj)
@@ -226,7 +127,7 @@ def _select_top_k_by_hash(
 
 def _flush_batch(
     buffer: List[Tuple[str, str, Dict[str, Any], Dict[str, bool]]],
-    ner: NerTagger,
+    ner: EncoderTokenClassifier,
     *,
     dataset_dir: str,
     file_len_bucket: str,
@@ -239,13 +140,17 @@ def _flush_batch(
 ) -> None:
     # NER: determine which queries have at least one entity
     queries = [b[2].get("query", "") for b in buffer]
-    ner_flags = ner.has_entity(queries) if ner.cfg.enabled else [False] * len(queries)
+    ner_flags = [False] * len(queries)
+    if ner is not None:
+        ner_flags = []
+        for query in queries:
+            ner_flags.append(True if ner.count_labels(query, none_label="O") > 0 else False)
 
     for (sid, prov, obj, q_flags), has_ent in zip(buffer, ner_flags):
         sk = _stratum_key(dataset_dir, file_len_bucket, str(obj.get("query", "")), q_flags, has_ent)
 
-        # Optional safety cap to avoid exploding strata due to overly-granular keys
-        if max_strata > 0 and sk not in stratum_candidates and len(stratum_candidates) >= max_strata:
+        # Optional safety cap to avoid exploding strata due to overly granular keys
+        if 0 < max_strata <= len(stratum_candidates) and sk not in stratum_candidates:
             continue
 
         stratum_counts[sk] += 1
@@ -269,46 +174,37 @@ def _flush_batch(
     buffer.clear()
 
 
-
 # ----------------------------
 # Main entry
 # ----------------------------
-def main(data_args) -> None:
-    """
-    Expected data_args attributes (best-effort; defaults if missing):
-      - dataset_name: str  (e.g., "bge-m3-ds")
-      - seed: int
-      - sample_per_stratum: int   (e.g., 25)
-      - max_strata: int (optional safety cap)
-      - use_ner: bool
-      - ner_model_id: str
-      - ner_batch_size: int
-      - output_name: str (optional)
-      - include_negs: bool (if False, keeps only query+pos; still logs neg count)
-    """
-    dataset_name = getattr(data_args, "dataset_name", "bge-m3-ds")
-    seed = int(getattr(data_args, "seed", 13))
-    sample_per_stratum = int(getattr(data_args, "sample_per_stratum", 25))
-    max_strata = int(getattr(data_args, "max_strata", 0))  # 0 => no cap
-    include_negs = bool(getattr(data_args, "include_negs", True))
+# noinspection SpellCheckingInspection
+def main(data_args: DataArguments) -> None:
+    dataset_name = data_args.dataset_name
+    sampling_cfg: SamplingConfig = data_args.sampling
+    seed = sampling_cfg.seed
+    sample_per_stratum = sampling_cfg.stratification.sample_per_stratum
+    max_strata = sampling_cfg.stratification.max_strata
+    include_negs = sampling_cfg.stratification.attributes.get("include_negs", True)
+    include_ner = sampling_cfg.stratification.attributes.get("include_ner", True)
 
-    ner_cfg = NerConfig(
-        enabled=bool(getattr(data_args, "use_ner", False)),
-        model_id=str(getattr(data_args, "ner_model_id", "ivlcic/sour-sarma")),
-        batch_size=int(getattr(data_args, "ner_batch_size", 16)),
-        device=int(getattr(data_args, "ner_device", -1)),
-    )
-    ner = NerTagger(ner_cfg)
+    # ner_model_name = "ivlcic/sour-sarma"
+    # ner_tagger = EncoderTokenClassifier(
+    #    ner_model_name,
+    #    ModelArguments(attn_implementation="flash_attention_2", dtype="float16")
+    # )
+
+    ner_model_name = "Jean-Baptiste/roberta-large-ner-english"
+    ner_tagger = EncoderTokenClassifier(ner_model_name, ModelArguments())
 
     source_dir = paths["base"]["data"] / "prepare" / dataset_name
     if not source_dir.exists():
         logger.error("Source [prepare] %s directory not found: %s", dataset_name, source_dir)
         return
 
-    target_dir = paths["translate"]["data"] / dataset_name
+    target_dir = paths["sample"]["data"] / dataset_name
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    # Collect all jsonl files in the 11 directories
+    # Collect all the JSONL files in the 11 directories
     jsonl_files: List[Path] = []
     for ds_dir in sorted([p for p in source_dir.iterdir() if p.is_dir()]):
         for f in sorted(ds_dir.iterdir()):
@@ -348,10 +244,10 @@ def main(data_args) -> None:
             buffer.append((sid, prov, obj, q_flags))
 
             # Process in batches for NER
-            if len(buffer) >= max(ner_cfg.batch_size, 64):
+            if len(buffer) >= max(sampling_cfg.batch_size, 64):
                 _flush_batch(
                     buffer,
-                    ner,
+                    ner_tagger,
                     dataset_dir=dataset_dir,
                     file_len_bucket=flb,
                     seed=seed,
@@ -365,7 +261,7 @@ def main(data_args) -> None:
         if buffer:
             _flush_batch(
                 buffer,
-                ner,
+                ner_tagger,
                 dataset_dir=dataset_dir,
                 file_len_bucket=flb,
                 seed=seed,
@@ -381,7 +277,7 @@ def main(data_args) -> None:
     final_meta: List[Dict[str, Any]] = []
 
     for sk, cand in sorted(stratum_candidates.items(), key=lambda x: x[0]):
-        picked = _select_top_k_by_hash(cand, sample_per_stratum, seed=seed)
+        picked = _select_top_k_by_hash(cand, sample_per_stratum)
         for h, prov, obj in picked:
             out = dict(obj)
             if not include_negs:
@@ -414,8 +310,8 @@ def main(data_args) -> None:
         "dataset_name": dataset_name,
         "seed": seed,
         "sample_per_stratum": sample_per_stratum,
-        "use_ner": ner_cfg.enabled,
-        "ner_model_id": ner_cfg.model_id if ner_cfg.enabled else None,
+        "use_ner": include_ner,
+        "ner_model": ner_model_name if include_ner else None,
         "num_files": len(jsonl_files),
         "num_strata": len(stratum_candidates),
         "total_output_rows": len(final_rows),

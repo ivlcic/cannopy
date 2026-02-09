@@ -1,7 +1,7 @@
 data:
   translate:
     prompt: |
-      You are a high-precision dataset translator.
+      You are a professional {SOURCE_LANG} ({SOURCE_CODE}) to {TARGET_LANG} ({TARGET_CODE}) translator.
       Translate from {SOURCE_LANG} to {TARGET_LANG}.
       - Preserve meaning exactly.
       - Use neutral, standard {TARGET_LANG}.

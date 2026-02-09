@@ -1,15 +1,19 @@
+import re
 import logging
 import torch
 
-from typing import List, Optional
-from transformers import AutoModelForTokenClassification, AutoTokenizer
+from typing import List, Optional, Tuple, Dict, Any
+from transformers import AutoModelForTokenClassification, AutoTokenizer, BatchEncoding
 
 from .args.model import ModelArguments
 
 logger = logging.getLogger("core.ner_tagger")
 
+WordList = List[Dict[str, Any]]
+
 
 class EncoderTokenClassifier:
+    WORD_RE = re.compile(r"\w+|[^\w\s]", re.UNICODE)
 
     def __init__(self, model_name_or_path: str, model_args: ModelArguments) -> None:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -23,7 +27,7 @@ class EncoderTokenClassifier:
                 self.autocast = True
                 self.model_kwargs["dtype"] = getattr(torch, model_args.dtype)
 
-        tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
+        tokenizer_name = model_args.tokenizer_name or model_name_or_path
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         self.model = AutoModelForTokenClassification.from_pretrained(
             model_name_or_path,
@@ -32,6 +36,22 @@ class EncoderTokenClassifier:
         self.model.to(self.device)
         self.model.eval()
         logger.info("Loaded token classifier model=%s on %s", model_name_or_path, self.device)
+
+    def _predict(self, inputs: BatchEncoding) -> Tuple[List[int], List[str]]:
+        inputs = inputs.to(self.device)
+        with torch.no_grad():
+            if self.autocast:
+                with torch.autocast(device_type="cuda", dtype=self.model_kwargs["dtype"]):
+                    outputs = self.model(**inputs)
+            else:
+                outputs = self.model(**inputs)
+
+        predictions = outputs.logits.argmax(dim=-1).squeeze().tolist()
+        if isinstance(predictions, int):
+            predictions = [predictions]
+
+        labels = [self.model.config.id2label[pred] for pred in predictions]
+        return predictions, labels
 
     @classmethod
     def align_subwords_to_words(cls, labels: List[str], word_ids: List[Optional[int]]) -> List[str]:
@@ -62,20 +82,149 @@ class EncoderTokenClassifier:
             padding=True,
             truncation=True,
         )
-        inputs = inputs.to(self.device)
-        with torch.no_grad():
-            if self.autocast:
-                with torch.autocast(device_type="cuda", dtype=self.model_kwargs["dtype"]):
-                    outputs = self.model(**inputs)
-            else:
-                outputs = self.model(**inputs)
-
-        predictions = outputs.logits.argmax(dim=-1).squeeze().tolist()
-        if isinstance(predictions, int):
-            predictions = [predictions]
-        labels = [self.model.config.id2label[pred] for pred in predictions]
+        predictions, labels = self._predict(inputs)
         word_ids = inputs.word_ids()[1:-1]  # Exclude [CLS] and [SEP] tokens
         return self.align_subwords_to_words(labels[1:-1], word_ids)
 
-    def classify_text(self, text) -> List[List[str]]:
-        return [self.classify_tokens(sentence_tokens) for sentence_tokens in text]
+    @classmethod
+    def _split_with_spans(cls, text: str) -> List[Tuple[str, int, int]]:
+        return [(m.group(0), m.start(), m.end()) for m in cls.WORD_RE.finditer(text)]
+
+    @classmethod
+    def _split_sentences(cls, text: str) -> List[str]:
+        if not text:
+            return []
+        parts = re.split(r'(?<=[.!?])\s+', text.strip())
+        return [p for p in parts if p]
+
+    def _max_content_len(self) -> int:
+        max_len = self.tokenizer.model_max_length
+        if max_len is None or max_len <= 0 or max_len > 100000:
+            max_len = 512
+        special = self.tokenizer.num_special_tokens_to_add(pair=False)
+        return max(8, max_len - special)
+
+    def _chunk_sentences(self, sentences: List[str]) -> List[str]:
+        if not sentences:
+            return []
+        max_len = self._max_content_len()
+        chunks: List[str] = []
+        current: List[str] = []
+        current_len = 0
+
+        def tok_len(s: str) -> int:
+            return len(self.tokenizer.encode(s, add_special_tokens=False))
+
+        for sent in sentences:
+            sent_len = tok_len(sent)
+            if sent_len > max_len:
+                if current:
+                    chunks.append(" ".join(current))
+                    current = []
+                    current_len = 0
+                # hard split long sentence by tokens
+                ids = self.tokenizer.encode(sent, add_special_tokens=False)
+                for i in range(0, len(ids), max_len):
+                    part_ids = ids[i:i + max_len]
+                    chunks.append(self.tokenizer.decode(part_ids, skip_special_tokens=True))
+                continue
+            if current_len + sent_len > max_len and current:
+                chunks.append(" ".join(current))
+                current = [sent]
+                current_len = sent_len
+            else:
+                current.append(sent)
+                current_len += sent_len
+
+        if current:
+            chunks.append(" ".join(current))
+        return chunks
+
+    @classmethod
+    def map_by_offsets(cls, text: str, tokens: List[str], labels: List[str], offsets: List[Tuple[int, int]],
+                       none_label: Optional[str] = None) -> WordList:
+        """
+        Returns a list of word-level items:
+          { "text": <substring>, "start": i, "end": j, "tokens": [...], "labels": [...] }
+        """
+        words = cls._split_with_spans(text)
+
+        # init per-word buckets
+        out: WordList = [
+            {
+                "word": w,
+                "span": (ws, we),
+                # "token_indices": [],
+                # "tokens": [],
+                "labels": []
+            }
+            for (w, ws, we) in words
+        ]
+
+        def normalize_label(label: Optional[str]) -> Optional[str]:
+            if label is None:
+                return None
+            if none_label is not None and label == none_label:
+                return None
+            return label
+
+        wi = 0  # current word index
+        for ti, (tok, lab, (ts, te)) in enumerate(zip(tokens, labels, offsets)):
+            if (ts, te) == (0, 0) or ts == te:
+                continue  # specials/pad
+
+            # advance word pointer until a word ends and after a token starts
+            while wi < len(out) and out[wi]["span"][1] <= ts:
+                wi += 1
+
+            # token may overlap multiple words (rare), so walk forward while overlapping
+            wj = wi
+            while wj < len(out):
+                ws, we = out[wj]["span"]
+                if ws >= te:
+                    break  # no more overlaps
+
+                # overlap condition
+                if ts < we and te > ws:
+                    n_label = normalize_label(lab)
+                    # out[wj]["token_indices"].append(ti)
+                    # out[wj]["tokens"].append(tok)
+                    if n_label is not None:
+                        out[wj]["labels"].append(n_label)
+
+                wj += 1
+
+        return out
+
+    def classify_sentence(self, sentence: str, none_label: Optional[str] = None) -> WordList:
+        inputs = self.tokenizer(
+            sentence,
+            return_tensors="pt",
+            truncation=True,
+            return_offsets_mapping=True,
+        )
+        offset_mapping = inputs.pop("offset_mapping")[0].tolist()
+        predictions, labels = self._predict(inputs)
+
+        token_ids = inputs["input_ids"][0].tolist()
+        tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
+        return self.map_by_offsets(sentence, tokens, labels, offset_mapping, none_label=none_label)
+
+    def classify_sentences(self, sentences: List[str], none_label: Optional[str] = None) -> List[WordList]:
+        result: List[WordList] = []
+        for sentence in sentences:
+            result.append(self.classify_sentence(sentence, none_label=none_label))
+        return result
+
+    def classify_text(self, text: str, none_label: Optional[str] = None) -> WordList:
+        sentences = self._split_sentences(text)
+        result: WordList = []
+        [result.extend(x) for x in self.classify_sentences(sentences, none_label=none_label)]
+        return result
+
+    def count_labels(self, text: str, none_label: Optional[str] = None) -> int:
+        count = 0
+        for x in self.classify_text(text, none_label=none_label):
+            if x["labels"]:
+                count += len(set(x["labels"]))
+        return count

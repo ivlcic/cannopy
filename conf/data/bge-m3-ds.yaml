@@ -2,6 +2,14 @@ data:
   # don't confuse this with the BGE-M3 model it's the BGE-M3 training dataset
   dataset_name: bge-m3-ds
   version: 1.0
+  sampling:
+    seed: 2611
+    stratification:
+      sample_per_stratum: 5
+      max_strata: 1000
+      attributes:
+        include_negs: true
+        include_ner: true
   source:
     links:
       - url: https://huggingface.co/datasets/Shitao/bge-m3-data/resolve/main/bge-m3-data.tar.gz

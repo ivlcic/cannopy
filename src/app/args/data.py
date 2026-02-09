@@ -67,6 +67,20 @@ class SplitConfig:
 
 
 @dataclass
+class SamplingStratificationConfig:
+    sample_per_stratum: int = 100
+    max_strata: int = 0  # 0 => no cap
+    attributes: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class SamplingConfig:
+    seed: int = 2611
+    batch_size: int = 64
+    stratification: SamplingStratificationConfig = field(default_factory=SamplingStratificationConfig)
+
+
+@dataclass
 class DataArguments:
     dataset_name: str = ''
     version: str = ''
@@ -79,4 +93,5 @@ class DataArguments:
     translate: TranslateConfig = field(default_factory=TranslateConfig)
     source: SourceConfig = field(default_factory=SourceConfig)
     cluster: ClusterConfig = field(default_factory=ClusterConfig)
+    sampling: SamplingConfig = field(default_factory=SamplingConfig)
     attributes: Dict[str, Any] = field(default_factory=dict)
