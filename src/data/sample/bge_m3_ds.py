@@ -9,7 +9,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ...app.args.data import DataArguments, SamplingConfig
 from ...app.args.model import ModelArguments
-from ...app.json_helper import JsonHelper
+from ...app.ir_ds_helper import JsonHelper
 from ...app.token_classifier import EncoderTokenClassifier
 
 
@@ -202,7 +202,7 @@ def main(data_args: DataArguments) -> None:
         logger.error("Source [prepare] %s directory not found: %s", dataset_name, source_dir)
         return
 
-    target_dir = paths["sample"]["data"] / dataset_name
+    target_dir = paths["sample"]["data"] / dataset_name + "_sampled"
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # Collect all the JSONL files in the 11 directories

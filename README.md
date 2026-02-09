@@ -45,11 +45,11 @@ set -a; source .env; set +a
 ## 1. Dataset mining / creation tasks
 
 Prerequisites:
-- An access to archive servers.
+- Access to archive servers.
 - The `CPTM_SPASS` environment variable is needed in `.env` file. 
 
 ### 1.1 ESG Slovene News Dataset
-Create environmental, social, and governance dataset from Slovene news data source:
+Create environmental, social, and governance dataset from the Slovene news data source:
 ```shell
 ./data create esg
 ```
@@ -127,6 +127,11 @@ Download BGE-M3 dataset (beware it's size is `~24GB`):
 ./data prepare bge-m3-ds
 ```
 
+Execute stratified sampling of the dataset to reduce the size:
+```shell
+./data sample bge-m3-ds
+```
+
 ### 3.3 Evaluate translation on BGE-M3 dataset
 
 ```shell
@@ -143,14 +148,14 @@ Download EURLEX57K dataset:
 ./data download eurlex
 ```
 
-Download NewsMon dataset (due to a license you need a password to decrypt the archive):
+Download NewsMon dataset (due to a license, you need a password to decrypt the archive):
 ```shell
 ./data download newsmon
 ```
 
 ## 5. News Stories
 
-Download NewsMon dataset (due to a license you need a password to decrypt the archive):
+Download NewsMon dataset (due to a license, you need a password to decrypt the archive):
 ```shell
 ./data download newsmon
 ```
