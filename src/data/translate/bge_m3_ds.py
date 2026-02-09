@@ -4,39 +4,13 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Optional, IO
 
+from ...app.json_helper import JsonHelper
 from ...app.translator import Translator
 from ...app.args.data import DataArguments
 from ..prepare.bge_m3_ds import get_files_paths
 
 logger: Logger
 paths: Dict[str, Any]
-
-
-def _parse_sample(line: str, line_no: int, source: Path) -> Optional[Dict[str, Any]]:
-    line = line.strip()
-    if not line:
-        return None
-    try:
-        obj = json.loads(line)
-    except json.JSONDecodeError:
-        logger.warning('Skipping malformed JSON in %s line %d.', source.name, line_no)
-        return None
-    if 'query' not in obj:
-        logger.warning(
-            'Skipping malformed JSON in %s line %d, missing query.', source.name, line_no
-        )
-        return None
-    if 'pos' not in obj:
-        logger.warning(
-            'Skipping malformed JSON in %s line %d, missing positive samples.', source.name, line_no
-        )
-        return None
-    if 'neg' not in obj:
-        logger.warning(
-            'Skipping malformed JSON in %s line %d, missing negative samples.', source.name, line_no
-        )
-        return None
-    return obj
 
 
 def _translate_file(translator: Translator, source: Path, target: Path, batch_size: int = 1) -> None:
@@ -57,7 +31,7 @@ def _translate_file(translator: Translator, source: Path, target: Path, batch_si
             if line_no <= existing:
                 continue
 
-            obj = _parse_sample(line, line_no, source)
+            obj = JsonHelper.read_ir_sample(line, line_no, source)
             chunk.append(obj)
 
             if len(chunk) == batch_size:

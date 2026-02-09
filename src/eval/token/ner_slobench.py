@@ -1,22 +1,17 @@
 import os
 import shutil
 
-import torch
 import zipfile
 
 from datetime import datetime
 from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, Optional
-
-from transformers import (
-    AutoModelForTokenClassification,
-    AutoTokenizer,
-    TrainingArguments,
-)
+from transformers import TrainingArguments
 
 from ...app.args.model import ModelArguments
 from ...app.args.data import DataArguments
+from ...app.token_classifier import EncoderTokenClassifier
 
 logger: Logger
 paths: Dict[str, Any]
@@ -36,29 +31,6 @@ def load_from_file(file_path):
             sentences = new_sentences
 
         return sentences
-
-
-def align_subwords_to_words(labels, word_ids):
-    aligned_labels = []
-    current_word = None
-    current_label = None
-
-    for label, word_id in zip(labels, word_ids):
-        if word_id is None:  # Special tokens like [CLS] and [SEP]
-            continue
-
-        if word_id != current_word:
-            # New word
-            if current_word is not None:
-                aligned_labels.append(current_label)
-            current_word = word_id
-            current_label = label
-
-    # Add the last word
-    if current_word is not None:
-        aligned_labels.append(current_label)
-
-    return aligned_labels
 
 
 def compute_train_dir(m_args: ModelArguments, t_args: TrainingArguments) -> Optional[str]:
@@ -88,26 +60,8 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     sub_dir = data_args.attributes.get('use_subdir', 'sample_reference')
     input_dir = paths['base']['data'] / 'download' / data_args.dataset_name / sub_dir
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model_kwargs = {}
-    autocast = False
-    if device == 'cuda':
-        if model_args.attn_implementation:
-            model_kwargs['attn_implementation'] = model_args.attn_implementation
-        if model_args.dtype:
-            autocast = True
-            model_kwargs['dtype'] = getattr(torch, model_args.dtype)
-
-    tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
-    tokenizer = AutoTokenizer.from_pretrained(
-        tokenizer_name
-    )
     model_name = train_args.output_dir or model_args.model_name_or_path
-    model = AutoModelForTokenClassification.from_pretrained(
-        model_name,
-        **model_kwargs,
-    )
-    model.to(device)
+    tagger = EncoderTokenClassifier(model_name, model_args)
 
     # Process each CoNLL file in the input directory
     for filename in os.listdir(input_dir):
@@ -119,24 +73,8 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
 
         sentences = load_from_file(input_path)
         text_labels = []
-        model.eval()
         for sentence in sentences:
-            inputs = tokenizer(
-                sentence, is_split_into_words=True, return_tensors="pt", padding=True, truncation=True
-            )
-            inputs = inputs.to(device)
-            with torch.no_grad():
-                if autocast:
-                    with torch.autocast(device_type='cuda', dtype=model_kwargs['dtype']):
-                        outputs = model(**inputs)
-                else:
-                    outputs = model(**inputs)
-
-            # Get the predicted labels
-            predictions = outputs.logits.argmax(dim=-1).squeeze().tolist()
-            labels = [model.config.id2label[pred] for pred in predictions]
-            word_ids = inputs.word_ids()[1:-1]  # Exclude [CLS] and [SEP] tokens
-            labels = align_subwords_to_words(labels[1:-1], word_ids)
+            labels = tagger.classify_tokens(sentence)
             text_labels.append(labels)
 
         # Write the updated CoNLL data to the output file

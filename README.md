@@ -1,5 +1,5 @@
 # CaNNopy
-Simple ML research framework that focuses on repeatability and supports flexible and isolated diversity of tasks. 
+Simple ML research framework/shell that focuses on repeatability and supports flexible and isolated diversity of tasks. 
 
 ### What it does
 - Unified CLI (`./data`, `./train`, `./eval`, `./test`) routes through `src/app/entrypoint.py` to load layered YAML configs, build Hugging Face `TrainingArguments` plus custom `DataArguments`/`ModelArguments`, and dispatch to task modules.
