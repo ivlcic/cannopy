@@ -5,7 +5,7 @@ data:
   sampling:
     seed: 2611
     stratification:
-      sample_per_stratum: 5
+      sample_per_stratum: 18
       max_strata: 0  # no cap
       attributes:
         include_negs: true

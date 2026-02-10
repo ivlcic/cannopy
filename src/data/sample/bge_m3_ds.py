@@ -134,7 +134,6 @@ def _flush_batch(
     file_len_bucket: str,
     seed: int,
     sample_per_stratum: int,
-    include_negs: bool,
     stratum_candidates: Dict[str, List[Tuple[int, str, Dict[str, Any]]]],
     stratum_counts: Dict[str, int],
     max_strata: int,
@@ -163,8 +162,6 @@ def _flush_batch(
         # then trim to sample_per_stratum (lowest hashes) for memory safety.
         cand_list = stratum_candidates[sk]
         out_obj = dict(obj)
-        if not include_negs:
-            out_obj.pop("neg", None)
 
         cand_list.append((h, prov, out_obj))
         # Periodic trim
@@ -185,7 +182,6 @@ def main(data_args: DataArguments) -> None:
     seed = sampling_cfg.seed
     sample_per_stratum = sampling_cfg.stratification.sample_per_stratum
     max_strata = sampling_cfg.stratification.max_strata
-    include_negs = sampling_cfg.stratification.attributes.get("include_negs", True)
     include_ner = sampling_cfg.stratification.attributes.get("include_ner", True)
 
     # ner_model_name = "ivlcic/sour-sarma"
@@ -202,7 +198,7 @@ def main(data_args: DataArguments) -> None:
         logger.error("Source [prepare] %s directory not found: %s", dataset_name, source_dir)
         return
 
-    target_dir = paths["sample"]["data"] / dataset_name + "_sampled"
+    target_dir = paths["sample"]["data"] / dataset_name
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # Collect all the JSONL files in the 11 directories
@@ -261,7 +257,6 @@ def main(data_args: DataArguments) -> None:
                     file_len_bucket=flb,
                     seed=seed,
                     sample_per_stratum=sample_per_stratum,
-                    include_negs=include_negs,
                     stratum_candidates=stratum_candidates,
                     stratum_counts=stratum_counts,
                     max_strata=max_strata,
@@ -285,7 +280,6 @@ def main(data_args: DataArguments) -> None:
                 file_len_bucket=flb,
                 seed=seed,
                 sample_per_stratum=sample_per_stratum,
-                include_negs=include_negs,
                 stratum_candidates=stratum_candidates,
                 stratum_counts=stratum_counts,
                 max_strata=max_strata,
@@ -307,8 +301,6 @@ def main(data_args: DataArguments) -> None:
         picked = _select_top_k_by_hash(cand, sample_per_stratum)
         for h, prov, obj in picked:
             out = dict(obj)
-            if not include_negs:
-                out.pop("neg", None)
             out["_stratum"] = sk
             out["_provenance"] = prov
             out["_hash_u64"] = h

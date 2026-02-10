@@ -14,7 +14,7 @@ paths: Dict[str, Any]
 def main(data_args: DataArguments) -> None:
     t_cfg = data_args.translate
 
-    source_dir = paths['base']['data'] / 'sample' / data_args.dataset_name
+    source_dir = paths['base']['data'] / 'sample' / 'bge-m3-ds'
     if not source_dir.exists():
         logger.error(f'Source [sample] {data_args.dataset_name} directory not found: %s', source_dir)
         return
