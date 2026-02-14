@@ -24,9 +24,7 @@ def main(data_args: DataArguments) -> None:
     files: Dict[Path, Path] = {}
     for file_or_path in source_dir.iterdir():
         if file_or_path.is_file() and file_or_path.suffix == '.jsonl':
-            d = target_dir / file_or_path.parent.name
-            d.mkdir(parents=True, exist_ok=True)
-            files[file_or_path] = d / (t_cfg.tgt_code + '.' + t_cfg.model.short_name + '.' + file_or_path.name)
+            files[file_or_path] = target_dir / (t_cfg.tgt_code + '.' + t_cfg.model.short_name + '.' + file_or_path.name)
     translator: Translator = Translator.create(t_cfg)
     for src, tgt in files.items():
         logger.info('Translating docs from %s -> %s...', src.name, tgt.name)

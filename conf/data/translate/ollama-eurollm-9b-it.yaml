@@ -8,11 +8,9 @@ data:
       - Do NOT add explanations and respond only with translations.
       - Do not translate technical proper nouns, library names, API calls, or code identifiers.
       - Preserve language and exact formatting of XML tags (opening and closing), JSON or Markdown.
-
-    max_worker_threads: 1
-    max_chars_per_payload: 2000
+    max_payload_threads: 5
     max_batch_threads: 1
-    batch_size: 1
+    batch_size: 5
     model:
       short_name: eurollm-9b-it
       provider: ollama-eurollm-9b-it

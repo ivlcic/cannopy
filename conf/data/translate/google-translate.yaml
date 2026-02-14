@@ -1,0 +1,10 @@
+data:
+  translate:
+    max_payload_threads: 5
+    max_batch_threads: 1
+    batch_size: 5
+    model:
+      short_name: google-translate
+      provider: google-translate-v3
+      parameters:
+        project_id: nikola-translation

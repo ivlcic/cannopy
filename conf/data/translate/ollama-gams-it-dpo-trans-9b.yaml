@@ -1,0 +1,14 @@
+data:
+  translate:
+    prompt: |
+      Prevedi naslednje angleško besedilo v slovenščino.
+    max_payload_threads: 5
+    max_batch_threads: 1
+    batch_size: 5
+    model:
+      short_name: gams-idt-9b
+      provider: ollama-gams-trans
+      parameters:
+        base_url: http://localhost:11434
+        #base_url: http://10.73.78.12:11434
+        model: gams-it-dpo-translator:9b

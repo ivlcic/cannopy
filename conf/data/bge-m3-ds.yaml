@@ -1,11 +1,10 @@
 data:
-  # don't confuse this with the BGE-M3 model it's the BGE-M3 training dataset
-  dataset_name: bge-m3-ds
+  dataset_name: bge-m3-ds  # don't confuse this with the BGE-M3 model it's the BGE-M3 training dataset
   version: 1.0
   sampling:
     seed: 2611
     stratification:
-      sample_per_stratum: 18
+      sample_per_stratum: 5
       max_strata: 0  # no cap
       attributes:
         include_negs: true

@@ -115,6 +115,7 @@ Note: work in progress
 ./data translate mt-slobench -c sl.yaml -c seamless-m4t                   #  <-- local model (16GB VRAM GPU needed)
 ./data translate mt-slobench -c sl.yaml -c ollama-eurollm-9b-it.yaml      #  <-- local ollama (16GB VRAM GPU needed)
 ./data translate mt-slobench -c sl.yaml -c ollama-translategemma-27b.yaml #  <-- local ollama (32GB VRAM GPU needed)
+./data translate mt-slobench -c sl.yaml -c ollama-translategemma-27b.yaml #  <-- local ollama (32GB VRAM GPU needed)
 ```
 
 ### 3.2 Evaluate translation on BGE-M3 dataset
@@ -130,6 +131,16 @@ Download BGE-M3 dataset (beware it's size is `~24GB`):
 Execute stratified sampling of the dataset to reduce the size:
 ```shell
 ./data sample bge-m3-ds
+```
+
+Translate the BGE-M3 sampled dataset:
+```shell
+# translate the data to the Slovenian language (see conf/data/translate for other languages)
+./data translate bge-m3-ds-sampled -c sl.yaml -c gpt-oss-120b.yaml              #  <-- remote Groq API model
+./data translate bge-m3-ds-sampled -c sl.yaml -c gpt-5-mini.yaml                #  <-- remote OpenAI API model
+./data translate bge-m3-ds-sampled -c sl.yaml -c seamless-m4t                   #  <-- local model (16GB VRAM GPU needed)
+./data translate bge-m3-ds-sampled -c sl.yaml -c ollama-eurollm-9b-it.yaml      #  <-- local ollama (16GB VRAM GPU needed)
+./data translate bge-m3-ds-sampled -c sl.yaml -c ollama-translategemma-27b.yaml #  <-- local ollama (32GB VRAM GPU needed)
 ```
 
 ### 3.3 Evaluate translation on BGE-M3 dataset
