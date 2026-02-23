@@ -6,3 +6,7 @@ data:
         lang: en
       - url: https://slobench.cjvt.si/media/sample_submissions/sample_submission_I48llPB.zip
         lang: sl
+  translate:
+    attributes:
+      strip_nl: true
+      strip_nbsp: true

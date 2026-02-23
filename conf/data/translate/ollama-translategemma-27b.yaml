@@ -13,4 +13,4 @@ data:
       parameters:
         #base_url: http://localhost:11434
         base_url: http://10.73.78.12:11434
-        model: translategemma:27b
+        model: translategemma:27b-it-q8_0

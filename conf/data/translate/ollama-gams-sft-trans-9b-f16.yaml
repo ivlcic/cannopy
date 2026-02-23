@@ -6,9 +6,9 @@ data:
     max_batch_threads: 1
     batch_size: 5
     model:
-      short_name: gams-idt-9b
+      short_name: gams-sft-9b-f16
       provider: ollama-gams-trans
       parameters:
-        base_url: http://localhost:11434
-        #base_url: http://10.73.78.12:11434
-        model: hf.co/mradermacher/GaMS-9B-Instruct-DPO-Translator-GGUF:Q8_0
+        #base_url: http://localhost:11434
+        base_url: http://10.73.78.12:11434
+        model: hf.co/mradermacher/GaMS-9B-SFT-Translator-DPO-GGUF:F16

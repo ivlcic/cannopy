@@ -21,6 +21,7 @@ class TranslateConfig:
     batch_size: int = 5
     max_batch_threads: int = 5
     model: TranslateModelConfig = field(default_factory=TranslateModelConfig)
+    attributes: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

@@ -2,7 +2,6 @@ import logging
 import os
 import copy
 import torch
-import codecs
 import requests
 
 from abc import ABC, abstractmethod
@@ -51,6 +50,8 @@ class Translator(ABC):
         self.prompt = self.prompt.replace("{TARGET_LANG}", self.config.tgt_lang)
         self.prompt = self.prompt.replace("{SOURCE_CODE}", self.config.src_code)
         self.prompt = self.prompt.replace("{TARGET_CODE}", self.config.tgt_code)
+        self.strip_nl = self.config.attributes.get("strip_nl", False)
+        self.strip_nbsp = self.config.attributes.get("strip_nbsp", False)
 
     @abstractmethod
     def _translate_payload(self, key: str, payload: str) -> Tuple[str, Optional[str]]:
@@ -83,6 +84,11 @@ class Translator(ABC):
             future_map = {executor.submit(self._translate_payload, k, flat_payload[k]): k for k in flat_payload}
             for future in as_completed(future_map):
                 k_indexed, translated_value = future.result()
+                if self.strip_nl and translated_value is not None:
+                    translated_value = translated_value.replace('\n', ' ')
+                if self.strip_nbsp and translated_value is not None:
+                    translated_value = translated_value.replace(' ', ' ')
+
                 key, idx = k_indexed.split(delim, 1)
                 idx = int(idx)
                 element = results.get(key)
@@ -152,10 +158,8 @@ class OpenaiTranslator(Translator):
 
         # Responses API uses `input` (and supports role/content message items)
         body = {
-            "input": [
-                {"role": "system", "content": [{"type": "text", "text": self.prompt}]},
-                {"role": "user", "content": [{"type": "text", "text": payload}]},
-            ],
+            "instructions": self.prompt,
+            "input": payload
         }
 
         # merge model parameters (e.g., model, temperature, max_output_tokens, etc.)
