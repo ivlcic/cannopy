@@ -12,7 +12,7 @@ data:
     max_batch_threads: 1
     batch_size: 5
     model:
-      short_name: eurollm-9b-it
+      short_name: oll-eurollm-9b-it
       provider: ollama-eurollm-9b-it
       parameters:
         base_url: http://localhost:11434

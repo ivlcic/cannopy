@@ -3,12 +3,13 @@ import os
 import copy
 import torch
 import requests
+import threading
 
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Type, Callable, Tuple, Optional
 
-from transformers import AutoProcessor, SeamlessM4TForTextToText
+from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer, SeamlessM4TForTextToText
 
 from .args.data import TranslateModelConfig, TranslateConfig
 from .pip import Pip
@@ -40,6 +41,22 @@ class Translator(ABC):
 
         return cls._registry[key](config)
 
+    @staticmethod
+    def _resolve_dtype(value: Any) -> torch.dtype | None:
+        if not value:
+            return None
+        if isinstance(value, torch.dtype):
+            return value
+        if isinstance(value, str):
+            v = value.strip().lower()
+            if v in {"fp16", "float16", "torch.float16"}:
+                return torch.float16
+            if v in {"bf16", "bfloat16", "torch.bfloat16"}:
+                return torch.bfloat16
+            if v in {"fp32", "float32", "torch.float32"}:
+                return torch.float32
+        return None
+
     def __init__(self, config: TranslateConfig) -> None:
         self.config = config
         self.model_cfg: TranslateModelConfig = config.model
@@ -52,6 +69,12 @@ class Translator(ABC):
         self.prompt = self.prompt.replace("{TARGET_CODE}", self.config.tgt_code)
         self.strip_nl = self.config.attributes.get("strip_nl", False)
         self.strip_nbsp = self.config.attributes.get("strip_nbsp", False)
+
+        self.device = self.model_cfg.parameters.get("device")
+        if not self.device:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.torch_dtype = self._resolve_dtype(self.model_cfg.parameters.get("torch_dtype"))
+
 
     @abstractmethod
     def _translate_payload(self, key: str, payload: str) -> Tuple[str, Optional[str]]:
@@ -268,11 +291,7 @@ class OllamaTranslator(Translator):
         return key, response_text
 
 
-@Translator.register("ollama-eurollm-9b-it")
-class OllamaEuroLLMTranslator(OllamaTranslator):
-
-    def __init__(self, config: TranslateConfig) -> None:
-        super().__init__(config)
+class OllamaInContentTranslator(OllamaTranslator):
 
     def _make_body(self, text: str) -> Dict[str, Any]:
         body = {
@@ -284,42 +303,21 @@ class OllamaEuroLLMTranslator(OllamaTranslator):
         body |= self.model_cfg.parameters
         body.pop("base_url", None)
         return body
+
+
+@Translator.register("ollama-eurollm-9b-it")
+class OllamaEuroLLMTranslator(OllamaInContentTranslator):
+    pass
 
 
 @Translator.register("ollama-translate-gemma")
-class OllamaTranslateGemmaTranslator(OllamaTranslator):
-
-    def __init__(self, config: TranslateConfig) -> None:
-        super().__init__(config)
-
-    def _make_body(self, text: str) -> Dict[str, Any]:
-        body = {
-            "messages": [
-                {"role": "user", "content": self.prompt + "\n\n" + text},
-            ],
-            "stream": False,
-        }
-        body |= self.model_cfg.parameters
-        body.pop("base_url", None)
-        return body
+class OllamaTranslateGemmaTranslator(OllamaInContentTranslator):
+    pass
 
 
 @Translator.register("ollama-gams-trans")
-class OllamaGamsTranslator(OllamaTranslator):
-
-    def __init__(self, config: TranslateConfig) -> None:
-        super().__init__(config)
-
-    def _make_body(self, text: str) -> Dict[str, Any]:
-        body = {
-            "messages": [
-                {"role": "user", "content": self.prompt + "\n\n" + text},
-            ],
-            "stream": False,
-        }
-        body |= self.model_cfg.parameters
-        body.pop("base_url", None)
-        return body
+class OllamaGamsTranslator(OllamaInContentTranslator):
+    pass
 
 
 @Translator.register("google-translate-v3")
@@ -356,8 +354,23 @@ class GoogleTranslator(Translator):
         return key, response_text
 
 
+class LocalModelTranslator(Translator, ABC):
+
+    def __init__(self, config: TranslateConfig) -> None:
+        super().__init__(config)
+        self.model_name = self.model_cfg.parameters.get("model", None)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+
+        self.model_args = dict(self.model_cfg.parameters)
+        self.model_args.pop("model", None)
+        self.model_args.pop("torch_dtype", None)
+        self.model_args.pop("device", None)
+
+        self._lock = threading.Lock()
+
+
 @Translator.register("local-seamless-m4t")
-class SeamlessM4t(Translator):
+class SeamlessM4t(LocalModelTranslator):
 
     # noinspection SpellCheckingInspection
     _LANG_MAP = {
@@ -387,56 +400,65 @@ class SeamlessM4t(Translator):
         key = lang.strip().lower()
         return cls._LANG_MAP.get(key, key)
 
-    @staticmethod
-    def _resolve_dtype(value: Any) -> torch.dtype | None:
-        if not value:
-            return None
-        if isinstance(value, torch.dtype):
-            return value
-        if isinstance(value, str):
-            v = value.strip().lower()
-            if v in {"fp16", "float16", "torch.float16"}:
-                return torch.float16
-            if v in {"bf16", "bfloat16", "torch.bfloat16"}:
-                return torch.bfloat16
-            if v in {"fp32", "float32", "torch.float32"}:
-                return torch.float32
-        return None
-
     def __init__(self, config: TranslateConfig) -> None:
         super().__init__(config)
-        model_name = self.model_cfg.parameters.get("model", "facebook/seamless-m4t-v2-large")
-        torch_dtype = self._resolve_dtype(self.model_cfg.parameters.get("torch_dtype"))
-        device = self.model_cfg.parameters.get("device", None)
-        if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        self.device = device
-        self.processor = AutoProcessor.from_pretrained(model_name)
-        self.model = SeamlessM4TForTextToText.from_pretrained(model_name, torch_dtype=torch_dtype)
+        self.processor = AutoProcessor.from_pretrained(self.model_name)
+        self.model = SeamlessM4TForTextToText.from_pretrained(self.model_name)
         self.model.to(self.device)
         self.model.eval()
         self.src_code = self._map_lang(self.config.src_code)
         self.tgt_code = self._map_lang(self.config.tgt_code)
-        logger.info('Loaded SeamlessM4T model=%s on %s', model_name, self.device)
+        logger.info('Loaded SeamlessM4T model=%s on %s', self.model_name, self.device)
 
     def _translate_payload(self, key: str, payload: str) -> Tuple[str, Optional[str]]:
         if not payload:
             return key, None
 
-        gen_kwargs = dict(self.model_cfg.parameters)
-        gen_kwargs.pop("model", None)
-        gen_kwargs.pop("torch_dtype", None)
-        gen_kwargs.pop("device", None)
-
         inputs = self.processor(text=payload, src_lang=self.src_code, return_tensors="pt")
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
-        with torch.inference_mode():
+        with self._lock, torch.inference_mode():
             # noinspection PyUnresolvedReferences
             output = self.model.generate(
                 **inputs,
                 tgt_lang=self.tgt_code,
-                **gen_kwargs,
+                **self.model_args,
             )
         result = self.processor.decode(output[0], skip_special_tokens=True)
         return key, result
+
+
+@Translator.register("eurollm-9b-instruct")
+class EuroLLM9BInstructTranslator(LocalModelTranslator):
+
+    def __init__(self, config: TranslateConfig) -> None:
+        super().__init__(config)
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
+        self.model.to(self.device)
+        self.model.eval()
+        self._lock = threading.Lock()
+        logger.info("Loaded EuroLLM translator model=%s on %s", self.model_name, self.device)
+
+    def _translate_payload(self, key: str, payload: str) -> Tuple[str, Optional[str]]:
+        if not payload:
+            return key, None
+
+        messages = [
+            {"role": "system", "content": self.prompt},
+            {"role": "user", "content": payload},
+        ]
+        input_ids = self.tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            return_tensors="pt",
+        ).to(self.device)
+
+        with self._lock, torch.inference_mode():
+            output = self.model.generate(
+                input_ids,
+                **self.model_args,
+            )
+
+        # Decoder-only generation returns prompt + continuation; keep only newly generated tokens.
+        generated = output[0][input_ids.shape[-1]:]
+        text = self.tokenizer.decode(generated, skip_special_tokens=True).strip()
+        return key, text

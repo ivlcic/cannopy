@@ -10,7 +10,7 @@ data:
     max_batch_threads: 1
     batch_size: 5
     model:
-      short_name: gams3-it-12b
+      short_name: oll-gams3-it-12b
       provider: ollama-gams-trans
       parameters:
         base_url: http://10.73.78.12:11434

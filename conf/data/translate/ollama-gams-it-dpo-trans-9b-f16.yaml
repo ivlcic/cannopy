@@ -6,7 +6,7 @@ data:
     max_batch_threads: 1
     batch_size: 5
     model:
-      short_name: gams-idt-9b-f16
+      short_name: oll-gams-idt-9b-f16
       provider: ollama-gams-trans
       parameters:
         base_url: http://10.73.78.12:11434

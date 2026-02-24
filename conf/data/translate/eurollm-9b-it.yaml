@@ -8,13 +8,11 @@ data:
       - Do not translate technical proper nouns, library names, API calls, or code identifiers.
       - Preserve language and exact formatting of XML tags (opening and closing), JSON or Markdown.
       Translate from {SOURCE_LANG} to {TARGET_LANG} the following text:
-    max_payload_threads: 5
+    max_payload_threads: 1
     max_batch_threads: 1
     batch_size: 5
     model:
-      short_name: oll-eurollm-9b-it-f16
-      provider: ollama-eurollm-9b-it
+      short_name: eurollm-9b-it
+      provider: eurollm-9b-instruct
       parameters:
-        base_url: http://10.73.78.12:11434
-        temperature: 0.5
-        model: hf.co/mradermacher/EuroLLM-9B-Instruct-2512-GGUF:F16
+        model: utter-project/EuroLLM-9B-Instruct

@@ -6,7 +6,7 @@ data:
     max_batch_threads: 1
     batch_size: 5
     model:
-      short_name: gams-sft-9b
+      short_name: oll-gams-sft-9b
       provider: ollama-gams-trans
       parameters:
         base_url: http://localhost:11434
