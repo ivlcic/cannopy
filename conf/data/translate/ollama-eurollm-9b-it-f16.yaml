@@ -12,9 +12,9 @@ data:
     max_batch_threads: 1
     batch_size: 5
     model:
-      short_name: eurollm-9b-it
+      short_name: eurollm-9b-it-f16
       provider: ollama-eurollm-9b-it
       parameters:
-        base_url: http://localhost:11434
+        base_url: http://10.73.78.12:11434
         temperature: 0.5
-        model: hf.co/mradermacher/EuroLLM-9B-Instruct-2512-GGUF:Q8_0
+        model: hf.co/mradermacher/EuroLLM-9B-Instruct-2512-GGUF:F16

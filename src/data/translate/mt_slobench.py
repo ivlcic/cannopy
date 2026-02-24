@@ -87,7 +87,8 @@ def main(data_args: DataArguments) -> None:
             d.mkdir(parents=True, exist_ok=True)
             for child in file_or_path.iterdir():
                 if child.is_file() and child.suffix == '.txt':
-                    files[child] = d / (t_cfg.tgt_code + '.' + t_cfg.model.short_name + '.' + child.name)
+                    new_name = child.name.replace(f'.{t_cfg.src_code}.', f'.{t_cfg.tgt_code}.')
+                    files[child] = d / (t_cfg.tgt_code + '.' + t_cfg.model.short_name + '.' + new_name)
     translator: Translator = Translator.create(t_cfg)
     for src, tgt in files.items():
         logger.info('Translating docs from %s -> %s...', src.name, tgt.name)

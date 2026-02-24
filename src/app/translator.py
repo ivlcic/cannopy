@@ -229,13 +229,14 @@ class OllamaTranslator(Translator):
 
     def _make_body(self, text: str) -> Dict[str, Any]:
         body = {
-            "model": self.model_name,
             "messages": [
                 {"role": "system", "content": self.prompt},
                 {"role": "user", "content": text},
             ],
             "stream": False,
         }
+        body |= self.model_cfg.parameters
+        body.pop("base_url", None)
         return body
 
     def _make_request(self, body: Dict[str, Any]) -> str:
@@ -275,12 +276,13 @@ class OllamaEuroLLMTranslator(OllamaTranslator):
 
     def _make_body(self, text: str) -> Dict[str, Any]:
         body = {
-            "model": self.model_name,
             "messages": [
-                {"role": "user", "content": self.prompt + "\n\n\n" + text},
+                {"role": "user", "content": self.prompt + "\n\n" + text},
             ],
             "stream": False,
         }
+        body |= self.model_cfg.parameters
+        body.pop("base_url", None)
         return body
 
 
@@ -292,12 +294,13 @@ class OllamaTranslateGemmaTranslator(OllamaTranslator):
 
     def _make_body(self, text: str) -> Dict[str, Any]:
         body = {
-            "model": self.model_name,
             "messages": [
-                {"role": "user", "content": self.prompt + "\n\n\n" + text},
+                {"role": "user", "content": self.prompt + "\n\n" + text},
             ],
             "stream": False,
         }
+        body |= self.model_cfg.parameters
+        body.pop("base_url", None)
         return body
 
 
@@ -309,12 +312,13 @@ class OllamaGamsTranslator(OllamaTranslator):
 
     def _make_body(self, text: str) -> Dict[str, Any]:
         body = {
-            "model": self.model_name,
             "messages": [
-                {"role": "user", "content": self.prompt + "\n" + text},
+                {"role": "user", "content": self.prompt + "\n\n" + text},
             ],
             "stream": False,
         }
+        body |= self.model_cfg.parameters
+        body.pop("base_url", None)
         return body
 
 

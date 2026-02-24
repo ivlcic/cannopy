@@ -11,6 +11,6 @@ data:
       short_name: trans-gemma-27b
       provider: ollama-translate-gemma
       parameters:
-        #base_url: http://localhost:11434
         base_url: http://10.73.78.12:11434
-        model: translategemma:27b-it-q8_0
+        temperature: 0.5
+        model: hf.co/mradermacher/translategemma-27b-it-GGUF:Q8_0

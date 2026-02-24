@@ -1,0 +1,18 @@
+data:
+  translate:
+    prompt: |
+      You are a professional {SOURCE_LANG} to {TARGET_LANG} translator.
+      - Preserve meaning exactly.
+      - Use neutral, standard {TARGET_LANG}.
+      - Do NOT add explanations and respond only with a translation.
+      Translate from {SOURCE_LANG} to {TARGET_LANG} the following text:
+    max_payload_threads: 5
+    max_batch_threads: 1
+    batch_size: 5
+    model:
+      short_name: gams3-it-12b
+      provider: ollama-gams-trans
+      parameters:
+        base_url: http://10.73.78.12:11434
+        temperature: 0.5
+        model: hf.co/mradermacher/GaMS3-12B-Instruct-GGUF:Q8_0
