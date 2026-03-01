@@ -10,7 +10,7 @@ class Pip:
     @classmethod
     def install_packages(cls, pkg: str, ver: str, args: Optional[List[str]] = None):
         if sys.prefix == sys.base_prefix:
-            raise RuntimeError("Virtual environment is NOT active")
+            raise RuntimeError("Virtual environment is NOT active. We need PIP virtual environment to operate.")
 
         if importlib.util.find_spec(pkg) is None:
             exec_cl = [sys.executable, "-m", "pip", "install", f'{pkg}=={ver}']

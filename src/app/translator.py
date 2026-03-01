@@ -401,6 +401,8 @@ class SeamlessM4t(LocalModelTranslator):
         return cls._LANG_MAP.get(key, key)
 
     def __init__(self, config: TranslateConfig) -> None:
+        if not config.model.parameters.get("model"):
+            config.model.parameters["model"] = "facebook/seamless-m4t-v2-large"
         super().__init__(config)
         self.processor = AutoProcessor.from_pretrained(self.model_name)
         self.model = SeamlessM4TForTextToText.from_pretrained(self.model_name)
@@ -431,6 +433,8 @@ class SeamlessM4t(LocalModelTranslator):
 class EuroLLM9BInstructTranslator(LocalModelTranslator):
 
     def __init__(self, config: TranslateConfig) -> None:
+        if not config.model.parameters.get("model"):
+            config.model.parameters["model"] = "utter-project/EuroLLM-9B-Instruct"
         super().__init__(config)
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
         self.model.to(self.device)
@@ -451,6 +455,56 @@ class EuroLLM9BInstructTranslator(LocalModelTranslator):
             add_generation_prompt=True,
             return_tensors="pt",
         ).to(self.device)
+
+        with self._lock, torch.inference_mode():
+            output = self.model.generate(
+                input_ids,
+                **self.model_args,
+            )
+
+        # Decoder-only generation returns prompt + continuation; keep only newly generated tokens.
+        generated = output[0][input_ids.shape[-1]:]
+        text = self.tokenizer.decode(generated, skip_special_tokens=True).strip()
+        return key, text
+
+
+@Translator.register("tiny-aya-water")
+class TinyAyaWaterTranslator(LocalModelTranslator):
+
+    def __init__(self, config: TranslateConfig) -> None:
+        if not config.model.parameters.get("model"):
+            config.model.parameters["model"] = "CohereLabs/tiny-aya-water"
+        super().__init__(config)
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self.model_name,
+            torch_dtype=self.torch_dtype,
+        )
+        self.model.to(self.device)
+        self.model.eval()
+        logger.info("Loaded Tiny Aya Water translator model=%s on %s", self.model_name, self.device)
+
+    def _build_input_ids(self, payload: str) -> torch.Tensor:
+        messages = [
+            {"role": "system", "content": self.prompt},
+            {"role": "user", "content": payload},
+        ]
+        # Some tokenizers do not expose a chat template.
+        if getattr(self.tokenizer, "chat_template", None):
+            input_ids = self.tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                return_tensors="pt",
+            )
+        else:
+            prompt = f"{self.prompt}\n\n{payload}"
+            input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids
+        return input_ids.to(self.device)
+
+    def _translate_payload(self, key: str, payload: str) -> Tuple[str, Optional[str]]:
+        if not payload:
+            return key, None
+
+        input_ids = self._build_input_ids(payload)
 
         with self._lock, torch.inference_mode():
             output = self.model.generate(

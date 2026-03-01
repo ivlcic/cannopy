@@ -12,7 +12,11 @@ data:
     max_batch_threads: 1
     batch_size: 5
     model:
-      short_name: eurollm-9b-it
-      provider: eurollm-9b-instruct
+      short_name: tiny-aya-w-3b
+      provider: tiny-aya-water
       parameters:
-        model: utter-project/EuroLLM-9B-Instruct
+        model: CohereLabs/tiny-aya-water
+        max_new_tokens: 40960
+        do_sample: true
+        temperature: 0.1
+        top_p: 0.95

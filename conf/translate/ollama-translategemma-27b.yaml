@@ -12,5 +12,6 @@ data:
       provider: ollama-translate-gemma
       parameters:
         base_url: http://10.73.78.12:11434
-        temperature: 0.5
+        temperature: 0.1
+        top_p: 0.95
         model: hf.co/mradermacher/translategemma-27b-it-GGUF:Q8_0
