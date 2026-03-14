@@ -23,6 +23,21 @@ class TranslateConfig:
     model: TranslateModelConfig = field(default_factory=TranslateModelConfig)
     attributes: Dict[str, Any] = field(default_factory=dict)
 
+    def get_base_name(self):
+        parameters = self.model.parameters
+        model_name = self.model.short_name
+        if model_name:
+            model_name = f'.{model_name}'
+        temp = ''
+        if 'temperature' in parameters:
+            temp = f'{parameters["temperature"]:.2f}'.replace('.', '_')
+            temp = f'.t={temp}'
+        top_p = ''
+        if 'top_p' in parameters:
+            top_p = f'{parameters["top_p"]:.2f}'.replace('.', '_')
+            top_p = f'.p={top_p}'
+        return f'{self.tgt_code}{model_name}{temp}{top_p}'
+
 
 @dataclass
 class ConnectionConfig:

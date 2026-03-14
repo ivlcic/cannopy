@@ -34,11 +34,15 @@ class NerDataset(Dataset):
         )
         word_ids = encoding.word_ids()
         label_ids: List[int] = []
+        previous_word_id = None
         for word_id in word_ids:
             if word_id is None:
                 label_ids.append(-100)
-            else:
+            elif word_id != previous_word_id:
                 label_ids.append(self.label2id.get(labels[word_id], self.label2id['O']))
+            else:
+                label_ids.append(-100)
+            previous_word_id = word_id
 
         encoding['labels'] = torch.tensor(label_ids, dtype=torch.long)
         encoding['input_ids'] = torch.tensor(encoding['input_ids'], dtype=torch.long)

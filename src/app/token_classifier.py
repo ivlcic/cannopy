@@ -74,6 +74,14 @@ class EncoderTokenClassifier:
 
         return aligned_labels
 
+    @staticmethod
+    def _normalize_label(label: Optional[str], none_label: Optional[str] = None) -> Optional[str]:
+        if label is None:
+            return None
+        if none_label is not None and label == none_label:
+            return None
+        return label
+
     def classify_tokens(self, tokens: List[str]) -> List[str]:
         inputs = self.tokenizer(
             tokens,
@@ -83,8 +91,8 @@ class EncoderTokenClassifier:
             truncation=True,
         )
         predictions, labels = self._predict(inputs)
-        word_ids = inputs.word_ids()[1:-1]  # Exclude [CLS] and [SEP] tokens
-        return self.align_subwords_to_words(labels[1:-1], word_ids)
+        word_ids = inputs.word_ids(batch_index=0)
+        return self.align_subwords_to_words(labels, word_ids)
 
     @classmethod
     def _split_with_spans(cls, text: str) -> List[Tuple[str, int, int]]:
@@ -197,18 +205,30 @@ class EncoderTokenClassifier:
         return out
 
     def classify_sentence(self, sentence: str, none_label: Optional[str] = None) -> WordList:
+        words = self._split_with_spans(sentence)
+        if not words:
+            return []
+
+        word_texts = [word for word, _, _ in words]
         inputs = self.tokenizer(
-            sentence,
+            word_texts,
+            is_split_into_words=True,
             return_tensors="pt",
             truncation=True,
-            return_offsets_mapping=True,
         )
-        offset_mapping = inputs.pop("offset_mapping")[0].tolist()
         predictions, labels = self._predict(inputs)
+        word_ids = inputs.word_ids(batch_index=0)
+        word_labels = self.align_subwords_to_words(labels, word_ids)
 
-        token_ids = inputs["input_ids"][0].tolist()
-        tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
-        return self.map_by_offsets(sentence, tokens, labels, offset_mapping, none_label=none_label)
+        result: WordList = []
+        for (word, start, end), label in zip(words, word_labels):
+            normalized = self._normalize_label(label, none_label=none_label)
+            result.append({
+                "word": word,
+                "span": (start, end),
+                "labels": [] if normalized is None else [normalized],
+            })
+        return result
 
     def classify_sentences(self, sentences: List[str], none_label: Optional[str] = None) -> List[WordList]:
         result: List[WordList] = []

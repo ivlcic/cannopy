@@ -110,15 +110,19 @@ Note: work in progress
 
 ```shell
 # translate the data to the Slovenian language (see conf/data/translate for other languages)
-./data translate mt-slobench -c sl.yaml -c gpt-oss-120b.yaml                    #  <-- remote Groq API model
+./data translate mt-slobench -c sl.yaml -c gpt-oss-120b.yaml                    #  <-- remote Groq GPT OSS API model
 ./data translate mt-slobench -c sl.yaml -c gpt-5-mini.yaml                      #  <-- remote OpenAI API model
-./data translate mt-slobench -c sl.yaml -c seamless-m4t                         #  <-- local model (16GB VRAM GPU needed)
+./data translate mt-slobench -c sl.yaml -c google-translate.yaml                #  <-- remote Google Translate API model
 ./data translate mt-slobench -c sl.yaml -c ollama-eurollm-9b-it.yaml            #  <-- local ollama (16GB VRAM GPU needed)
 ./data translate mt-slobench -c sl.yaml -c ollama-translategemma-27b.yaml       #  <-- local ollama (32GB VRAM GPU needed)
 ./data translate mt-slobench -c sl.yaml -c ollama-gams-it-dpo-trans-9b.yaml     #  <-- local ollama (16GB VRAM GPU needed)
 ./data translate mt-slobench -c sl.yaml -c ollama-gams-it-dpo-trans-9b-f16.yaml #  <-- local ollama (32GB VRAM GPU needed)
 ./data translate mt-slobench -c sl.yaml -c ollama-gams-sft-trans-9b.yaml        #  <-- local ollama (16GB VRAM GPU needed)
 ./data translate mt-slobench -c sl.yaml -c ollama-gams-sft-trans-9b-f16.yaml    #  <-- local ollama (32GB VRAM GPU needed)
+./data translate mt-slobench -c sl.yaml -c seamless-m4t                         #  <-- local model (16GB VRAM GPU needed)
+./data translate mt-slobench -c sl.yaml -c tiny-aya-water.yaml                  #  <-- local model (16GB VRAM GPU needed)
+./data translate mt-slobench -c sl.yaml -c eurollm-9b-it.yaml                   #  <-- local model (16GB VRAM GPU needed)
+./data translate mt-slobench -c sl.yaml -c translategemma-12b-it.yaml           #  <-- local model (32GB VRAM GPU needed)
 ```
 
 ### 3.2 Evaluate translation on BGE-M3 dataset

@@ -65,28 +65,23 @@ def _translate_file(translator: Translator, source: Path, target: Path, batch_si
 
 # noinspection DuplicatedCode
 def main(data_args: DataArguments) -> None:
+    ds_name = 'mt-slobench'
     t_cfg = data_args.translate
-    source_dir = paths['base']['data'] / 'download' / data_args.dataset_name
+    source_dir = paths['base']['data'] / 'download' / ds_name
     if not source_dir.exists():
-        logger.error(f'Source [download] {data_args.dataset_name} directory not found: %s', source_dir)
+        logger.error(f'Source [download] {ds_name} directory not found: %s', source_dir)
         return
 
-    target_dir = paths['translate']['data'] / data_args.dataset_name
-    target_dir.mkdir(parents=True, exist_ok=True)
-    files_paths = get_files_paths(source_dir)
-    files: Dict[Path, Path] = {}
-    for file_or_path in files_paths:
-        if not file_or_path.is_dir():
-            continue
-        d = target_dir / file_or_path.name
-        d.mkdir(parents=True, exist_ok=True)
-        for child in file_or_path.iterdir():
-            if child.is_file() and child.suffix == '.txt':
-                new_name = child.name.replace(f'.{t_cfg.src_code}.', f'.{t_cfg.tgt_code}.')
-                files[child] = d / (t_cfg.tgt_code + '.' + t_cfg.model.short_name + '.' + new_name)
+    src = source_dir / f'slobench_ensl.{t_cfg.tgt_code}' / f'slobench_ensl.{t_cfg.tgt_code}.txt'
+    if not src.exists() or not src.is_file():
+        logger.error(f'Source [translate] {ds_name} file not found: %s', src)
+        return
 
+    target_dir = paths['translate']['data'] / ds_name / f'slobench_ensl.{t_cfg.tgt_code}'
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    tgt = target_dir / t_cfg.get_base_name()
     translator: Translator = Translator.create(t_cfg)
-    for src, tgt in files.items():
-        logger.info('Translating docs from %s -> %s...', src.name, tgt.name)
-        _translate_file(translator, src, tgt, t_cfg.batch_size)
-        logger.info('Translated docs from %s -> %s.', src.name, tgt.name)
+    logger.info('Translating docs from %s -> %s...', src.name, tgt.name)
+    _translate_file(translator, src, tgt, t_cfg.batch_size)
+    logger.info('Translated docs from %s -> %s.', src.name, tgt.name)
