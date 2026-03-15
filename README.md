@@ -87,6 +87,13 @@ Download and prepare Slavic NER dataset:
 # not implemented yet
 ./train token ner -c qwen3-1.7b.yaml
 ```
+Now we can also run evaluation:
+```shell
+# evaluate the trained model
+./eval token ner -c xlmr.yaml
+./eval token ner -c mm-bert.yaml
+```
+
 
 ### 2.3 Submit to [Slobench](https://slobench.cjvt.si/)
 

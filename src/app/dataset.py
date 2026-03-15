@@ -38,10 +38,15 @@ class NerDataset(Dataset):
         for word_id in word_ids:
             if word_id is None:
                 label_ids.append(-100)
-            elif word_id != previous_word_id:
-                label_ids.append(self.label2id.get(labels[word_id], self.label2id['O']))
             else:
-                label_ids.append(-100)
+                label = labels[word_id]
+                if word_id != previous_word_id:
+                    label_ids.append(self.label2id.get(label, self.label2id["O"]))
+                else:
+                    # mark a continuation of a previous label on a SUB!!!-token as I-XYZ if it was B-XYZ
+                    if label.startswith("B-"):
+                        label = "I-" + label[2:]
+                    label_ids.append(self.label2id.get(label, self.label2id["O"]))
             previous_word_id = word_id
 
         encoding['labels'] = torch.tensor(label_ids, dtype=torch.long)
