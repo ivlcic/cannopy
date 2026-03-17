@@ -78,6 +78,8 @@ class TokenClassificationMetrics:
                     continue
                 seq_true.append(self.id2label[int(l)])
                 seq_pred.append(self.id2label[int(p)])
+            #if seq_true != seq_pred:
+            #    print(f"Prediction mismatch: true={seq_true}, pred={seq_pred}")
             true_labels.append(seq_true)
             true_preds.append(seq_pred)
 

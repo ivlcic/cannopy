@@ -50,6 +50,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         languages = [p.stem.split('.')[0] for p in data_root.glob('ner-*.train.csv')]
 
     ner_samples = NerSamplesLoader(data_root, languages)
+    # ner_samples = NerSamplesLoader(data_root, ['sl'])
     metrics = TokenClassificationMetrics(id2label=ner_samples.id2label)
 
     tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
