@@ -42,5 +42,14 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     print(text)
     logger.info('Text tokens:')
     print(tokens)
+    logger.info('Pipeline split to words result:')
+    for r in result[0]:
+        print(f'[{text[r['start']:r['end']]}]({r["entity_group"]}@{"%.2f"%r["score"]}|{r["start"]}:{r["end"]})')
+        r['text'] = text[r['start']:r['end']]
+    print(result)
+    result = ner(text)
     logger.info('Pipeline result:')
+    for r in result:
+        print(f'[{text[r['start']:r['end']]}]({r["entity_group"]}@{r["start"]}:{r["end"]})')
+        r['text'] = text[r['start']:r['end']]
     print(result)
