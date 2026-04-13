@@ -176,6 +176,9 @@ Download EURLEX57K dataset:
 Download NewsMon dataset (due to a license, you need a password to decrypt the archive):
 ```shell
 ./data download newsmon
+./data prepare newsmon -c sl.yaml
+./data prepare newsmon -c sr.yaml
+./data prepare newsmon -c mk.yaml
 ```
 
 ## 5. News Stories
