@@ -13,6 +13,11 @@ from ...app.args.data import DataArguments
 logger: Logger
 paths: Dict[str, Any]
 
+__social_media = {
+    '8e3b359f', '3e1c137d', '86f18af6', '1fd92aa0', 'c0953029', '1843f51e',
+    '151a2b9a', '05b54365', '0e9d50b8', '9f6a5e6c', 'f789b185'
+}
+
 
 def _normalize_langs(lang: str) -> List[str]:
     if not lang:
@@ -120,7 +125,8 @@ def prep_corpus_extract(
         out_file = target_dir / f"{data_args.dataset_name}_{data_args.lang}_{postfix}.csv"
         output_files.append(out_file)
 
-        with article_file.open("r", encoding="utf-8") as f_in, out_file.open("w", encoding="utf-8", newline="") as f_out:
+        with (article_file.open("r", encoding="utf-8") as f_in,
+              out_file.open("w", encoding="utf-8", newline="") as f_out):
             writer = csv.writer(f_out)
             writer.writerow([
                 "a_id",
@@ -154,19 +160,20 @@ def prep_corpus_extract(
                     continue
 
                 article_id = article.get("id", "")
+                media_id = article.get("m_id", "")
                 text = _join_text(article)
                 writer.writerow([
                     article_id,
                     article_uuid_map.get(article_id, article_id),
                     article.get("date", ""),
-                    article.get("m_id", ""),
+                    media_id,
                     article.get("public", 0),
                     article.get("lang", ""),
                     len(text.split()),
                     text,
                     labels,
                     labels_info,
-                    0,
+                    1 if media_id in __social_media else 0,
                     0,
                 ])
                 written += 1
