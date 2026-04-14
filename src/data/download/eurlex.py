@@ -100,9 +100,9 @@ def main(data_args: DataArguments) -> None:
     logger.info(f'Downloading {data_args.dataset_name}')
 
     download_dir = paths['download']['data']
-    output_dir = paths['base']['data'] / 'split'
+    output_dir = download_dir / 'eurlex'
     zip_file = Downloader.download(data_args.source.links[0].url,  download_dir / 'eurlex.zip')
-    extract_dir = download_dir / 'eurlex'
+    extract_dir = output_dir / 'tmp_eurlex'
     extract_dir.mkdir(parents=True, exist_ok=True)
     logger.info(
         f'Extracting {zip_file} to {extract_dir}'

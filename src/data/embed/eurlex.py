@@ -9,23 +9,14 @@ logger: Logger
 paths: Dict[str, Any]
 
 
-def get_subset_name(data_args: DataArguments) -> str:
-    subset = data_args.source.select.subset
-    if subset:
-        return subset
-    return data_args.dataset_name
-
-
 # noinspection DuplicatedCode
 def main(data_args: DataArguments, model_args: ModelArguments) -> None:
-    subset = get_subset_name(data_args)
-
-    source_dir = paths['base']['data'] / 'prepare' / data_args.dataset_name
-    source_file = source_dir / f'{subset}.jsonl'
+    source_dir = paths['base']['data'] / 'prepare' / 'eurlex'
+    source_file = source_dir / f'{data_args.dataset_name}.jsonl'
     if not source_file.exists():
         raise FileNotFoundError(f'Prepared subset file not found: {source_file}')
 
     target_dir = paths['embed']['data'] / data_args.dataset_name
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    embed_prepared_subset(subset, source_file, target_dir, model_args, logger)
+    embed_prepared_subset(source_file, target_dir, model_args, logger)

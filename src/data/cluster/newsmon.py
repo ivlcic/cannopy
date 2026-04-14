@@ -1,14 +1,12 @@
 import json
 
-import numpy as np
 import networkx as nx
+import numpy as np
 
 from collections import defaultdict
 from datetime import datetime, timedelta
 from logging import Logger
 from typing import Any, Dict, List
-
-from dateutil.relativedelta import relativedelta
 
 from ..embed.newsmon import load_embeddings
 from ...app.args.data import DataArguments
@@ -16,6 +14,17 @@ from ...app.args.model import ModelArguments
 
 logger: Logger
 paths: Dict[str, Any]
+
+
+def _get_subset_name(data_args: DataArguments) -> str:
+    subset = data_args.source.select.subset
+    if subset:
+        return subset
+    return data_args.dataset_name
+
+
+def _parse_datetime(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace('Z', '+00:00')).astimezone()
 
 
 def cosine_similarity_matrix(x, eps=1e-12):
@@ -32,7 +41,6 @@ def cluster_louvain(articles: List[Dict[str, Any]], embed_field_name: str, sim_t
     x = cosine_similarity_matrix(embeddings)
 
     similarity_matrix = x > sim_threshold
-    # Remove self-loops (diagonal True values)
     np.fill_diagonal(similarity_matrix, False)
 
     graph = nx.from_numpy_array(similarity_matrix)
@@ -45,15 +53,16 @@ def cluster_louvain(articles: List[Dict[str, Any]], embed_field_name: str, sim_t
             labels[member] = initial_member
 
     clusters = {}
-    for a, lbl in zip(articles, labels):
+    for article, lbl in zip(articles, labels):
         if lbl not in clusters:
-            clusters[lbl] = [a]
+            clusters[lbl] = [article]
         else:
-            clusters[lbl].append(a)
+            clusters[lbl].append(article)
     clusters = dict(sorted(clusters.items(), key=lambda x: -len(x[1])))
+
     consistent = {}
-    for k in clusters.keys():
-        c_articles: List[Dict[str, Any]] = clusters[k]
+    for key in clusters.keys():
+        c_articles: List[Dict[str, Any]] = clusters[key]
         c_articles.sort(key=lambda article: (article['reach'], article['created']), reverse=True)
         consistent[c_articles[0]['id']] = c_articles
     return consistent
@@ -61,130 +70,134 @@ def cluster_louvain(articles: List[Dict[str, Any]], embed_field_name: str, sim_t
 
 def cluster_prep(clusters: Dict[int, List[Dict[str, Any]]], key: str, start: datetime, end: datetime):
     data: Dict[str, Any] = {'key': key, 'from': start.isoformat(), 'to': end.isoformat(), 'clusters': []}
-    for c, k in enumerate(clusters.keys()):
-        articles: List[Dict[str, Any]] = clusters[k]
-        cl = articles[0]
-        size = len(articles)
-        cluster = {'id': cl['id'], 'size': size, 'idx': c, 'title': cl['title']['text'], 'articles': []}
-        articles.sort(key=lambda article: article["created"])
+    for idx, cluster_key in enumerate(clusters.keys()):
+        articles: List[Dict[str, Any]] = clusters[cluster_key]
+        lead_article = articles[0]
+        cluster = {
+            'id': lead_article['id'],
+            'size': len(articles),
+            'idx': idx,
+            'title': lead_article['title']['text'],
+            'articles': []
+        }
+        articles.sort(key=lambda article: article['created'])
         data['clusters'].append(cluster)
-        for x, a in enumerate(articles):
-            cl_article = {
-                'id': a['id'],
-                'uuid': a['uuid'],
-                'published': datetime.isoformat(a['published']),
-                'created': datetime.isoformat(a['created']),
-                'source_id': a['m_id'],
-                'source': a['source'],
-                'language': a['lang'],
-                'country': a['country'],
-                'reach': a['reach'],
-                'type': a['type'],
-                'url': a['url'],
-                'title': a['title']['text'],
-                'body': a['body']['text']
-            }
-            cluster['articles'].append(cl_article)
+        for article in articles:
+            cluster['articles'].append({
+                'id': article['id'],
+                'uuid': article['uuid'],
+                'published': article['published'].isoformat(),
+                'created': article['created'].isoformat(),
+                'source_id': article['m_id'],
+                'source': article['source'],
+                'language': article['lang'],
+                'country': article['country'],
+                'reach': article['reach'],
+                'type': article['type'],
+                'url': article['url'],
+                'title': article['title']['text'],
+                'body': article['body']['text']
+            })
     return data
 
 
 def main(data_args: DataArguments, model_args: ModelArguments) -> None:
-    logger.info(f'Clustering {data_args.dataset_name}')
-    source_dir = paths['base']['data'] / 'embed' / data_args.dataset_name
-    if not source_dir.exists():
-        logger.error(f'Source [embed] {data_args.dataset_name} directory not found: %s', source_dir)
+    logger.info('Clustering %s', data_args.dataset_name)
+
+    subset = _get_subset_name(data_args)
+    prepared_dir = paths['prepare']['data'] / data_args.dataset_name
+    embed_dir = paths['embed']['data'] / data_args.dataset_name
+    if not prepared_dir.exists():
+        logger.error('Source [prepare] %s directory not found: %s', data_args.dataset_name, prepared_dir)
         return
+    if not embed_dir.exists():
+        logger.error('Source [embed] %s directory not found: %s', data_args.dataset_name, embed_dir)
+        return
+
+    src_file = prepared_dir / f'{subset}.jsonl'
+    if not src_file.exists():
+        raise FileNotFoundError(f'Prepared data file not found: {src_file}')
+
+    src_ebd_file = embed_dir / f'{subset}.{model_args.short_name}.jsonl'
+    if not src_ebd_file.exists():
+        raise FileNotFoundError(f'Embedding file not found: {src_ebd_file}')
 
     target_dir = paths['cluster']['data'] / data_args.dataset_name
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    start = datetime.fromisoformat(data_args.source.select.start)
-    if start.tzinfo is None:
-        start = start.astimezone()
-
-    end = datetime.fromisoformat(data_args.source.select.end)
-    if end.tzinfo is None:
-        end = end.astimezone()
-
-    # Validate year == 2023 as Newsmon is 2023 only
-    if start.year != 2023 or end.year != 2023:
-        raise ValueError(
-            f"Dates must be in year 2023; got start={start.date().isoformat()}, end={end.date().isoformat()}"
-        )
-    if end < start:
-        raise ValueError(f"end must be >= start; got start={start}, end={end}")
-
-    # Iterate month-by-month with per-month clipped ranges
-    cur = start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    # is data only a subset
-    subset = ''
-    if data_args.source.select.subset:
-        subset = f'{data_args.source.select.subset}_'
-
-    seed = None
-    if 'seed' in data_args.cluster.attributes:
-        seed = data_args.cluster.attributes['seed']
-
+    seed = data_args.cluster.attributes.get('seed')
     num_days = data_args.cluster.attributes['num_days']
     sim_threshold = data_args.cluster.attributes['sim_threshold']
-    output_excel = False
-    if 'output_excel' in data_args.cluster.attributes:
-        output_excel = data_args.cluster.attributes['output_excel']
-    while cur < end:
-        next_month = cur + relativedelta(months=1)
-        src_file = source_dir / f'{subset}data_{start.year}_{cur.month:02d}.jsonl'
-        if not src_file.exists():
-            raise FileNotFoundError(
-                f"Data file not found: {src_file}, check data.source.select.start and data.source.select.end"
+    output_excel = data_args.cluster.attributes.get('output_excel', False)
+
+    src_ebd = load_embeddings(src_ebd_file)
+    collected: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    min_created = None
+    max_created = None
+
+    with src_file.open('r', encoding='utf-8') as f_in:
+        for line_no, line in enumerate(f_in, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                article = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f'Malformed JSON in {src_file} line {line_no}') from exc
+
+            article_id = article.get('id')
+            if not article_id:
+                logger.warning('Missing id in %s line %d.', src_file, line_no)
+                continue
+            if article_id not in src_ebd:
+                logger.warning('Missing embedding for %s in %s.', article_id, src_ebd_file)
+                continue
+
+            created = _parse_datetime(article['created'])
+            published = _parse_datetime(article['published'])
+            article['created'] = created
+            article['published'] = published
+            article['date'] = _parse_datetime(article['date'])
+            article['embedding'] = src_ebd[article_id]
+
+            if min_created is None or created < min_created:
+                min_created = created
+            if max_created is None or created > max_created:
+                max_created = created
+
+            collected[created.strftime('%Y-%m-01')].append(article)
+
+    if min_created is None or max_created is None:
+        raise ValueError(f'No clusterable articles found in {src_file}')
+
+    bucketed: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    anchor = min_created.replace(hour=0, minute=0, second=0, microsecond=0)
+    for articles in collected.values():
+        for article in articles:
+            delta = article['created'] - anchor
+            bucket_start_date = anchor + timedelta(days=(delta.days // num_days) * num_days)
+            bucket_key = bucket_start_date.strftime('%Y-%m-%d')
+            bucketed[bucket_key].append(article)
+
+    base_name = f'{subset}_clusters-{model_args.short_name}@{sim_threshold}'
+    tgt_file = target_dir / f'{base_name}.jsonl'
+    clusters: List[Dict[str, Any]] = []
+    with tgt_file.open('w', encoding='utf-8') as f_out:
+        for key, articles in sorted(bucketed.items()):
+            bucket_clusters = cluster_louvain(articles, 'embedding', sim_threshold, seed)
+            created_values = [article['created'] for article in articles]
+            bucket_min_created = min(created_values)
+            bucket_max_created = max(created_values)
+            logger.info(
+                'Computed [%s] %s day clusters [%s from %s to %s]',
+                len(bucket_clusters), num_days, key, bucket_min_created, bucket_max_created
             )
-        src_ebd_file = source_dir / f'{subset}data_{start.year}_{cur.month:02d}-{model_args.short_name}.jsonl'
-        if not src_ebd_file.exists():
-            raise FileNotFoundError(
-                f"Data file not found: {src_file}, check data.source.select.start and data.source.select.end"
-            )
-        src_ebd = load_embeddings(src_ebd_file)
+            prepared_cluster = cluster_prep(bucket_clusters, key, bucket_min_created, bucket_max_created)
+            f_out.write(json.dumps(prepared_cluster, ensure_ascii=False) + '\n')
+            clusters.append(prepared_cluster)
 
-        collected: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-        with (src_file.open('r', encoding='utf-8') as f_in):
-            for line_no, line in enumerate(f_in, start=1):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    article = json.loads(line)
-                    created = datetime.fromisoformat(article['created'].replace('Z', '+00:00')).astimezone()
-                    delta = created - cur
-                    bucket_start_date = cur + timedelta(days=(delta.days // num_days) * num_days)
-                    bucket_key = bucket_start_date.strftime('%Y-%m-%d')
-
-                    article['created'] = created
-                    article['date'] = datetime.fromisoformat(article['date'].replace('Z', '+00:00'))
-                    article['published'] = datetime.fromisoformat(article['published'].replace('Z', '+00:00'))
-                    article['embedding'] = src_ebd[article['id']]
-
-                    collected[bucket_key].append(article)
-                except json.JSONDecodeError:
-                    logger.warning('Skipping malformed JSON in %s line %d.', src_file.name, line_no)
-                    raise
-        base_name = f'{subset}data_clusters_{start.year}_{cur.month:02d}-{model_args.short_name}@{sim_threshold}'
-        tgt_file = target_dir / f'{base_name}.jsonl'
-        clusters: List[Dict[str, Any]] = []
-        with (tgt_file.open('w', encoding='utf-8') as f_out):
-            for key, articles in collected.items():
-                bucket_clusters = cluster_louvain(articles, 'embedding', sim_threshold, seed)
-                created_values = [a["created"] for a in articles if a.get("created") is not None]
-                min_created = min(created_values)
-                max_created = max(created_values)
-                logger.info(
-                    "Computed [%s] %s days clusters [%s from %s to %s] ",
-                    len(bucket_clusters), num_days, key, min_created, max_created
-                )
-                bucket_clusters = cluster_prep(bucket_clusters, key, min_created, max_created)
-                f_out.write(json.dumps(bucket_clusters, ensure_ascii=False) + "\n")
-                clusters.append(bucket_clusters)
-        if output_excel:
-            from .__newsmon_xlsx import ClusterExcel
-            tgt_file = target_dir / f'{base_name}.xlsx'
-            excel = ClusterExcel(tgt_file)
-            excel.write_xlsx(clusters)
-        cur = next_month
+    if output_excel:
+        from .__newsmon_xlsx import ClusterExcel
+        xlsx_file = target_dir / f'{base_name}.xlsx'
+        excel = ClusterExcel(xlsx_file)
+        excel.write_xlsx(clusters)

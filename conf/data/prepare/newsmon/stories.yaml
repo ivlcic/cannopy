@@ -1,8 +1,4 @@
 data:
-  cluster:
-    attributes:
-      num_days: 5
-      seed: 2611
   source:
     select:
       subset: 'stories'

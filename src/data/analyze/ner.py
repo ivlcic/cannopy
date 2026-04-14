@@ -143,11 +143,11 @@ def _format_split_stats_table(split_stats: Dict[str, Dict[str, Any]], tags: List
 def main(data_args: DataArguments) -> None:
     logger.info('Analyzing NER datasets')
 
-    output_dir = paths['analyze']['data']
+    output_dir = paths['analyze']['data'] / 'ner'
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    base_dir = paths['base']['data'] / 'prepare'
-    split_dir = paths['base']['data'] / 'split'
+    base_dir = paths['base']['data'] / 'prepare' / 'ner'
+    split_dir = paths['base']['data'] / 'split' / 'ner'
 
     aggregated = _load_sentences(base_dir)
     if not aggregated:

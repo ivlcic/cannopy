@@ -41,7 +41,7 @@ def compute_train_dir(m_args: ModelArguments, t_args: TrainingArguments) -> Opti
     return str(output_dir)
 
 
-def compute_output(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
+def compute_output(m_args: ModelArguments, t_args: TrainingArguments) -> Path:
     model_name = f'ner.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
     output = paths['ner-slobench']['eval'] / model_name
     if output.exists():
@@ -55,7 +55,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     logger.info('Evaluating NER')
 
     train_args.output_dir = compute_train_dir(model_args, train_args)
-    output_dir = compute_output(model_args, data_args, train_args)
+    output_dir = compute_output(model_args, train_args)
 
     sub_dir = data_args.attributes.get('use_subdir', 'sample_reference')
     input_dir = paths['base']['data'] / 'download' / data_args.dataset_name / sub_dir

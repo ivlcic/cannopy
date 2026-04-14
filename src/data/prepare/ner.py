@@ -454,7 +454,7 @@ def main(data_args: DataArguments) -> None:
     logger.info(f'Preparing {data_args.dataset_name} datasets')
 
     download_root = paths['base']['data'] / 'download' / data_args.dataset_name
-    output_dir = paths['prepare']['data']
+    output_dir = paths['prepare']['data'] / 'ner'
 
     label_remap = data_args.label_remap
     parsers: List[NerDatasetParser] = [

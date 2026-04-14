@@ -1,8 +1,10 @@
 data:
-  lang: sl
-  subdata_order:
-    - 2023_01
-    - 2023_02
-    - 2023_03
-    - 2023_04
-    - 2023_05
+  source:
+    select:
+      subset: 'newsmon_sl'
+      start: '2023-01-01'
+      end: '2023-05-31'
+      filter:
+        min_label_count: 2
+        public: 1
+        language: 'sl'

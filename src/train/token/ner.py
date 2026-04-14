@@ -16,7 +16,7 @@ paths: Dict[str, Any]
 
 
 def init_dirs(paths_dict: Dict[str, Any]) -> Tuple[Path, Path]:
-    data_root = paths_dict['base']['data'] / 'split'
+    data_root = paths_dict['base']['data'] / 'split' / 'ner'
     if not data_root.exists():
         raise EnvironmentError(f'Split data not found at %s. Run `./data split ner` first.', data_root)
 

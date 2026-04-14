@@ -171,14 +171,27 @@ Translate the BGE-M3 sampled dataset:
 Download EURLEX57K dataset:
 ```shell
 ./data download eurlex
+./data prepare eurlex
+./data embed eurlex -c bge-m3.yaml
+./data split eurlex
+./data analyze eurlex
 ```
 
 Download NewsMon dataset (due to a license, you need a password to decrypt the archive):
 ```shell
 ./data download newsmon
 ./data prepare newsmon -c sl.yaml
+./data embed newsmon -c sl.yaml -c bge-m3.yaml
+./data split newsmon -c sl.yaml
+./data analyze newsmon -c sl.yaml
+
 ./data prepare newsmon -c sr.yaml
+./data embed newsmon -c sr.yaml -c bge-m3.yaml
+./data split newsmon -c sr.yaml
+
 ./data prepare newsmon -c mk.yaml
+./data embed newsmon -c mk.yaml -c bge-m3.yaml
+./data split newsmon -c mk.yaml
 ```
 
 ## 5. News Stories
@@ -186,6 +199,7 @@ Download NewsMon dataset (due to a license, you need a password to decrypt the a
 Download NewsMon dataset (due to a license, you need a password to decrypt the archive):
 ```shell
 ./data download newsmon
+./data prepare newsmon -c stories.yaml
 ```
 
 Embed the newsmon dataset to a ada_002 or BGE-M3 embeddings:

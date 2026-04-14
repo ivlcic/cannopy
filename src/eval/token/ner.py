@@ -56,6 +56,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir=cache_root)
     collator = DataCollatorForTokenClassification(tokenizer, padding='longest')
+    # noinspection PyTypeChecker
     model = AutoModelForTokenClassification.from_pretrained(
         train_args.output_dir,
         cache_dir=cache_root,

@@ -1,6 +1,15 @@
 data:
   dataset_name: eurlex57k
+  split:
+    train: 0.8
+    eval: 0.1
+    test: 0.1
+    seed: 2611
   source:
+    select:
+      filter:
+        min_label_count: 2
+        use_eurlex_split: false
     links:
       - url: https://kt-cloud.ijs.si/index.php/s/ZxsX8BZxTWmcSNb/download?path=%2F&files=datasets.zip
         lang: en

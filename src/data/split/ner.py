@@ -54,8 +54,8 @@ def _split_language_data(aggregated: Dict[str, List[Sentence]], train_ratio: flo
 def main(data_args: DataArguments) -> None:
     logger.info('Splitting NER datasets...')
 
-    source_dir = paths['base']['data'] / 'prepare'
-    target_dir = paths['split']['data']
+    source_dir = paths['base']['data'] / 'prepare' / 'ner'
+    target_dir = paths['split']['data'] / 'ner'
     target_dir.mkdir(parents=True, exist_ok=True)
 
     aggregated = _load_prepared_sentences(source_dir)

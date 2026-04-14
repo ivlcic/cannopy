@@ -1,0 +1,9 @@
+data:
+  split:
+    train: 0.8
+    eval: 0.1
+    test: 0.1
+    seed: 2611
+  source:
+    select:
+      subset: 'newsmon_sl'
