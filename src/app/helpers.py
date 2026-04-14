@@ -1,14 +1,14 @@
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any, List, IO
+from typing import Optional, Dict, Any, List, IO, Tuple
 
 from .translator import Translator
 
 logger = logging.getLogger('json-helper')
 
 
-class JsonHelper:
+class JsonIRHelper:
 
     @classmethod
     def read_ir_sample(cls, line: str, line_no: int, source: Path) -> Optional[Dict[str, Any]]:
@@ -38,6 +38,24 @@ class JsonHelper:
         return obj
 
 
+class JsonIdHelper:
+
+    @classmethod
+    def read_sample(cls, line: str, line_no: int, source: Path) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        line = line.strip()
+        if not line:
+            return None, None
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f'Malformed JSON in {source} line {line_no}') from exc
+        if 'id' not in obj:
+            logger.warning('Missing id in %s line %d.', source, line_no)
+            return None, None
+        return obj, obj['id']
+
+
+
 class TranslationHelper:
 
     @classmethod
@@ -59,7 +77,7 @@ class TranslationHelper:
                 if line_no <= existing:
                     continue
 
-                obj = JsonHelper.read_ir_sample(line, line_no, source)
+                obj = JsonIRHelper.read_ir_sample(line, line_no, source)
                 chunk.append(obj)
 
                 if len(chunk) == batch_size:

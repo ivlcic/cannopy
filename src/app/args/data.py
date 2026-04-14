@@ -67,6 +67,7 @@ class SourceConfig:
     conn: ConnectionConfig = field(default_factory=ConnectionConfig)
     lang: str = ''
     links: List[SourceConfigLink] = field(default_factory=list)
+    attributes: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

@@ -66,14 +66,3 @@ def _write_split_file(target_file, split_ids: set[str], grouped: Dict[str, List[
                 f.write(json.dumps(sample, ensure_ascii=False) + '\n')
                 written += 1
     return written
-
-
-def _write_labels_file(target_file, samples: List[Dict[str, Any]]) -> int:
-    label_counts: Counter = Counter()
-    for sample in samples:
-        label_counts.update(sample.get('label', []))
-
-    with target_file.open('w', encoding='utf-8') as f:
-        for label_id, count in sorted(label_counts.items(), key=lambda item: item[0]):
-            f.write(json.dumps({'label': label_id, 'count': count}, ensure_ascii=False) + '\n')
-    return len(label_counts)

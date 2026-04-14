@@ -46,7 +46,7 @@ def _get_subset_name(data_args: DataArguments) -> str:
 
 def _get_subset_paths(data_args: DataArguments, target_dir: Path) -> Tuple[Path, Path]:
     subset = _get_subset_name(data_args)
-    return target_dir / f'{subset}.jsonl', target_dir / f'{subset}_labels.csv'
+    return target_dir / f'{subset}.jsonl', target_dir / f'{subset}.labels.csv'
 
 
 def _iter_selected_months(data_args: DataArguments) -> List[str]:

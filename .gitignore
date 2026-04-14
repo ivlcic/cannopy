@@ -216,6 +216,7 @@ result/**/*.tsv
 result/**/*.xlsx
 result/**/*.zip
 result/**/*.svg
+result/**/*.npz
 tmp/**
 result/train/token/ner.*
 result/train/ner/ner.*

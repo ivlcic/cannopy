@@ -2,3 +2,5 @@ data:
   source:
     select:
       subset: 'newsmon_sl'
+    attributes:
+      index: true

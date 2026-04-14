@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
+from ...app.helpers import JsonIdHelper
 from ...app.args.model import ModelArguments
 from ...app.embedder import TextEmbedder
 
@@ -34,20 +35,14 @@ def load_embeddings(file_name: Path) -> Dict[str, List[float]]:
     embeddings: Dict[str, List[float]] = {}
     with file_name.open('r', encoding='utf-8') as f_in:
         for line_no, line in enumerate(f_in, start=1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f'Malformed JSON in {file_name} line {line_no}') from exc
-            if 'id' not in obj:
-                logger.warning('Missing id in %s line %d.', file_name, line_no)
+            obj, _ = JsonIdHelper.read_sample(line, line_no, file_name)
+            if not obj:
                 continue
             vec = obj.get('embeddings', obj.get('embedding'))
             if vec is None:
                 logger.warning('Missing embeddings in %s line %d.', file_name, line_no)
                 continue
+            # noinspection PyTypeChecker
             embeddings[obj['id']] = vec
     return embeddings
 
@@ -109,8 +104,8 @@ def build_stats_dict(measurements: EmbedMeasurements) -> Dict[str, Any]:
     }
 
 
-def embed_prepared_subset(source_file: Path, target_dir: Path, model_args: ModelArguments,
-                          log: Logger, subset: Optional[str] = None) -> None:
+def embed_prepared_dataset(source_file: Path, target_dir: Path, model_args: ModelArguments,
+                           log: Logger, subset: Optional[str] = None) -> Dict[str, List[float]]:
     target_name = f'{subset}.{model_args.short_name}'
     target_file = target_dir / f'{target_name}.jsonl'
     target_stats_file = target_dir / f'{target_name}.stats.jsonl'
@@ -130,6 +125,7 @@ def embed_prepared_subset(source_file: Path, target_dir: Path, model_args: Model
     )
     embedder = TextEmbedder.create(model_args)
     measurements.model_vram_bytes = _get_vram_bytes()
+    embeddings: Dict[str, List[float]] = dict(cached_embeddings)
     if write_stats and torch.cuda.is_available():
         try:
             torch.cuda.reset_peak_memory_stats()
@@ -153,27 +149,20 @@ def embed_prepared_subset(source_file: Path, target_dir: Path, model_args: Model
                 )
             measurements.batch_durations.append(batch_duration)
             measurements.batch_sample_counts.append(len(batch_ids))
-            for sample_id, vec in zip(batch_ids, vectors):
-                f_out.write(json.dumps({'id': sample_id, 'embedding': vec}, ensure_ascii=False) + '\n')
+            for s_id, vec in zip(batch_ids, vectors):
+                # noinspection PyTypeChecker
+                embeddings[s_id] = vec
+                f_out.write(json.dumps({'id': s_id, 'embedding': vec}, ensure_ascii=False) + '\n')
             batch_ids.clear()
             batch_texts.clear()
 
         for line_no, line in enumerate(f_in, start=1):
-            line = line.strip()
-            if not line:
+            sample, sample_id = JsonIdHelper.read_sample(line, line_no, source_file)
+            if not sample_id or not sample:
                 continue
-            try:
-                sample = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f'Malformed JSON in {source_file} line {line_no}') from exc
-
-            sample_id = sample.get('id')
-            if not sample_id:
-                log.warning('Missing id in %s line %d.', source_file, line_no)
-                continue
-
             cached_vec = cached_embeddings.get(sample_id)
             if cached_vec is not None:
+                embeddings[sample_id] = cached_vec
                 f_out.write(json.dumps({'id': sample_id, 'embedding': cached_vec}, ensure_ascii=False) + '\n')
                 continue
 
@@ -193,3 +182,18 @@ def embed_prepared_subset(source_file: Path, target_dir: Path, model_args: Model
             json.dump(build_stats_dict(measurements), f_stats, ensure_ascii=False, indent=2)
 
     log.info('Embedded prepared data %s into %s', source_file, target_file)
+    return embeddings
+
+
+def collect_split_embeddings(split_source_file: Path, embeddings: Dict[str, List[float]]) -> Dict[str, List[float]]:
+    split_embeddings: Dict[str, List[float]] = {}
+    with split_source_file.open('r', encoding='utf-8') as f_in:
+        for line_no, line in enumerate(f_in, start=1):
+            sample, sample_id = JsonIdHelper.read_sample(line, line_no, split_source_file)
+            if not sample_id:
+                continue
+            embedding = embeddings.get(sample_id)
+            if embedding is None:
+                raise KeyError(f'Missing top-level embedding for split sample id: {sample_id}')
+            split_embeddings[sample_id] = embedding
+    return split_embeddings

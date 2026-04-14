@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from ...app.args.data import DataArguments
-from ...app.ir_ds_helper import TranslationHelper
+from ...app.helpers import TranslationHelper
 from ...app.translator import Translator
 
 logger: Logger

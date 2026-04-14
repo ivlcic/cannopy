@@ -228,7 +228,7 @@ def _compute_stats(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
 def _load_split_stats(split_dir: Path, subset: str) -> Dict[str, Dict[str, Any]]:
     split_stats: Dict[str, Dict[str, Any]] = {}
     for split_name in ['train', 'eval', 'test']:
-        split_file = split_dir / f'{subset}_{split_name}.jsonl'
+        split_file = split_dir / f'{subset}.{split_name}.jsonl'
         if not split_file.exists():
             continue
         split_stats[split_name] = _compute_stats(_load_jsonl(split_file))

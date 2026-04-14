@@ -230,12 +230,6 @@ Now we can cluster the dataset with Louvain communities algorithm:
 ./data resample newsmon -c sr.yaml
 ./data resample newsmon
 ./data sample newsmon -c hard_neg.yaml
-./data split newsmon -c sl.yaml
-./data split eurlex -c sl.yaml
-./data analyze newsmon -c sl.yaml  
-./data analyze newsmon -c sr.yaml  
-./data analyze newsmon  
-./data analyze eurlex
 ./train seqence newsmon -c xlmr.yaml
 ./train seqence newsmon -c mm-bert.yaml
 ./train seqence eurlex -c xlmr.yaml

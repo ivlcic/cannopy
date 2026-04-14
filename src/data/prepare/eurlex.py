@@ -99,7 +99,7 @@ def main(data_args: DataArguments) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     data_file = target_dir / f'{data_args.dataset_name}.jsonl'
-    labels_file = target_dir / f'{data_args.dataset_name}_labels.csv'
+    labels_file = target_dir / f'{data_args.dataset_name}.labels.csv'
     lang = data_args.source.lang or 'en'
 
     samples: List[Dict[str, Any]] = []

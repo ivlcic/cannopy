@@ -17,6 +17,7 @@ def get_subset_name(data_args: DataArguments) -> str:
     return data_args.dataset_name
 
 
+# noinspection DuplicatedCode
 def main(data_args: DataArguments) -> None:
     subset = get_subset_name(data_args)
 
