@@ -1,4 +1,0 @@
-data:
-  source:
-    select:
-      subset: 'newsmon_sl'

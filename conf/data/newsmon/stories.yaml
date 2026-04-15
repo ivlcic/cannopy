@@ -1,0 +1,13 @@
+data:
+  source:
+    select:
+      subset: 'stories'
+      start: '2023-03-01'
+      end: '2023-04-01'
+      filter:
+        country: 'SI'
+  cluster:
+    attributes:
+      output_excel: True
+      num_days: 5
+      seed: 2611

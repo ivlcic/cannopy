@@ -174,6 +174,8 @@ Download EURLEX57K dataset:
 ./data prepare eurlex
 ./data embed eurlex -c bge-m3.yaml
 ./data split eurlex
+# produce embeddings for the split dataset from the original dataset embeddings
+./data embed eurlex -c bge-m3.yaml
 ./data analyze eurlex
 ```
 
@@ -183,6 +185,8 @@ Download NewsMon dataset (due to a license, you need a password to decrypt the a
 ./data prepare newsmon -c sl.yaml
 ./data embed newsmon -c sl.yaml -c bge-m3.yaml
 ./data split newsmon -c sl.yaml
+# produce embeddings for the split dataset from the original dataset embeddings
+./data embed newsmon -c sl.yaml -c bge-m3.yaml
 ./data analyze newsmon -c sl.yaml
 
 ./data prepare newsmon -c sr.yaml
@@ -223,9 +227,11 @@ Now we can cluster the dataset with Louvain communities algorithm:
 
 ## 100. TODO :D
 ```shell
+./data sample newsmon -c sl.yaml -c bge-m3.yaml -c hard_neg.yaml
+./data sample newsmon -c sr.yaml -c bge-m3.yaml -c hard_neg.yaml
+./data sample newsmon -c mk.yaml -c bge-m3.yaml -c hard_neg.yaml
 
-./data prepare newsmon
-./data prepare eurlex
+
 ./data resample newsmon -c sl.yaml
 ./data resample newsmon -c sr.yaml
 ./data resample newsmon

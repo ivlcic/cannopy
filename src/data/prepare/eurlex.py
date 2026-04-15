@@ -1,16 +1,15 @@
 import csv
 import json
-
-from collections import Counter
 from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List
 
+from .newsmon import apply_min_label_count
 from ...app.args.data import DataArguments
-
+from ...app.args.runtime import Paths
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def _join_text(header: str, main_body: List[str]) -> str:
@@ -60,46 +59,14 @@ def _iter_split_files(source_dir: Path, dataset_name: str) -> List[tuple[str, Pa
     return splits
 
 
-def _apply_min_label_count(data_args: DataArguments,
-                           samples: List[Dict[str, Any]]) -> tuple[List[Dict[str, Any]], Counter]:
-    min_label_count = data_args.source.select.filter.get('min_label_count')
-    if min_label_count in (None, ''):
-        label_counts: Counter = Counter()
-        for sample in samples:
-            label_counts.update(sample['label'])
-        return samples, label_counts
-
-    # noinspection PyTypeChecker
-    threshold = int(min_label_count)
-    label_counts: Counter = Counter()
-    for sample in samples:
-        label_counts.update(sample['label'])
-
-    valid_labels = {label_id for label_id, count in label_counts.items() if count >= threshold}
-    filtered_samples: List[Dict[str, Any]] = []
-    filtered_counts: Counter = Counter()
-    for sample in samples:
-        filtered_labels = [label_id for label_id in sample['label'] if label_id in valid_labels]
-        if not filtered_labels:
-            continue
-        sample['label'] = filtered_labels
-        filtered_counts.update(filtered_labels)
-        filtered_samples.append(sample)
-
-    return filtered_samples, filtered_counts
-
-
 def main(data_args: DataArguments) -> None:
-    source_dir = paths['base']['data'] / 'download' / 'eurlex'
+    source_dir = paths.get_ctx_path('download')
     if not source_dir.exists():
         logger.error('Source EURLEX57K directory not found: %s.', source_dir)
         return
 
-    target_dir = paths['prepare']['data'] / 'eurlex'
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    data_file = target_dir / f'{data_args.dataset_name}.jsonl'
-    labels_file = target_dir / f'{data_args.dataset_name}.labels.csv'
+    data_file = paths.context / f'{data_args.dataset_name}.jsonl'
+    labels_file = paths.context / f'{data_args.dataset_name}.labels.csv'
     lang = data_args.source.lang or 'en'
 
     samples: List[Dict[str, Any]] = []
@@ -116,7 +83,7 @@ def main(data_args: DataArguments) -> None:
 
                 samples.append(_build_sample(item, split, lang))
 
-    samples, label_counts = _apply_min_label_count(data_args, samples)
+    samples, label_counts = apply_min_label_count(data_args, samples)
 
     with data_file.open('w', encoding='utf-8') as f_out:
         for sample in samples:

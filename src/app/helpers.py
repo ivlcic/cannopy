@@ -55,6 +55,24 @@ class JsonIdHelper:
         return obj, obj['id']
 
 
+class JsonlLoader:
+
+    @classmethod
+    def load_samples(cls, source_file) -> List[Dict[str, Any]]:
+        samples: List[Dict[str, Any]] = []
+        with source_file.open('r', encoding='utf-8') as f:
+            for line_no, line in enumerate(f, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    sample = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f'Malformed JSON in {source_file} line {line_no}') from exc
+                samples.append(sample)
+        return samples
+
+
 
 class TranslationHelper:
 

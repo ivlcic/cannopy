@@ -1,13 +1,13 @@
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict
 
-from ...app.zip import Zip
+from ...app.args.runtime import Paths
 from ...app.args.data import DataArguments
 from ...app.downloader import Downloader
+from ...app.zip import Zip
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def _download_all(data_args: DataArguments, target_dir: Path) -> None:
@@ -25,7 +25,4 @@ def main(data_args: DataArguments) -> None:
     if not data_args.source.links:
         logger.error('No dataset_urls provided for %s', data_args.dataset_name)
         return
-
-    target_dir = paths['download']['data'] / data_args.dataset_name
-    target_dir.mkdir(parents=True, exist_ok=True)
-    _download_all(data_args, target_dir)
+    _download_all(data_args, paths.context)

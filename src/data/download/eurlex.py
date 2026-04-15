@@ -1,18 +1,17 @@
 import json
 import shutil
-
-from pathlib import Path
 from logging import Logger
-from typing import Iterable, List, Dict, Any
+from pathlib import Path
+from typing import Iterable, List
 
-from ...app.common import PathLike
 from ...app.args.data import DataArguments
+from ...app.args.runtime import Paths
+from ...app.common import PathLike
 from ...app.downloader import Downloader
 from ...app.zip import Zip
 
-
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 class MergeError(Exception):
@@ -98,15 +97,12 @@ def merge_eurlex_jsons_and_remove_dir(eurlex_dir: PathLike, prefix: str, target_
 
 def main(data_args: DataArguments) -> None:
     logger.info(f'Downloading {data_args.dataset_name}')
-
-    download_dir = paths['download']['data']
-    output_dir = download_dir / 'eurlex'
-    zip_file = Downloader.download(data_args.source.links[0].url,  download_dir / 'eurlex.zip')
-    extract_dir = output_dir / 'tmp_eurlex'
+    zip_file = Downloader.download(data_args.source.links[0].url,  paths.context / 'eurlex.zip')
+    extract_dir = paths.context / 'tmp_eurlex'
     extract_dir.mkdir(parents=True, exist_ok=True)
     logger.info(
         f'Extracting {zip_file} to {extract_dir}'
     )
     Zip.extract(zip_file, extract_dir)
-    merge_eurlex_jsons_and_remove_dir(extract_dir, data_args.dataset_name, output_dir)
+    merge_eurlex_jsons_and_remove_dir(extract_dir, data_args.dataset_name, paths.context)
     zip_file.unlink()

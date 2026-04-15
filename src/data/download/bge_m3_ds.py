@@ -1,15 +1,14 @@
 import shutil
-
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict
 
-from ...app.zip import Zip
 from ...app.args.data import DataArguments
+from ...app.args.runtime import Paths
 from ...app.downloader import Downloader
+from ...app.zip import Zip
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def _download_all(data_args: DataArguments, target_dir: Path) -> None:
@@ -41,5 +40,4 @@ def main(data_args: DataArguments) -> None:
         logger.error('No dataset.source.links provided for %s.', data_args.dataset_name)
         return
 
-    target_dir = paths['download']['data']
-    _download_all(data_args, target_dir)
+    _download_all(data_args, paths.context)

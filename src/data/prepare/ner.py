@@ -9,10 +9,11 @@ from typing import Tuple, List, Dict, Any, Iterable, Callable, DefaultDict
 
 from syntok.segmenter import process as syntok_process
 
+from ...app.args.runtime import Paths
 from ...app.args.data import DataArguments
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 Sentence = Tuple[List[str], List[str]]
 LABEL_RE = re.compile(r'([BI])-(.+)', re.IGNORECASE)
@@ -96,6 +97,7 @@ class ConllDatasetParser(NerDatasetParser):
         return output
 
 
+# noinspection SpellCheckingInspection
 class CnecParser(ConllDatasetParser):
     def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
         if not self.root.exists():
@@ -108,6 +110,7 @@ class CnecParser(ConllDatasetParser):
         ]
 
 
+# noinspection SpellCheckingInspection
 class SetimesParser(ConllDatasetParser):
     def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
         path = self.root / 'set.sr.conll'
@@ -118,6 +121,7 @@ class SetimesParser(ConllDatasetParser):
         return [(path, 'sr', 1, lambda parts: parts[label_idx] if len(parts) > label_idx else 'O')]
 
 
+# noinspection SpellCheckingInspection
 class Hr500kParser(ConllDatasetParser):
     def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
         path = self.root / 'hr500k.conll'
@@ -128,6 +132,7 @@ class Hr500kParser(ConllDatasetParser):
         return [(path, 'hr', 1, lambda parts: parts[label_idx] if len(parts) > label_idx else 'O')]
 
 
+# noinspection SpellCheckingInspection
 class SukParser(ConllDatasetParser):
     def _iter_sources(self) -> Iterable[Tuple[Path, str, int, Callable[[List[str]], str]]]:
         if not self.root.exists():
@@ -142,6 +147,7 @@ class SukParser(ConllDatasetParser):
         return ds_paths
 
 
+# noinspection SpellCheckingInspection
 class WannParser(NerDatasetParser):
     def __init__(self, root: Path, mapping: Dict[str, str], label_remap: Dict[str, str]):
         NerDatasetParser.__init__(self, root, label_remap)
@@ -186,7 +192,7 @@ class WannParser(NerDatasetParser):
         return sentences
 
 
-# noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic, SpellCheckingInspection
 class BsnlpParser(NerDatasetParser):
 
     def __init__(self, root: Path, label_remap: Dict[Any, Any]):
@@ -308,7 +314,7 @@ class BsnlpParser(NerDatasetParser):
         return output
 
 
-# noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic, SpellCheckingInspection
 class NerUkParser(NerDatasetParser):
 
     def __init__(self, root: Path, label_remap: Dict[Any, Any]):
@@ -450,11 +456,12 @@ def write_outputs(output_dir: Path, aggregated: Dict[str, List[Sentence]], file_
                         label_counter[label] += 1
 
 
+# noinspection SpellCheckingInspection
 def main(data_args: DataArguments) -> None:
     logger.info(f'Preparing {data_args.dataset_name} datasets')
 
-    download_root = paths['base']['data'] / 'download' / data_args.dataset_name
-    output_dir = paths['prepare']['data'] / 'ner'
+    download_root = paths.get_ctx_path('download')
+    output_dir = paths.context
 
     label_remap = data_args.label_remap
     parsers: List[NerDatasetParser] = [

@@ -8,10 +8,11 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from ...app.args.runtime import Paths
 from ...app.args.data import DataArguments
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 __social_media = {
     '8e3b359f', '3e1c137d', '86f18af6', '1fd92aa0', 'c0953029', '1843f51e',
@@ -205,8 +206,8 @@ def _collect_subset(data_args: DataArguments,
     return samples, labels_map, label_counts
 
 
-def _apply_min_label_count(data_args: DataArguments,
-                           samples: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Counter]:
+def apply_min_label_count(data_args: DataArguments,
+                          samples: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Counter]:
     min_label_count = data_args.source.select.filter.get('min_label_count')
     if min_label_count in (None, ''):
         label_counts: Counter = Counter()
@@ -214,6 +215,7 @@ def _apply_min_label_count(data_args: DataArguments,
             label_counts.update(sample['label'])
         return samples, label_counts
 
+    # noinspection PyTypeChecker
     threshold = int(min_label_count)
     label_counts: Counter = Counter()
     for sample in samples:
@@ -227,7 +229,8 @@ def _apply_min_label_count(data_args: DataArguments,
         if not filtered_labels:
             continue
         sample['label'] = filtered_labels
-        sample['label_info'] = [item for item in sample['label_info'] if item.get('id') in valid_labels]
+        if 'label_info' in sample:
+            sample['label_info'] = [item for item in sample['label_info'] if item.get('id') in valid_labels]
         filtered_counts.update(filtered_labels)
         filtered_samples.append(sample)
 
@@ -235,17 +238,14 @@ def _apply_min_label_count(data_args: DataArguments,
 
 
 def main(data_args: DataArguments) -> None:
-    source_dir = paths['base']['data'] / 'download' / data_args.dataset_name
+    source_dir = paths.get_ctx_path('download')
     if not source_dir.exists():
-        logger.error('Source Newsmon directory not found: %s.', source_dir)
+        logger.error('Download source NewsMon directory not found: %s.', source_dir)
         return
 
-    target_dir = paths['prepare']['data'] / data_args.dataset_name
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    data_file, labels_file = _get_subset_paths(data_args, target_dir)
+    data_file, labels_file = _get_subset_paths(data_args, paths.context)
     samples, labels_map, label_counts = _collect_subset(data_args, source_dir)
-    samples, label_counts = _apply_min_label_count(data_args, samples)
+    samples, label_counts = apply_min_label_count(data_args, samples)
 
     with data_file.open('w', encoding='utf-8') as f_out:
         for sample in samples:

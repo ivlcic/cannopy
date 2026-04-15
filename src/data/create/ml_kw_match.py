@@ -3,12 +3,13 @@ from datetime import timedelta
 from logging import Logger
 from typing import Dict, Any
 
+from ...app.args.runtime import Paths
 from ...app.args.data import DataArguments
 from ...app.elastic import ElasticQuery, ElasticWriter, ElasticArticleSanitizer
 from ...app.iterators import DateTimeIterator, DateTimeState, RuntimeData
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def contains_any(text: str, keywords: list[str]) -> bool:
@@ -32,7 +33,7 @@ def write(state: DateTimeState):
     data_args: DataArguments = state.data_args
     # noinspection PyUnresolvedReferences
     runtime_data: RuntimeData = state.runtime_data
-    data_create_path = paths['create']['data']
+    data_create_path = paths.context  # paths['create']['data']
     file_name = data_args.dataset_name + f"-{runtime_data.file_num:02d}"
     ElasticWriter.write_to_file(
         runtime_data.items,

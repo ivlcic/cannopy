@@ -1,26 +1,27 @@
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Dict, Tuple
 
 from torch.utils.data import Dataset
 from transformers import (AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification,
                           Trainer, TrainingArguments)
 
+from ...app.args.data import DataArguments
+from ...app.args.model import ModelArguments
+from ...app.args.runtime import Paths
 from ...app.dataset import NerSamplesLoader
 from ...app.metrics import TokenClassificationMetrics
-from ...app.args.model import ModelArguments
-from ...app.args.data import DataArguments
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
-def init_dirs(paths_dict: Dict[str, Any]) -> Tuple[Path, Path]:
-    data_root = paths_dict['base']['data'] / 'split' / 'ner'
+def init_dirs(p: Paths) -> Tuple[Path, Path]:
+    data_root = p.get_script_ctx_path('data', 'split')
     if not data_root.exists():
         raise EnvironmentError(f'Split data not found at %s. Run `./data split ner` first.', data_root)
 
-    cache_root = paths_dict['base']['tmp'] / 'cache'
+    cache_root = p.base.tmp / 'cache'
     cache_root.mkdir(parents=True, exist_ok=True)
     if not cache_root.exists():
         raise EnvironmentError(f'Unable to init cache data dir at {cache_root}. Run `./data split ner` first.')
@@ -29,7 +30,7 @@ def init_dirs(paths_dict: Dict[str, Any]) -> Tuple[Path, Path]:
 
 def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
     model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
-    output_dir = paths['token']['train'] / model_name
+    output_dir = paths.context / model_name
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
@@ -70,6 +71,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
 
     train_result = trainer.train()
     trainer.save_model(train_args.output_dir)
+    # noinspection PyTypeChecker
     state_path = Path(train_args.output_dir) / "trainer_state.json"
     trainer.state.save_to_json(str(state_path))
     logger.info("Saved trainer state to %s", state_path)

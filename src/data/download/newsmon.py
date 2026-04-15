@@ -1,13 +1,13 @@
 import os
 from logging import Logger
-from typing import Any, Dict
 
-from ...app.zip import Zip
 from ...app.args.data import DataArguments
+from ...app.args.runtime import Paths
 from ...app.downloader import Downloader
+from ...app.zip import Zip
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def main(data_args: DataArguments) -> None:
@@ -16,15 +16,12 @@ def main(data_args: DataArguments) -> None:
     if password is None:
         raise Exception('NEWSMON_PASSWORD environment variable not set')
 
-    download_dir = paths['download']['data']
-    extract_dir = download_dir / data_args.dataset_name
-    extract_dir.mkdir(parents=True, exist_ok=True)
     for link in data_args.source.links:
-        zip_file = Downloader.download(link.url, extract_dir)
+        zip_file = Downloader.download(link.url, paths.context)
         logger.info(f'Downloaded {zip_file}')
         logger.info(
-            f'Extracting {zip_file} to {extract_dir} ...'
+            f'Extracting {zip_file} to {paths.context} ...'
         )
-        Zip.extract(zip_file, extract_dir, password=password)
+        Zip.extract(zip_file, paths.context, password=password)
         logger.info(f'Extracted {zip_file}.')
         zip_file.unlink()

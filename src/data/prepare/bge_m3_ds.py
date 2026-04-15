@@ -1,15 +1,15 @@
 import os
 import shutil
 import tempfile
-
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import List
 
 from ...app.args.data import DataArguments
+from ...app.args.runtime import Paths
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def get_files_paths(source_dir: Path) -> List[Path]:
@@ -92,13 +92,12 @@ def _copy_downloaded(files_paths: List[Path], target_dir: Path) -> None:
 
 
 def main(data_args: DataArguments) -> None:
-    source_dir = paths["base"]["data"] / "download" / data_args.dataset_name
+    source_dir = paths.get_ctx_path('download')
     if not source_dir.exists():
         logger.error("Source MIRACL directory not found: %s.", source_dir)
         return
 
     files_paths = get_files_paths(source_dir)
-    target_dir = paths["prepare"]["data"] / data_args.dataset_name
-    target_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Copying %s to %s.", source_dir, target_dir)
-    _copy_downloaded(files_paths, target_dir)
+
+    logger.info(f"Copying %s to %s.", source_dir, paths.context)
+    _copy_downloaded(files_paths, paths.context)

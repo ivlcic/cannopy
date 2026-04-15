@@ -7,14 +7,15 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from ...app.args.runtime import Paths
 from ...app.args.data import DataArguments, SamplingConfig
 from ...app.args.model import ModelArguments
-from ...app.ir_ds_helper import JsonHelper
+from ...app.helpers import JsonIRHelper
 from ...app.token_classifier import EncoderTokenClassifier
 
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 _len_re = re.compile(r"_len-(\d+)-(\d+|inf)\.jsonl$")
 _num_re = re.compile(r"\b\d[\d,./:-]*\b")  # years, dates, decimals, IDs etc.
@@ -93,7 +94,7 @@ def _stratum_key(
 def _iter_jsonl(path: Path) -> Iterable[Tuple[int, Dict[str, Any]]]:
     with path.open("r", encoding="utf-8") as f:
         for i, line in enumerate(f, start=1):
-            obj = JsonHelper.read_ir_sample(line, i, path)
+            obj = JsonIRHelper.read_ir_sample(line, i, path)
             if obj is None:
                 continue
             yield i, obj
@@ -193,12 +194,12 @@ def main(data_args: DataArguments) -> None:
     ner_model_name = "Jean-Baptiste/roberta-large-ner-english"
     ner_tagger = EncoderTokenClassifier(ner_model_name, ModelArguments())
 
-    source_dir = paths["base"]["data"] / "prepare" / dataset_name
+    source_dir = paths.get_ctx_path('prepare')  # paths["base"]["data"] / "prepare" / dataset_name
     if not source_dir.exists():
         logger.error("Source [prepare] %s directory not found: %s", dataset_name, source_dir)
         return
 
-    target_dir = paths["sample"]["data"] / dataset_name
+    target_dir = paths.context
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # Collect all the JSONL files in the 11 directories

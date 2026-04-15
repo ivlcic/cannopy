@@ -1,8 +1,0 @@
-data:
-  dataset_name: ner-slobench
-  source:
-    links:
-      - url: https://slobench.cjvt.si/media/test_datasets/reference_nolabels.zip
-        lang: sl
-      - url: https://slobench.cjvt.si/media/sample_submissions/sample_submission_gEs7Yqc.zip
-        lang: sl

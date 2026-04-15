@@ -2,14 +2,15 @@ import random
 from collections import defaultdict
 from logging import Logger
 from pathlib import Path
-from typing import Any, DefaultDict, Dict, List
+from typing import DefaultDict, Dict, List
 
-from ..prepare.ner import Sentence, write_outputs
 from ..analyze.ner import aggregate_csv_file
+from ..prepare.ner import Sentence, write_outputs
 from ...app.args.data import DataArguments
+from ...app.args.runtime import Paths
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def _load_prepared_sentences(source_dir: Path) -> Dict[str, List[Sentence]]:
@@ -54,8 +55,8 @@ def _split_language_data(aggregated: Dict[str, List[Sentence]], train_ratio: flo
 def main(data_args: DataArguments) -> None:
     logger.info('Splitting NER datasets...')
 
-    source_dir = paths['base']['data'] / 'prepare' / 'ner'
-    target_dir = paths['split']['data'] / 'ner'
+    source_dir = paths.get_ctx_path('prepare')
+    target_dir = paths.context
     target_dir.mkdir(parents=True, exist_ok=True)
 
     aggregated = _load_prepared_sentences(source_dir)

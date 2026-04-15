@@ -1,36 +1,35 @@
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict
+from typing import Dict
 
 from ..prepare.bge_m3_ds import get_files_paths
 from ...app.args.data import DataArguments
-from ...app.ir_ds_helper import TranslationHelper
+from ...app.args.runtime import Paths
+from ...app.helpers import TranslationHelper
 from ...app.translator import Translator
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 # noinspection DuplicatedCode
 def main(data_args: DataArguments) -> None:
     t_cfg = data_args.translate
 
-    source_dir = paths['base']['data'] / 'prepare' / data_args.dataset_name
+    source_dir = paths.get_ctx_path('prepare')
     if not source_dir.exists():
         logger.error(f'Source [prepare] {data_args.dataset_name} directory not found: %s', source_dir)
         return
 
-    target_dir = paths['translate']['data'] / data_args.dataset_name
-    target_dir.mkdir(parents=True, exist_ok=True)
     files_paths = get_files_paths(source_dir)
     files: Dict[Path, Path] = {}
     for file_or_path in files_paths:
         if file_or_path.is_file() and file_or_path.suffix == '.jsonl':
-            d = target_dir / file_or_path.parent.name
+            d = paths.context / file_or_path.parent.name
             d.mkdir(parents=True, exist_ok=True)
             files[file_or_path] = d / (t_cfg.tgt_code + '.' + t_cfg.model.short_name + '.' + file_or_path.name)
         if file_or_path.is_dir():
-            d = target_dir / file_or_path.name
+            d = paths.context / file_or_path.name
             d.mkdir(parents=True, exist_ok=True)
             for child in file_or_path.iterdir():
                 if child.is_file() and child.suffix == '.jsonl':

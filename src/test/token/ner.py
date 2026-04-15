@@ -1,22 +1,21 @@
 import re
-
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict
 
 from transformers import TrainingArguments, pipeline
 
-from ...app.args.model import ModelArguments
+from ...app.args.runtime import Paths
 from ...app.args.data import DataArguments
+from ...app.args.model import ModelArguments
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 WORD_RE = re.compile(r"\w+|[^\w\s]", re.UNICODE)
 
 
 def compute_train_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
     model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
-    output_dir = paths['base']['train'] / 'token' / model_name
+    output_dir = paths.get_script_path('train') / model_name
     if not output_dir.exists():
         raise FileNotFoundError(output_dir)
     return output_dir
@@ -44,6 +43,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     print(tokens)
     logger.info('Pipeline split to words result:')
     for r in result[0]:
+        # noinspection PyStringFormat
         print(f'[{text[r['start']:r['end']]}]({r["entity_group"]}@{"%.2f"%r["score"]}|{r["start"]}:{r["end"]})')
         r['text'] = text[r['start']:r['end']]
     print(result)

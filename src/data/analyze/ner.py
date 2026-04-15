@@ -4,12 +4,13 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, DefaultDict, Dict, List, Tuple
 
+from ...app.args.runtime import Paths
 from ...app.args.data import DataArguments
 
 Sentence = Tuple[List[str], List[str]]
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def aggregate_csv_file(csv_file: Path, lang: str, aggregated: DefaultDict[str, List[Sentence]]):
@@ -140,14 +141,15 @@ def _format_split_stats_table(split_stats: Dict[str, Dict[str, Any]], tags: List
     return '\n'.join([_fmt_row(header)] + [_fmt_row(r) for r in rows])
 
 
+# noinspection PyUnusedLocal
 def main(data_args: DataArguments) -> None:
     logger.info('Analyzing NER datasets')
 
-    output_dir = paths['analyze']['data'] / 'ner'
+    output_dir = paths.get_ctx_path('analyze')
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    base_dir = paths['base']['data'] / 'prepare' / 'ner'
-    split_dir = paths['base']['data'] / 'split' / 'ner'
+    base_dir = paths.get_ctx_path('prepare')
+    split_dir = paths.get_ctx_path('split')
 
     aggregated = _load_sentences(base_dir)
     if not aggregated:

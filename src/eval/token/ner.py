@@ -1,7 +1,7 @@
 import json
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict
+from typing import Dict
 
 from torch.utils.data import Dataset
 from transformers import (
@@ -12,19 +12,21 @@ from transformers import (
     TrainingArguments,
 )
 
+from ...app.args.data import DataArguments
+from ...app.args.model import ModelArguments
+from ...app.args.runtime import Paths
 from ...app.dataset import NerSamplesLoader
 from ...app.metrics import TokenClassificationMetrics
-from ...app.args.model import ModelArguments
-from ...app.args.data import DataArguments
 from ...train.token.ner import init_dirs
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def compute_train_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
     model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
-    output_dir = paths['base']['train'] / 'token' / model_name
+    output_dir = paths.get_script_path('train') / model_name
+    print(output_dir)
     if not output_dir.exists():
         raise FileNotFoundError(output_dir)
     return output_dir
@@ -32,7 +34,7 @@ def compute_train_dir(m_args: ModelArguments, d_args: DataArguments, t_args: Tra
 
 def compute_output(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
     model_name = f'{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}.json'
-    output = paths['ner']['eval'] / model_name
+    output = paths.context / model_name
     output.parent.mkdir(parents=True, exist_ok=True)
     return output
 

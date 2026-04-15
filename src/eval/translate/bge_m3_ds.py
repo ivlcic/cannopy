@@ -4,12 +4,13 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Optional, IO
 
+from ...app.args.runtime import Paths
 from ...app.translator import Translator
 from ...app.args.data import DataArguments
 from ...data.prepare.bge_m3_ds import get_files_paths
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 # noinspection DuplicatedCode

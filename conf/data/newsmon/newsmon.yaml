@@ -1,0 +1,15 @@
+data:
+  dataset_name: newsmon
+  split:
+    train: 0.8
+    eval: 0.1
+    test: 0.1
+    seed: 2611
+  source:
+    select:
+      filter:
+        public: 1
+        min_label_count: 2
+    links:
+      - url: https://kt-cloud.ijs.si/index.php/s/xMeNyGFYtjbdGD2/download?path=%2F&files=newsmon-data.zip
+      - url: https://kt-cloud.ijs.si/index.php/s/xMeNyGFYtjbdGD2/download?path=%2F&files=newsmon-data-2023_03-ada_002.zip

@@ -1,0 +1,8 @@
+data:
+  source:
+    select:
+      subset: 'newsmon_sl'
+      start: '2023-01-01'
+      end: '2023-05-31'
+      filter:
+        language: 'sl'

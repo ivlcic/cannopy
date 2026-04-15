@@ -1,28 +1,28 @@
 import json
 from collections import Counter
 from logging import Logger
-from typing import Any, Dict
 
-from .__common import _load_jsonl, _compute_stats, _load_split_stats, _render_label_histogram_svg
+from .newsmon import load_jsonl, compute_stats, load_split_stats, render_label_histogram_svg
 from ...app.args.data import DataArguments
+from ...app.args.runtime import Paths
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 # noinspection DuplicatedCode
 def main(data_args: DataArguments) -> None:
-    output_dir = paths['analyze']['data'] / 'eurlex'
+    output_dir = paths.context
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    base_dir = paths['base']['data'] / 'prepare' / 'eurlex'
-    split_dir = paths['base']['data'] / 'split' / 'eurlex'
+    base_dir = paths.get_ctx_path('prepare')
+    split_dir = paths.get_ctx_path('split')
     source_file = base_dir / f'{data_args.dataset_name}.jsonl'
     if not source_file.exists():
         raise FileNotFoundError(f'Prepared subset file not found: {source_file}')
 
-    base_stats = _compute_stats(_load_jsonl(source_file))
-    split_stats = _load_split_stats(split_dir, data_args.dataset_name)
+    base_stats = compute_stats(load_jsonl(source_file))
+    split_stats = load_split_stats(split_dir, data_args.dataset_name)
 
     report = {
         'dataset': data_args.dataset_name,
@@ -34,11 +34,11 @@ def main(data_args: DataArguments) -> None:
     with report_file.open('w', encoding='utf-8') as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
 
-    prepared_rows = _load_jsonl(source_file)
+    prepared_rows = load_jsonl(source_file)
     prepared_label_counts: Counter = Counter()
     for row in prepared_rows:
         prepared_label_counts.update(row.get('label', []))
-    _render_label_histogram_svg(output_dir / f'{data_args.dataset_name}.label_histogram.svg', prepared_label_counts)
+    render_label_histogram_svg(output_dir / f'{data_args.dataset_name}.label_histogram.svg', prepared_label_counts)
 
     logger.info(
         'Analyzed %s: samples=%s labels=%s avg_labels=%.3f density=%.6f diversity=%s',

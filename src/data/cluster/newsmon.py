@@ -1,19 +1,19 @@
 import json
-
-import networkx as nx
-import numpy as np
-
 from collections import defaultdict
 from datetime import datetime, timedelta
 from logging import Logger
 from typing import Any, Dict, List
 
+import networkx as nx
+import numpy as np
+
 from ..embed.newsmon import load_embeddings
 from ...app.args.data import DataArguments
 from ...app.args.model import ModelArguments
+from ...app.args.runtime import Paths
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def _get_subset_name(data_args: DataArguments) -> str:
@@ -41,8 +41,9 @@ def cluster_louvain(articles: List[Dict[str, Any]], embed_field_name: str, sim_t
     x = cosine_similarity_matrix(embeddings)
 
     similarity_matrix = x > sim_threshold
+    # noinspection PyTypeChecker
     np.fill_diagonal(similarity_matrix, False)
-
+    # noinspection PyTypeChecker
     graph = nx.from_numpy_array(similarity_matrix)
     communities = nx.algorithms.community.louvain_communities(graph, resolution=0.1, seed=seed)
 
@@ -63,7 +64,7 @@ def cluster_louvain(articles: List[Dict[str, Any]], embed_field_name: str, sim_t
     consistent = {}
     for key in clusters.keys():
         c_articles: List[Dict[str, Any]] = clusters[key]
-        c_articles.sort(key=lambda article: (article['reach'], article['created']), reverse=True)
+        c_articles.sort(key=lambda a: (a['reach'], a['created']), reverse=True)
         consistent[c_articles[0]['id']] = c_articles
     return consistent
 
@@ -80,9 +81,10 @@ def cluster_prep(clusters: Dict[int, List[Dict[str, Any]]], key: str, start: dat
             'title': lead_article['title']['text'],
             'articles': []
         }
-        articles.sort(key=lambda article: article['created'])
+        articles.sort(key=lambda a: a['created'])
         data['clusters'].append(cluster)
         for article in articles:
+            # noinspection PyUnresolvedReferences
             cluster['articles'].append({
                 'id': article['id'],
                 'uuid': article['uuid'],
@@ -105,8 +107,8 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     logger.info('Clustering %s', data_args.dataset_name)
 
     subset = _get_subset_name(data_args)
-    prepared_dir = paths['prepare']['data'] / data_args.dataset_name
-    embed_dir = paths['embed']['data'] / data_args.dataset_name
+    prepared_dir = paths.get_ctx_path('prepare')  # paths['prepare']['data'] / data_args.dataset_name
+    embed_dir = paths.get_ctx_path('embed')  # paths['embed']['data'] / data_args.dataset_name
     if not prepared_dir.exists():
         logger.error('Source [prepare] %s directory not found: %s', data_args.dataset_name, prepared_dir)
         return
@@ -122,7 +124,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     if not src_ebd_file.exists():
         raise FileNotFoundError(f'Embedding file not found: {src_ebd_file}')
 
-    target_dir = paths['cluster']['data'] / data_args.dataset_name
+    target_dir = paths.context
     target_dir.mkdir(parents=True, exist_ok=True)
 
     seed = data_args.cluster.attributes.get('seed')

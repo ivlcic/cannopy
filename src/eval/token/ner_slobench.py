@@ -1,20 +1,20 @@
 import os
 import shutil
-
 import zipfile
-
 from datetime import datetime
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
+
 from transformers import TrainingArguments
 
-from ...app.args.model import ModelArguments
 from ...app.args.data import DataArguments
+from ...app.args.model import ModelArguments
+from ...app.args.runtime import Paths
 from ...app.token_classifier import EncoderTokenClassifier
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def load_from_file(file_path):
@@ -35,7 +35,7 @@ def load_from_file(file_path):
 
 def compute_train_dir(m_args: ModelArguments, t_args: TrainingArguments) -> Optional[str]:
     model_name = f'ner.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
-    output_dir = paths['base']['train'] / 'token' / model_name
+    output_dir = paths.get_script_path('train') / model_name
     if not output_dir.exists():
         return None
     return str(output_dir)
@@ -43,7 +43,7 @@ def compute_train_dir(m_args: ModelArguments, t_args: TrainingArguments) -> Opti
 
 def compute_output(m_args: ModelArguments, t_args: TrainingArguments) -> Path:
     model_name = f'ner.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}'
-    output = paths['ner-slobench']['eval'] / model_name
+    output = paths.context / model_name
     if output.exists():
         shutil.rmtree(output)
     output.mkdir(parents=True, exist_ok=True)
@@ -58,7 +58,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     output_dir = compute_output(model_args, train_args)
 
     sub_dir = data_args.attributes.get('use_subdir', 'sample_reference')
-    input_dir = paths['base']['data'] / 'download' / data_args.dataset_name / sub_dir
+    input_dir = paths.get_script_ctx_path('data', 'download') / sub_dir
 
     model_name = train_args.output_dir or model_args.model_name_or_path
     tagger = EncoderTokenClassifier(model_name, model_args)

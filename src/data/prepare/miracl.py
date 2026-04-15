@@ -1,15 +1,14 @@
 import json
 import shutil
 from collections import defaultdict
-
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict
 
 from ...app.args.data import DataArguments
+from ...app.args.runtime import Paths
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def _copy_downloaded(source_dir, target_dir) -> None:
@@ -46,6 +45,7 @@ def _load_qrels(fn):
     with open(fn, encoding="utf-8") as f:
         for line in f:
             qid, _, docid, rel = line.strip().split('\t')
+            # noinspection PyTypeChecker
             qrels[qid][docid] = int(rel)
     return qrels
 
@@ -87,12 +87,12 @@ def _select_translation_docs(data_args: DataArguments, source_dir: Path, target_
 def main(data_args: DataArguments) -> None:
     t_cfg = data_args.translate
 
-    source_dir = paths["base"]["data"] / "download" / "miracl" / t_cfg.src_lang
+    source_dir = paths.get_ctx_path('download') / t_cfg.src_code
     if not source_dir.exists():
         logger.error("Source MIRACL directory not found: %s.", source_dir)
         return
 
-    target_dir = paths["prepare"]["data"] / "miracl" / t_cfg.lang
+    target_dir = paths.context / t_cfg.tgt_code
     target_dir.mkdir(parents=True, exist_ok=True)
     _copy_downloaded(source_dir, target_dir)
     _select_translation_docs(data_args, source_dir, target_dir)

@@ -2,11 +2,12 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Optional, IO
 
+from ...app.args.runtime import Paths
 from ...app.translator import Translator
 from ...app.args.data import DataArguments
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 # noinspection SpellCheckingInspection
@@ -42,7 +43,7 @@ def _translate_file(translator: Translator, source: Path, target: Path, batch_si
             if line_no <= existing:
                 continue
 
-            obj = _parse_sample(line)
+            obj, _ = _parse_sample(line)
             chunk.append(obj)
 
             if len(chunk) == batch_size:
@@ -63,21 +64,20 @@ def _translate_file(translator: Translator, source: Path, target: Path, batch_si
             )
 
 
-# noinspection DuplicatedCode
+# noinspection DuplicatedCode,SpellCheckingInspection
 def main(data_args: DataArguments) -> None:
-    ds_name = 'mt-slobench'
     t_cfg = data_args.translate
-    source_dir = paths['base']['data'] / 'download' / ds_name
+    source_dir = paths.get_ctx_path('download')
     if not source_dir.exists():
-        logger.error(f'Source [download] {ds_name} directory not found: %s', source_dir)
+        logger.error(f'Source [download] directory not found: %s', source_dir)
         return
 
     src = source_dir / f'slobench_ensl.{t_cfg.tgt_code}' / f'slobench_ensl.{t_cfg.tgt_code}.txt'
     if not src.exists() or not src.is_file():
-        logger.error(f'Source [translate] {ds_name} file not found: %s', src)
+        logger.error(f'Source [translate] file not found: %s', src)
         return
 
-    target_dir = paths['translate']['data'] / ds_name / f'slobench_ensl.{t_cfg.tgt_code}'
+    target_dir = paths.context / f'slobench_ensl.{t_cfg.tgt_code}'
     target_dir.mkdir(parents=True, exist_ok=True)
 
     tgt = target_dir / t_cfg.get_base_name()

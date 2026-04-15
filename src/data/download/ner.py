@@ -1,22 +1,20 @@
 from logging import Logger
-from typing import Dict, Any
 
+from ...app.args.data import DataArguments
+from ...app.args.runtime import Paths
 from ...app.downloader import Downloader
 from ...app.zip import Zip
-from ...app.args.data import DataArguments
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
 def main(data_args: DataArguments) -> None:
     logger.info(f'Downloading {data_args.dataset_name}.')
-
-    download_dir = paths['download']['data']
     for link in data_args.source.links:
-        zip_file = Downloader.download(link.url, download_dir)
+        zip_file = Downloader.download(link.url, paths.context)
         logger.info(f'Downloaded {zip_file}.')
-        extract_dir = download_dir / data_args.dataset_name / zip_file.stem
+        extract_dir = paths.context / zip_file.stem
         extract_dir.mkdir(parents=True, exist_ok=True)
         logger.info(
             f'Extracting {zip_file} to {extract_dir}...'

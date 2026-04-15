@@ -1,16 +1,17 @@
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, Iterable
+from typing import Iterable
 
+from ...app.args.runtime import Paths
 from ...app.args.data import DataArguments, SourceConfigLink
 from ...app.downloader import Downloader
 
 logger: Logger
-paths: Dict[str, Any]
+paths: Paths
 
 
-def _build_target_dir(dataset_name: str, config_name: str) -> Path:
-    target_dir = paths['download']['data'] / dataset_name
+def _build_target_dir(config_name: str) -> Path:
+    target_dir = paths.context
     if config_name:
         target_dir = target_dir / config_name
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -29,5 +30,5 @@ def main(data_args: DataArguments) -> None:
         logger.error('No source links provided for %s!', data_args.dataset_name)
         return
 
-    target_dir = _build_target_dir(data_args.dataset_name or 'msmarco', data_args.version)
+    target_dir = _build_target_dir(data_args.version)
     _download_all(data_args.source.urls, target_dir)
