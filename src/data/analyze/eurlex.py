@@ -12,9 +12,6 @@ paths: Paths
 
 # noinspection DuplicatedCode
 def main(data_args: DataArguments) -> None:
-    output_dir = paths.context
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     base_dir = paths.get_ctx_path('prepare')
     split_dir = paths.get_ctx_path('split')
     source_file = base_dir / f'{data_args.dataset_name}.jsonl'
@@ -30,7 +27,7 @@ def main(data_args: DataArguments) -> None:
         'splits': split_stats,
     }
 
-    report_file = output_dir / f'{data_args.dataset_name}.stats.json'
+    report_file = paths.context / f'{data_args.dataset_name}.stats.json'
     with report_file.open('w', encoding='utf-8') as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
 
@@ -38,7 +35,7 @@ def main(data_args: DataArguments) -> None:
     prepared_label_counts: Counter = Counter()
     for row in prepared_rows:
         prepared_label_counts.update(row.get('label', []))
-    render_label_histogram_svg(output_dir / f'{data_args.dataset_name}.label_histogram.svg', prepared_label_counts)
+    render_label_histogram_svg(paths.context / f'{data_args.dataset_name}.label_histogram.svg', prepared_label_counts)
 
     logger.info(
         'Analyzed %s: samples=%s labels=%s avg_labels=%.3f density=%.6f diversity=%s',

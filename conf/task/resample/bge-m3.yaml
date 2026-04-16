@@ -1,0 +1,9 @@
+data:
+  cluster:
+    attributes:
+      sim_threshold: 0.981
+      top_k: 1000
+      dist_metric: ip
+      hnsw_m: 32
+      hnsw_ef_construction: 200
+      hnsw_ef_search: 128

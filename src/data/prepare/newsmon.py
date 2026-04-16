@@ -2,14 +2,17 @@ import csv
 import json
 from collections import Counter
 from datetime import datetime
-
-from dateutil.relativedelta import relativedelta
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
-from ...app.args.runtime import Paths
+import faiss
+import numpy as np
+from dateutil.relativedelta import relativedelta
+
 from ...app.args.data import DataArguments
+from ...app.args.model import ModelArguments
+from ...app.args.runtime import Paths
 
 logger: Logger
 paths: Paths
@@ -17,11 +20,6 @@ paths: Paths
 __social_media = {
     '8e3b359f', '3e1c137d', '86f18af6', '1fd92aa0', 'c0953029', '1843f51e',
     '151a2b9a', '05b54365', '0e9d50b8', '9f6a5e6c', 'f789b185'
-}
-
-_FILTER_FIELD_MAP = {
-    'language': 'lang',
-    'country': 'country',
 }
 
 
@@ -38,15 +36,22 @@ def read_csv_to_dict(path: Path, key_col: str = 'id') -> Dict[str, Dict[str, str
     return out
 
 
-def _get_subset_name(data_args: DataArguments) -> str:
+def get_subset_name(data_args: DataArguments) -> str:
     subset = data_args.source.select.subset
     if subset:
         return subset
     return data_args.dataset_name
 
 
-def _get_subset_paths(data_args: DataArguments, target_dir: Path) -> Tuple[Path, Path]:
-    subset = _get_subset_name(data_args)
+def get_sidecar_name(data_args: DataArguments, model_args: ModelArguments, split: Optional[str] = None) -> str:
+    subset = get_subset_name(data_args)
+    if split:
+        return f'{subset}.{model_args.short_name}.{split}.npz'
+    return f'{subset}.{model_args.short_name}.npz'
+
+
+def get_subset_paths(data_args: DataArguments, target_dir: Path) -> Tuple[Path, Path]:
+    subset = get_subset_name(data_args)
     return target_dir / f'{subset}.jsonl', target_dir / f'{subset}.labels.csv'
 
 
@@ -72,8 +77,7 @@ def _filter_out_sample(data_args: DataArguments, sample: Dict[str, Any]) -> bool
     for key, value in data_args.source.select.filter.items():
         if key == 'min_label_count':
             continue
-        mapped_key = _FILTER_FIELD_MAP.get(key, key)
-        if sample.get(mapped_key) != value:
+        if key in sample and sample.get(key) != value:
             return True
     return False
 
@@ -148,7 +152,7 @@ def _build_sample(article: Dict[str, Any],
     return sample
 
 
-def _write_labels_file(labels_file: Path, labels_map: Dict[str, Dict[str, str]], label_counts: Counter) -> None:
+def write_labels_file(labels_file: Path, labels_map: Dict[str, Dict[str, str]], label_counts: Counter) -> None:
     with labels_file.open('w', encoding='utf-8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['id', 'name', 'parent_id', 'monitoring_country', 'monitoring_industry', 'count'])
@@ -237,13 +241,38 @@ def apply_min_label_count(data_args: DataArguments,
     return filtered_samples, filtered_counts
 
 
+def build_hnsw_index(data_args: DataArguments, normalized_embeddings: np.ndarray) -> faiss.IndexHNSWFlat:
+    dimension = normalized_embeddings.shape[1]
+
+    attrs = data_args.cluster.attributes
+    hnsw_m = attrs['hnsw_m'] if 'hnsw_m' in attrs else 32
+    hnsw_ef_construction = attrs['hnsw_ef_construction'] if 'hnsw_ef_construction' in attrs else 200
+    hnsw_ef_search = attrs['hnsw_ef_search'] if 'hnsw_ef_search' in attrs else 128
+    dist_metric = faiss.METRIC_INNER_PRODUCT
+    if 'hnsw_metric' in attrs:
+        dist_metric = attrs['dist_metric']
+        if dist_metric == 'l2':
+            dist_metric = faiss.METRIC_L2
+        elif dist_metric == 'ip':
+            dist_metric = faiss.METRIC_INNER_PRODUCT
+        else:
+            raise ValueError(f'Unknown hnsw_metric: {dist_metric}')
+
+    index = faiss.IndexHNSWFlat(dimension, hnsw_m, dist_metric)
+    index.hnsw.efConstruction = hnsw_ef_construction
+    index.hnsw.efSearch = hnsw_ef_search
+    # noinspection PyArgumentList
+    index.add(normalized_embeddings)
+    return index
+
+
 def main(data_args: DataArguments) -> None:
     source_dir = paths.get_ctx_path('download')
     if not source_dir.exists():
         logger.error('Download source NewsMon directory not found: %s.', source_dir)
         return
 
-    data_file, labels_file = _get_subset_paths(data_args, paths.context)
+    data_file, labels_file = get_subset_paths(data_args, paths.context)
     samples, labels_map, label_counts = _collect_subset(data_args, source_dir)
     samples, label_counts = apply_min_label_count(data_args, samples)
 

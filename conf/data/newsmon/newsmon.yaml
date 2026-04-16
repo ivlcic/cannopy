@@ -9,6 +9,7 @@ data:
     select:
       filter:
         public: 1
+        dup: 0
         min_label_count: 2
     links:
       - url: https://kt-cloud.ijs.si/index.php/s/xMeNyGFYtjbdGD2/download?path=%2F&files=newsmon-data.zip

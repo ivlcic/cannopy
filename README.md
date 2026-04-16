@@ -176,6 +176,7 @@ Download EURLEX57K dataset:
 ./data split eurlex
 # produce embeddings for the split dataset from the original dataset embeddings
 ./data embed eurlex -c bge-m3.yaml
+./data resample newsmon -c sl.yaml -c bge-m3.yaml
 ./data analyze eurlex
 ```
 
@@ -187,6 +188,7 @@ Download NewsMon dataset (due to a license, you need a password to decrypt the a
 ./data split newsmon -c sl.yaml
 # produce embeddings for the split dataset from the original dataset embeddings
 ./data embed newsmon -c sl.yaml -c bge-m3.yaml
+./data resample newsmon -c sl.yaml -c bge-m3.yaml
 ./data analyze newsmon -c sl.yaml
 
 ./data prepare newsmon -c sr.yaml

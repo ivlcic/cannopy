@@ -72,6 +72,12 @@ class JsonlLoader:
                 samples.append(sample)
         return samples
 
+    @classmethod
+    def write_samples(cls, data_file: Path, samples: list[dict[str, Any]]) -> None:
+        with data_file.open('w', encoding='utf-8') as f_out:
+            for sample in samples:
+                f_out.write(json.dumps(sample, ensure_ascii=False) + '\n')
+
 
 
 class TranslationHelper:

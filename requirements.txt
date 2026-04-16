@@ -12,3 +12,4 @@ PyYAML==6.0.3
 syntok==1.4.4
 networkx==3.4.2
 sentence-transformers==3.4.0
+faiss-gpu-cu12==1.14.1.post1

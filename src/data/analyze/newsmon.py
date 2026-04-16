@@ -2,33 +2,15 @@ import json
 from collections import Counter
 from logging import Logger
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
+from ..prepare.newsmon import get_subset_name
 from ...app.args.data import DataArguments
 from ...app.args.runtime import Paths
+from ...app.helpers import JsonlLoader
 
 logger: Logger
 paths: Paths
-
-
-def get_subset_name(data_args: DataArguments) -> str:
-    subset = data_args.source.select.subset
-    if subset:
-        return subset
-    return data_args.dataset_name
-
-def load_jsonl(file_path: Path) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
-    with file_path.open('r', encoding='utf-8') as f:
-        for line_no, line in enumerate(f, start=1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError as exc:
-                raise ValueError(f'Malformed JSON in {file_path} line {line_no}') from exc
-    return rows
 
 
 def _label_histogram(label_counts: Counter) -> Dict[str, int]:
@@ -59,7 +41,8 @@ def _label_histogram(label_counts: Counter) -> Dict[str, int]:
     return bins
 
 
-def _label_histogram_bins(label_counts: Counter, bin_size: int = 5, max_count: int = 500) -> Tuple[List[str], List[int]]:
+def _label_histogram_bins(label_counts: Counter, bin_size: int = 5,
+                          max_count: int = 500) -> Tuple[List[str], List[int]]:
     num_bins = max_count // bin_size
     labels = [f'{i * bin_size + 1}-{(i + 1) * bin_size}' for i in range(num_bins)]
     labels.append(f'>{max_count}')
@@ -104,8 +87,8 @@ def render_label_histogram_svg(output_file: Path, label_counts: Counter) -> None
     def x_pos(index: int) -> float:
         return margin_left + index * bar_width
 
-    def y_pos(value: int) -> float:
-        return margin_top + plot_height - (value / max_y) * plot_height
+    def y_pos(v: int) -> float:
+        return margin_top + plot_height - (v / max_y) * plot_height
 
     def threshold_index(threshold: int) -> int:
         return max(0, (threshold - 1) // bin_size)
@@ -243,15 +226,13 @@ def load_split_stats(split_dir: Path, subset: str) -> Dict[str, Dict[str, Any]]:
         split_file = split_dir / f'{subset}.{split_name}.jsonl'
         if not split_file.exists():
             continue
-        split_stats[split_name] = compute_stats(load_jsonl(split_file))
+        split_stats[split_name] = compute_stats(JsonlLoader.load_samples(split_file))
     return split_stats
+
 
 # noinspection DuplicatedCode
 def main(data_args: DataArguments) -> None:
     subset = get_subset_name(data_args)
-
-    output_dir = paths.get_ctx_path('analyze')
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     base_dir = paths.get_ctx_path('prepare')
     split_dir = paths.get_ctx_path('split')
@@ -259,7 +240,7 @@ def main(data_args: DataArguments) -> None:
     if not source_file.exists():
         raise FileNotFoundError(f'Prepared subset file not found: {source_file}')
 
-    base_stats = compute_stats(load_jsonl(source_file))
+    base_stats = compute_stats(JsonlLoader.load_samples(source_file))
     split_stats = load_split_stats(split_dir, subset)
 
     report = {
@@ -269,15 +250,15 @@ def main(data_args: DataArguments) -> None:
         'splits': split_stats,
     }
 
-    report_file = output_dir / f'{subset}.stats.json'
+    report_file = paths.context / f'{subset}.stats.json'
     with report_file.open('w', encoding='utf-8') as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
 
-    prepared_rows = load_jsonl(source_file)
+    prepared_rows = JsonlLoader.load_samples(source_file)
     prepared_label_counts: Counter = Counter()
     for row in prepared_rows:
         prepared_label_counts.update(row.get('label', []))
-    render_label_histogram_svg(output_dir / f'{subset}.label_histogram.svg', prepared_label_counts)
+    render_label_histogram_svg(paths.context / f'{subset}.label_histogram.svg', prepared_label_counts)
 
     logger.info(
         'Analyzed %s: samples=%s labels=%s avg_labels=%.3f density=%.6f diversity=%s',

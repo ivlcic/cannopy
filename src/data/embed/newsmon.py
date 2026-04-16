@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import torch
 
+from ..prepare.newsmon import get_subset_name, get_sidecar_name
 from ...app.args.data import DataArguments
 from ...app.args.model import ModelArguments
 from ...app.args.runtime import Paths
@@ -130,16 +131,9 @@ def _build_stats_dict(measurements: EmbedMeasurements) -> Dict[str, Any]:
     }
 
 
-def _get_subset_name(data_args: DataArguments) -> str:
-    subset = data_args.source.select.subset
-    if subset:
-        return subset
-    return data_args.dataset_name
-
-
 def embed_prepared_dataset(path: Paths, data_args: DataArguments, model_args: ModelArguments,
                            log: Logger) -> Dict[str, EmbeddingRecord]:
-    subset = _get_subset_name(data_args)
+    subset = get_subset_name(data_args)
 
     source_dir = paths.get_ctx_path('prepare')
     source_file = source_dir / f'{subset}.jsonl'
@@ -196,18 +190,17 @@ def embed_prepared_dataset(path: Paths, data_args: DataArguments, model_args: Mo
                 )
             measurements.batch_durations.append(batch_duration)
             measurements.batch_sample_counts.append(len(batch_ids))
-            encoded_labels = labeler.encode(batch_labels).tolist()
-            for s_id, vec, txt, lbl, lbl_ids in zip(batch_ids, vectors, batch_texts, batch_labels, encoded_labels):
+            enc_labels = labeler.encode(batch_labels).tolist()
+            for s_id, ebd, lbl, lbl_ids in zip(batch_ids, vectors, batch_labels, enc_labels):
                 embeddings[s_id] = {
-                    'embedding': vec,
+                    'id': s_id,
+                    'embedding': ebd,
                     'labels': lbl,
-                    'label_ids': lbl_ids,
-                    'text': txt,
+                    'label_ids': lbl_ids
                 }
                 f_out.write(
                     json.dumps(
-                        {'id': s_id, 'embedding': vec, 'labels': lbl, 'label_ids': lbl_ids, 'text': txt},
-                        ensure_ascii=False
+                        {'id': s_id, 'embedding': ebd}, ensure_ascii=False
                     ) + '\n'
                 )
             batch_ids.clear()
@@ -220,19 +213,18 @@ def embed_prepared_dataset(path: Paths, data_args: DataArguments, model_args: Mo
                 continue
             text = _get_sample_text(sample)
             labels = sample.get('label', []) or []
+            encoded_labels = labeler.encode([labels]).tolist()
             cached_record = cached_embeddings.get(sample_id)
             if cached_record is not None:
-                embeddings[sample_id] = cached_record
-                f_out.write(
-                    json.dumps(
-                        {
+                embeddings[sample_id] = {
                             'id': sample_id,
                             'embedding': cached_record['embedding'],
-                            'labels': cached_record['labels'],
-                            'label_ids': cached_record.get('label_ids'),
-                            'text': cached_record.get('text', text),
-                        },
-                        ensure_ascii=False
+                            'labels': labels,
+                            'label_ids': encoded_labels
+                        }
+                f_out.write(
+                    json.dumps(
+                        {'id': sample_id, 'embedding': cached_record['embedding']}, ensure_ascii=False
                     ) + '\n'
                 )
                 continue
@@ -278,19 +270,16 @@ def _build_embedding_array_dict(embeddings: Dict[str, EmbeddingRecord]) -> Dict[
         return {
             'ids': np.asarray([], dtype=str),
             'embeddings': np.empty((0, 0), dtype=np.float32),
-            'texts': np.asarray([], dtype=str),
             'labels': np.asarray([], dtype=object),
             'label_ids': np.empty((0, 0), dtype=np.int64),
         }
 
     vectors = np.asarray([embeddings[sample_id]['embedding'] for sample_id in ids], dtype=np.float32)
-    texts = np.asarray([embeddings[sample_id].get('text', '') for sample_id in ids], dtype=str)
     labels = np.asarray([embeddings[sample_id].get('labels', []) for sample_id in ids], dtype=object)
     label_ids = np.asarray([embeddings[sample_id]['label_ids'] for sample_id in ids], dtype=np.int64)
     return {
         'ids': np.asarray(ids, dtype=str),
         'embeddings': vectors,
-        'texts': texts,
         'labels': labels,
         'label_ids': label_ids,
     }
@@ -304,13 +293,12 @@ def store_embedding_array_dict(target_file: Path, embeddings: Dict[str, Embeddin
 
 # noinspection DuplicatedCode
 def main(data_args: DataArguments, model_args: ModelArguments) -> None:
-    subset = _get_subset_name(data_args)
+    subset = get_subset_name(data_args)
+    logger.info('Computing embeddings: %s ...', subset)
     embeddings = embed_prepared_dataset(paths, data_args, model_args, logger)
-    target_name = f'{subset}.{model_args.short_name}'
-    target_index_file = paths.context / f'{target_name}.npz'
-    if not target_index_file.exists():
-        logger.info('Writing embedding array sidecar: %s', target_index_file)
-        store_embedding_array_dict(target_index_file, embeddings)
+    target_index_file = paths.context / get_sidecar_name(data_args, model_args)
+    logger.info('Writing embedding array sidecar: %s ...', target_index_file)
+    store_embedding_array_dict(target_index_file, embeddings)
 
     split_dir = paths.get_ctx_path('split')
     if not split_dir.exists():
@@ -321,6 +309,6 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
         if not split_source_file.exists():
             continue
         split_embeddings = collect_split_embeddings(split_source_file, embeddings)
-        split_index_file = split_dir / f'{target_name}.{split_name}.npz'
-        store_embedding_array_dict(split_index_file, split_embeddings)
+        split_index_file = split_dir / get_sidecar_name(data_args, model_args, split_name)
         logger.info('Writing embedding array sidecar: %s', split_index_file)
+        store_embedding_array_dict(split_index_file, split_embeddings)
