@@ -1,7 +1,7 @@
 data:
   cluster:
     attributes:
-      sim_threshold: 0.981
+      sim_threshold: 0.98
       top_k: 1000
       dist_metric: ip
       hnsw_m: 32

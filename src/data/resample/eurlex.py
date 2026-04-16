@@ -9,7 +9,6 @@ logger: Logger
 paths: Paths
 
 
-# noinspection DuplicatedCode
 def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     newsmon_.logger = logger
     newsmon_.paths = paths

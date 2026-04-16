@@ -1,4 +1,5 @@
 import csv
+import shutil
 from logging import Logger
 from pathlib import Path
 from typing import Any
@@ -148,7 +149,8 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     sim_threshold: float = attrs['sim_threshold'] if 'sim_threshold' in attrs else 0.99
     top_k: int = attrs['top_k'] if 'top_k' in attrs else 10
 
-    duplicates_file = paths.context / f"{subset}.duplicates.csv"
+    prepare_dir = paths.get_ctx_path('prepare')
+    duplicates_file = prepare_dir / f"{subset}.duplicates.csv"
     logger.info(
         "Writing near-duplicate pairs at similarity >= %.2f to %s ...",
         sim_threshold,
@@ -163,7 +165,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
         sim_threshold,
         duplicates_file,
     )
-    prepare_dir = paths.get_ctx_path('prepare')
+
     src_data_file, src_labels_file = get_subset_paths(data_args, prepare_dir)
     tgt_data_file, tgt_labels_file = get_subset_paths(data_args, paths.context)
     if not src_data_file.exists():
@@ -187,3 +189,12 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
         tgt_data_file,
     )
     logger.info('Wrote %d labels to %s', len(label_counts), tgt_labels_file)
+    orig_data_file, orig_labels_file = get_subset_paths(data_args, prepare_dir, subset=f'{subset}.orig')
+    logger.info('Moving original samples from %s to %s', src_data_file, orig_data_file)
+    shutil.move(src_data_file, orig_data_file)
+    logger.info('Moving original labels from %s to %s', src_labels_file, orig_labels_file)
+    shutil.move(src_labels_file, orig_labels_file)
+    logger.info('Moving resampled samples from %s to %s', src_data_file, tgt_data_file)
+    shutil.move(tgt_data_file, src_data_file)
+    logger.info('Moving resampled labels from %s to %s', src_data_file, tgt_data_file)
+    shutil.move(tgt_labels_file, src_labels_file)

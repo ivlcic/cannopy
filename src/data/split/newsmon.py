@@ -4,19 +4,13 @@ from collections import defaultdict
 from logging import Logger
 from typing import Dict, List, Any
 
+from ..prepare.newsmon import get_subset_name
 from ...app.helpers import JsonlLoader
 from ...app.args.data import DataArguments
 from ...app.args.runtime import Paths
 
 logger: Logger
 paths: Paths
-
-
-def _get_subset_name(data_args: DataArguments) -> str:
-    subset = data_args.source.select.subset
-    if subset:
-        return subset
-    return data_args.dataset_name
 
 
 def group_by_article_id(samples: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
@@ -28,6 +22,21 @@ def group_by_article_id(samples: List[Dict[str, Any]]) -> Dict[str, List[Dict[st
         # noinspection PyTypeChecker
         grouped[article_id].append(sample)
     return grouped
+
+
+def _split_ids_predefined(grouped: Dict[str, List[Dict[str, Any]]]) -> Dict[str, set[str]]:
+    split_ids = {
+        'train': set(),
+        'eval': set(),
+        'test': set(),
+    }
+    for article_id, article_samples in grouped.items():
+        split_name = article_samples[0].get('split')
+        if split_name not in split_ids:
+            raise ValueError(f"Unsupported predefined split '{split_name}' for sample {article_id}")
+        # noinspection PyTypeChecker
+        split_ids[split_name].add(article_id)
+    return split_ids
 
 
 def split_ids_random(grouped: Dict[str, List[Dict[str, Any]]], data_args: DataArguments) -> Dict[str, set[str]]:
@@ -66,7 +75,7 @@ def write_split_file(target_file, split_ids: set[str], grouped: Dict[str, List[D
 
 
 def main(data_args: DataArguments) -> None:
-    subset = _get_subset_name(data_args)
+    subset = get_subset_name(data_args)
 
     source_dir = paths.get_ctx_path('prepare')
     source_file = source_dir / f'{subset}.jsonl'
@@ -75,7 +84,12 @@ def main(data_args: DataArguments) -> None:
 
     samples = JsonlLoader.load_samples(source_file)
     grouped = group_by_article_id(samples)
-    split_ids = split_ids_random(grouped, data_args)
+
+    use_predefined_split = bool(data_args.source.select.filter.get('use_predefined_split', False))
+    if use_predefined_split:
+        split_ids = _split_ids_predefined(grouped)
+    else:
+        split_ids = split_ids_random(grouped, data_args)
 
     split_counts: Dict[str, int] = {}
     for split_name in ['train', 'eval', 'test']:

@@ -50,8 +50,9 @@ def get_sidecar_name(data_args: DataArguments, model_args: ModelArguments, split
     return f'{subset}.{model_args.short_name}.npz'
 
 
-def get_subset_paths(data_args: DataArguments, target_dir: Path) -> Tuple[Path, Path]:
-    subset = get_subset_name(data_args)
+def get_subset_paths(data_args: DataArguments, target_dir: Path, subset: Optional[str] = None) -> Tuple[Path, Path]:
+    if not subset:
+        subset = get_subset_name(data_args)
     return target_dir / f'{subset}.jsonl', target_dir / f'{subset}.labels.csv'
 
 

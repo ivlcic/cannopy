@@ -68,7 +68,7 @@ def _svg_text(x: int, y: int, text: str, size: int = 12, anchor: str = 'start', 
     )
 
 
-def render_label_histogram_svg(output_file: Path, label_counts: Counter) -> None:
+def _render_label_histogram_svg(output_file: Path, label_counts: Counter) -> None:
     bin_size = 5
     max_count = 500
     bin_labels, bin_counts = _label_histogram_bins(label_counts, bin_size=bin_size, max_count=max_count)
@@ -163,7 +163,7 @@ def render_label_histogram_svg(output_file: Path, label_counts: Counter) -> None
     output_file.write_text('\n'.join(parts), encoding='utf-8')
 
 
-def compute_stats(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _compute_stats(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     label_counts: Counter = Counter()
     language_counts: Counter = Counter()
     country_counts: Counter = Counter()
@@ -220,17 +220,16 @@ def compute_stats(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def load_split_stats(split_dir: Path, subset: str) -> Dict[str, Dict[str, Any]]:
+def _load_split_stats(split_dir: Path, subset: str) -> Dict[str, Dict[str, Any]]:
     split_stats: Dict[str, Dict[str, Any]] = {}
     for split_name in ['train', 'eval', 'test']:
         split_file = split_dir / f'{subset}.{split_name}.jsonl'
         if not split_file.exists():
             continue
-        split_stats[split_name] = compute_stats(JsonlLoader.load_samples(split_file))
+        split_stats[split_name] = _compute_stats(JsonlLoader.load_samples(split_file))
     return split_stats
 
 
-# noinspection DuplicatedCode
 def main(data_args: DataArguments) -> None:
     subset = get_subset_name(data_args)
 
@@ -240,8 +239,8 @@ def main(data_args: DataArguments) -> None:
     if not source_file.exists():
         raise FileNotFoundError(f'Prepared subset file not found: {source_file}')
 
-    base_stats = compute_stats(JsonlLoader.load_samples(source_file))
-    split_stats = load_split_stats(split_dir, subset)
+    base_stats = _compute_stats(JsonlLoader.load_samples(source_file))
+    split_stats = _load_split_stats(split_dir, subset)
 
     report = {
         'dataset': data_args.dataset_name,
@@ -258,7 +257,7 @@ def main(data_args: DataArguments) -> None:
     prepared_label_counts: Counter = Counter()
     for row in prepared_rows:
         prepared_label_counts.update(row.get('label', []))
-    render_label_histogram_svg(paths.context / f'{subset}.label_histogram.svg', prepared_label_counts)
+    _render_label_histogram_svg(paths.context / f'{subset}.label_histogram.svg', prepared_label_counts)
 
     logger.info(
         'Analyzed %s: samples=%s labels=%s avg_labels=%.3f density=%.6f diversity=%s',

@@ -172,24 +172,26 @@ Download EURLEX57K dataset:
 ```shell
 ./data download eurlex
 ./data prepare eurlex
-./data embed eurlex -c bge-m3.yaml
-./data split eurlex
-# produce embeddings for the split dataset from the original dataset embeddings
+# remove duplicates from the dataset
 ./data embed eurlex -c bge-m3.yaml
 ./data resample newsmon -c sl.yaml -c bge-m3.yaml
+# repeat the above steps
 ./data analyze eurlex
+./data split eurlex
+./data embed eurlex -c bge-m3.yaml
 ```
 
 Download NewsMon dataset (due to a license, you need a password to decrypt the archive):
 ```shell
 ./data download newsmon
 ./data prepare newsmon -c sl.yaml
-./data embed newsmon -c sl.yaml -c bge-m3.yaml
-./data split newsmon -c sl.yaml
-# produce embeddings for the split dataset from the original dataset embeddings
+# remove duplicates from the dataset
 ./data embed newsmon -c sl.yaml -c bge-m3.yaml
 ./data resample newsmon -c sl.yaml -c bge-m3.yaml
+# repeat the above steps
 ./data analyze newsmon -c sl.yaml
+./data split newsmon -c sl.yaml
+./data embed newsmon -c sl.yaml -c bge-m3.yaml
 
 ./data prepare newsmon -c sr.yaml
 ./data embed newsmon -c sr.yaml -c bge-m3.yaml
