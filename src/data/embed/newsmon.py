@@ -1,13 +1,12 @@
+import csv
 import json
 import shutil
 import statistics
 import time
-
 from dataclasses import dataclass, field
 from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from typing import Sequence
 
 import numpy as np
 import torch
@@ -17,9 +16,12 @@ from ...app.args.model import ModelArguments
 from ...app.args.runtime import Paths
 from ...app.embedder import TextEmbedder
 from ...app.helpers import JsonIdHelper
+from ...app.labeler import MultilabelLabeler
 
 logger: Logger
 paths: Paths
+
+EmbeddingRecord = Dict[str, Any]
 
 
 @dataclass
@@ -35,8 +37,8 @@ class EmbedMeasurements:
     batch_sample_counts: List[int] = field(default_factory=list)
 
 
-def load_embeddings(file_name: Path) -> Dict[str, List[float]]:
-    embeddings: Dict[str, List[float]] = {}
+def load_embeddings(file_name: Path, labeler: Optional[MultilabelLabeler] = None) -> Dict[str, EmbeddingRecord]:
+    embeddings: Dict[str, EmbeddingRecord] = {}
     with file_name.open('r', encoding='utf-8') as f_in:
         for line_no, line in enumerate(f_in, start=1):
             obj, _ = JsonIdHelper.read_sample(line, line_no, file_name)
@@ -46,9 +48,29 @@ def load_embeddings(file_name: Path) -> Dict[str, List[float]]:
             if vec is None:
                 logger.warning('Missing embeddings in %s line %d.', file_name, line_no)
                 continue
-            # noinspection PyTypeChecker
-            embeddings[obj['id']] = vec
+            labels = obj.get('labels', [])
+            encoded_labels = obj.get('label_ids')
+            if encoded_labels is None and labeler is not None:
+                encoded_labels = labeler.encode([labels])[0].tolist()
+            embeddings[obj['id']] = {
+                'embedding': vec,
+                'labels': labels,
+                'label_ids': encoded_labels,
+                'text': obj.get('text', ''),
+            }
     return embeddings
+
+
+def load_multilabel_labeler(source_labels_file: Path) -> MultilabelLabeler:
+    labels: List[str] = []
+    with source_labels_file.open('r', encoding='utf-8', newline='') as f_in:
+        reader = csv.reader(f_in)
+        next(reader, None)
+        for row in reader:
+            if not row or not row[0]:
+                continue
+            labels.append(row[0])
+    return MultilabelLabeler(labels=labels)
 
 
 def _get_sample_text(sample: Dict[str, Any]) -> str:
@@ -108,18 +130,37 @@ def _build_stats_dict(measurements: EmbedMeasurements) -> Dict[str, Any]:
     }
 
 
-def embed_prepared_dataset(source_file: Path, target_dir: Path, model_args: ModelArguments,
-                           log: Logger, subset: Optional[str] = None) -> Dict[str, List[float]]:
+def _get_subset_name(data_args: DataArguments) -> str:
+    subset = data_args.source.select.subset
+    if subset:
+        return subset
+    return data_args.dataset_name
+
+
+def embed_prepared_dataset(path: Paths, data_args: DataArguments, model_args: ModelArguments,
+                           log: Logger) -> Dict[str, EmbeddingRecord]:
+    subset = _get_subset_name(data_args)
+
+    source_dir = paths.get_ctx_path('prepare')
+    source_file = source_dir / f'{subset}.jsonl'
+    if not source_file.exists():
+        raise FileNotFoundError(f'Prepared subset file not found: {source_file}')
+
+    source_labels_file = source_dir / f'{subset}.labels.csv'
+    if not source_labels_file.exists():
+        raise FileNotFoundError(f'Prepared subset labels file not found: {source_labels_file}')
+
+    labeler = load_multilabel_labeler(source_labels_file)
     target_name = f'{subset}.{model_args.short_name}'
-    target_file = target_dir / f'{target_name}.jsonl'
-    target_stats_file = target_dir / f'{target_name}.stats.jsonl'
-    tmp_target_file = target_dir / f'tmp.{target_name}'
+    target_file = path.context / f'{target_name}.jsonl'
+    target_stats_file = path.context / f'{target_name}.stats.jsonl'
+    tmp_target_file = path.context / f'tmp.{target_name}'
     write_stats = not target_file.exists()
 
-    cached_embeddings: Dict[str, List[float]] = {}
+    cached_embeddings: Dict[str, EmbeddingRecord] = {}
     if target_file.exists():
         log.info('Target embedding data %s exists. Will reuse cached vectors.', target_file)
-        cached_embeddings = load_embeddings(target_file)
+        cached_embeddings = load_embeddings(target_file, labeler)
 
     measurements = EmbedMeasurements(
         subset=subset,
@@ -129,7 +170,7 @@ def embed_prepared_dataset(source_file: Path, target_dir: Path, model_args: Mode
     )
     embedder = TextEmbedder.create(model_args)
     measurements.model_vram_bytes = _get_vram_bytes()
-    embeddings: Dict[str, List[float]] = dict(cached_embeddings)
+    embeddings: Dict[str, EmbeddingRecord] = dict(cached_embeddings)
     if write_stats and torch.cuda.is_available():
         try:
             torch.cuda.reset_peak_memory_stats()
@@ -137,9 +178,11 @@ def embed_prepared_dataset(source_file: Path, target_dir: Path, model_args: Mode
             log.warning('Unable to reset CUDA peak memory stats.')
 
     run_started = time.perf_counter()
-    with source_file.open('r', encoding='utf-8') as f_in, tmp_target_file.open('w', encoding='utf-8') as f_out:
+    with (source_file.open('r', encoding='utf-8') as f_in,
+          tmp_target_file.open('w', encoding='utf-8') as f_out):
         batch_ids: List[str] = []
         batch_texts: List[str] = []
+        batch_labels: List[List[str]] = []
 
         def flush_batch() -> None:
             if not batch_ids:
@@ -153,25 +196,50 @@ def embed_prepared_dataset(source_file: Path, target_dir: Path, model_args: Mode
                 )
             measurements.batch_durations.append(batch_duration)
             measurements.batch_sample_counts.append(len(batch_ids))
-            for s_id, vec in zip(batch_ids, vectors):
-                # noinspection PyTypeChecker
-                embeddings[s_id] = vec
-                f_out.write(json.dumps({'id': s_id, 'embedding': vec}, ensure_ascii=False) + '\n')
+            encoded_labels = labeler.encode(batch_labels).tolist()
+            for s_id, vec, txt, lbl, lbl_ids in zip(batch_ids, vectors, batch_texts, batch_labels, encoded_labels):
+                embeddings[s_id] = {
+                    'embedding': vec,
+                    'labels': lbl,
+                    'label_ids': lbl_ids,
+                    'text': txt,
+                }
+                f_out.write(
+                    json.dumps(
+                        {'id': s_id, 'embedding': vec, 'labels': lbl, 'label_ids': lbl_ids, 'text': txt},
+                        ensure_ascii=False
+                    ) + '\n'
+                )
             batch_ids.clear()
             batch_texts.clear()
+            batch_labels.clear()
 
         for line_no, line in enumerate(f_in, start=1):
             sample, sample_id = JsonIdHelper.read_sample(line, line_no, source_file)
             if not sample_id or not sample:
                 continue
-            cached_vec = cached_embeddings.get(sample_id)
-            if cached_vec is not None:
-                embeddings[sample_id] = cached_vec
-                f_out.write(json.dumps({'id': sample_id, 'embedding': cached_vec}, ensure_ascii=False) + '\n')
+            text = _get_sample_text(sample)
+            labels = sample.get('label', []) or []
+            cached_record = cached_embeddings.get(sample_id)
+            if cached_record is not None:
+                embeddings[sample_id] = cached_record
+                f_out.write(
+                    json.dumps(
+                        {
+                            'id': sample_id,
+                            'embedding': cached_record['embedding'],
+                            'labels': cached_record['labels'],
+                            'label_ids': cached_record.get('label_ids'),
+                            'text': cached_record.get('text', text),
+                        },
+                        ensure_ascii=False
+                    ) + '\n'
+                )
                 continue
 
             batch_ids.append(sample_id)
-            batch_texts.append(_get_sample_text(sample))
+            batch_texts.append(text)
+            batch_labels.append(labels)
             if len(batch_ids) >= model_args.batch_size:
                 flush_batch()
 
@@ -189,8 +257,9 @@ def embed_prepared_dataset(source_file: Path, target_dir: Path, model_args: Mode
     return embeddings
 
 
-def collect_split_embeddings(split_source_file: Path, embeddings: Dict[str, List[float]]) -> Dict[str, List[float]]:
-    split_embeddings: Dict[str, List[float]] = {}
+def collect_split_embeddings(split_source_file: Path,
+                             embeddings: Dict[str, EmbeddingRecord]) -> Dict[str, EmbeddingRecord]:
+    split_embeddings: Dict[str, EmbeddingRecord] = {}
     with split_source_file.open('r', encoding='utf-8') as f_in:
         for line_no, line in enumerate(f_in, start=1):
             sample, sample_id = JsonIdHelper.read_sample(line, line_no, split_source_file)
@@ -203,29 +272,31 @@ def collect_split_embeddings(split_source_file: Path, embeddings: Dict[str, List
     return split_embeddings
 
 
-def _get_subset_name(data_args: DataArguments) -> str:
-    subset = data_args.source.select.subset
-    if subset:
-        return subset
-    return data_args.dataset_name
-
-
-def _build_embedding_array_dict(embeddings: Dict[str, Sequence[float]]) -> Dict[str, np.ndarray]:
+def _build_embedding_array_dict(embeddings: Dict[str, EmbeddingRecord]) -> Dict[str, np.ndarray]:
     ids: List[str] = list(embeddings.keys())
     if not ids:
         return {
             'ids': np.asarray([], dtype=str),
             'embeddings': np.empty((0, 0), dtype=np.float32),
+            'texts': np.asarray([], dtype=str),
+            'labels': np.asarray([], dtype=object),
+            'label_ids': np.empty((0, 0), dtype=np.int64),
         }
 
-    vectors = np.asarray([embeddings[sample_id] for sample_id in ids], dtype=np.float32)
+    vectors = np.asarray([embeddings[sample_id]['embedding'] for sample_id in ids], dtype=np.float32)
+    texts = np.asarray([embeddings[sample_id].get('text', '') for sample_id in ids], dtype=str)
+    labels = np.asarray([embeddings[sample_id].get('labels', []) for sample_id in ids], dtype=object)
+    label_ids = np.asarray([embeddings[sample_id]['label_ids'] for sample_id in ids], dtype=np.int64)
     return {
         'ids': np.asarray(ids, dtype=str),
         'embeddings': vectors,
+        'texts': texts,
+        'labels': labels,
+        'label_ids': label_ids,
     }
 
 
-def store_embedding_array_dict(target_file: Path, embeddings: Dict[str, Sequence[float]]) -> Dict[str, np.ndarray]:
+def store_embedding_array_dict(target_file: Path, embeddings: Dict[str, EmbeddingRecord]) -> Dict[str, np.ndarray]:
     embedding_array_dict = _build_embedding_array_dict(embeddings)
     np.savez_compressed(target_file, **embedding_array_dict)
     return embedding_array_dict
@@ -234,13 +305,7 @@ def store_embedding_array_dict(target_file: Path, embeddings: Dict[str, Sequence
 # noinspection DuplicatedCode
 def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     subset = _get_subset_name(data_args)
-
-    source_dir = paths.get_ctx_path('prepare')
-    source_file = source_dir / f'{subset}.jsonl'
-    if not source_file.exists():
-        raise FileNotFoundError(f'Prepared subset file not found: {source_file}')
-
-    embeddings = embed_prepared_dataset(source_file, paths.context, model_args, logger, subset=subset)
+    embeddings = embed_prepared_dataset(paths, data_args, model_args, logger)
     target_name = f'{subset}.{model_args.short_name}'
     target_index_file = paths.context / f'{target_name}.npz'
     if not target_index_file.exists():

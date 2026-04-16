@@ -1,6 +1,10 @@
 from logging import Logger
 
-from .newsmon import store_embedding_array_dict, embed_prepared_dataset, collect_split_embeddings
+from .newsmon import (
+    store_embedding_array_dict,
+    embed_prepared_dataset,
+    collect_split_embeddings,
+)
 from ...app.args.data import DataArguments
 from ...app.args.model import ModelArguments
 from ...app.args.runtime import Paths
@@ -11,12 +15,7 @@ paths: Paths
 
 # noinspection DuplicatedCode
 def main(data_args: DataArguments, model_args: ModelArguments) -> None:
-    source_dir = paths.get_ctx_path('prepare')
-    source_file = source_dir / f'{data_args.dataset_name}.jsonl'
-    if not source_file.exists():
-        raise FileNotFoundError(f'Prepared subset file not found: {source_file}')
-
-    embeddings = embed_prepared_dataset(source_file, paths.context, model_args, logger, data_args.dataset_name)
+    embeddings = embed_prepared_dataset(paths, data_args, model_args, logger)
     target_name = f'{data_args.dataset_name}.{model_args.short_name}'
     target_index_file = paths.context / f'{target_name}.npz'
     if not target_index_file.exists():

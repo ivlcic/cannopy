@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from enum import StrEnum
 from typing import Dict, List, Union
 
 import numpy as np
@@ -17,8 +18,14 @@ Vector = List[float]
 EmbeddingInput = Union[str, List[str]]
 
 
+class EmbeddingMode(StrEnum):
+    DOCUMENT = "document"
+    QUERY = "query"
+
+
 class TextEmbedder(ABC):
     _registry: Dict[str, "type[TextEmbedder]"] = {}
+    valid_modes = {EmbeddingMode.DOCUMENT, EmbeddingMode.QUERY}
 
     @classmethod
     def register(cls, *names: str):
@@ -46,6 +53,40 @@ class TextEmbedder(ABC):
 
     def __init__(self, model_args: ModelArguments) -> None:
         self.model_args = model_args
+        self.mode = EmbeddingMode.DOCUMENT
+
+    def set_mode(self, mode: str | EmbeddingMode) -> None:
+        try:
+            normalized_mode = EmbeddingMode(str(mode).strip().lower())
+        except ValueError as exc:
+            raise ValueError(f"Unsupported embedder mode '{mode}'. Expected one of {sorted(self.valid_modes)}")
+        if normalized_mode not in self.valid_modes:
+            raise ValueError(f"Unsupported embedder mode '{mode}'. Expected one of {sorted(self.valid_modes)}")
+        self.mode = normalized_mode
+
+    def embed_query2pt(self, texts: EmbeddingInput) -> torch.Tensor:
+        previous_mode = self.mode
+        self.set_mode(EmbeddingMode.QUERY)
+        try:
+            return self.embed2pt(texts)
+        finally:
+            self.mode = previous_mode
+
+    def embed_query(self, texts: EmbeddingInput) -> Union[Vector, List[Vector]]:
+        previous_mode = self.mode
+        self.set_mode(EmbeddingMode.QUERY)
+        try:
+            return self.embed(texts)
+        finally:
+            self.mode = previous_mode
+
+    def embed_query2np(self, texts: EmbeddingInput) -> np.ndarray:
+        previous_mode = self.mode
+        self.set_mode(EmbeddingMode.QUERY)
+        try:
+            return self.embed2np(texts)
+        finally:
+            self.mode = previous_mode
 
     @abstractmethod
     def embed(self, texts: EmbeddingInput) -> Union[Vector, List[Vector]]:
@@ -68,7 +109,12 @@ class STEmbedder(TextEmbedder):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.batch_size = getattr(model_args, "batch_size", 32)
         try:
-            self.model = SentenceTransformer(model_name, device=self.device, trust_remote_code=True)
+            self.model = SentenceTransformer(
+                model_name,
+                device=self.device,
+                trust_remote_code=True,
+                model_kwargs=self._sentence_transformer_model_kwargs(),
+            )
         except FileNotFoundError as exc:
             msg = (
                 "Failed to load HF dynamic module; cache might be corrupted. "
@@ -83,6 +129,22 @@ class STEmbedder(TextEmbedder):
         self.task = None
         self.prompt_name = None
         logger.info('Loaded SentenceTransformer model=%s on %s', model_name, self.device)
+
+    def _sentence_transformer_model_kwargs(self) -> Dict[str, object]:
+        return {}
+
+    def _encode_batch(self, batch: List[str], pt: bool) -> np.ndarray | torch.Tensor:
+        # noinspection PyTypeChecker
+        return self.model.encode(
+            batch,
+            batch_size=self.batch_size,
+            normalize_embeddings=True,
+            convert_to_numpy=not pt,
+            convert_to_tensor=pt,
+            task=self.task,
+            prompt_name=self.prompt_name,
+            device=self.device
+        )
 
     def _truncate_text(self, text: str) -> str:
         tok = self.tokenizer
@@ -117,17 +179,7 @@ class STEmbedder(TextEmbedder):
         if self.truncate:
             batch = [self._truncate_text(b) for b in batch]
         try:
-            # noinspection PyTypeChecker
-            vectors = self.model.encode(
-                batch,
-                batch_size=self.batch_size,
-                normalize_embeddings=True,
-                convert_to_numpy=not pt,
-                convert_to_tensor=pt,
-                task=self.task,
-                prompt_name=self.prompt_name,
-                device=self.device
-            )
+            vectors = self._encode_batch(batch, pt)
         except torch.OutOfMemoryError:
             logger.warning("Hitting memory problems")
             return self._ret_empty(batch, single, pt)
@@ -148,6 +200,30 @@ class STEmbedder(TextEmbedder):
     def embed2np(self, texts: EmbeddingInput) -> np.ndarray:
         return self._embed(texts, pt=False)
 
+    def embed_query2pt(self, texts: EmbeddingInput) -> torch.Tensor:
+        previous_mode = self.mode
+        self.set_mode(EmbeddingMode.QUERY)
+        try:
+            return self.embed2pt(texts)
+        finally:
+            self.mode = previous_mode
+
+    def embed_query(self, texts: EmbeddingInput) -> Union[Vector, List[Vector]]:
+        previous_mode = self.mode
+        self.set_mode(EmbeddingMode.QUERY)
+        try:
+            return self.embed(texts)
+        finally:
+            self.mode = previous_mode
+
+    def embed_query2np(self, texts: EmbeddingInput) -> np.ndarray:
+        previous_mode = self.mode
+        self.set_mode(EmbeddingMode.QUERY)
+        try:
+            return self.embed2np(texts)
+        finally:
+            self.mode = previous_mode
+
 
 # noinspection SpellCheckingInspection
 @TextEmbedder.register("BAAI/bge-m3")
@@ -161,6 +237,44 @@ class Qwen3Embedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
         super().__init__(model_args)
         # self.truncate = True
+
+
+@TextEmbedder.register("codefuse-ai/F2LLM-v2-0.6B")
+class F2llmV2Embedder(STEmbedder):
+    QUERY_PROMPT = "Instruct: Given a question, retrieve passages that can help answer the question.\nQuery: "
+
+    def __init__(self, model_args: ModelArguments) -> None:
+        super().__init__(model_args)
+
+    def _sentence_transformer_model_kwargs(self) -> Dict[str, object]:
+        if self.device == "cuda":
+            return {"torch_dtype": "bfloat16"}
+        return {}
+
+    def _encode_batch(self, batch: List[str], pt: bool) -> np.ndarray | torch.Tensor:
+        common_kwargs = {
+            "batch_size": self.batch_size,
+            "normalize_embeddings": True,
+            "convert_to_numpy": not pt,
+            "convert_to_tensor": pt,
+            "device": self.device,
+        }
+        if self.mode == EmbeddingMode.QUERY:
+            encode_query = getattr(self.model, "encode_query", None)
+            if callable(encode_query):
+                # noinspection PyTypeChecker
+                return encode_query(batch, **common_kwargs)
+            # sentence-transformers 3.4.0 lacks encode_query; emulate the official prompt path.
+            prompted_batch = [self.QUERY_PROMPT + text for text in batch]
+            # noinspection PyTypeChecker
+            return self.model.encode(prompted_batch, **common_kwargs)
+        encode_document = getattr(self.model, "encode_document", None)
+        if callable(encode_document):
+            # noinspection PyTypeChecker
+            return encode_document(batch, **common_kwargs)
+        # sentence-transformers 3.4.0 lacks encode_document; plain encode is the document path.
+        # noinspection PyTypeChecker
+        return self.model.encode(batch, **common_kwargs)
 
 
 @TextEmbedder.register("jinaai/jina-embeddings-v3")

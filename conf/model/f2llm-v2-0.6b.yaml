@@ -1,0 +1,4 @@
+model:
+  short_name: f2llm-v2-0.6b
+  model_name_or_path: 'codefuse-ai/F2LLM-v2-0.6B'
+  max_seq_length: 40960
