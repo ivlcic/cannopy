@@ -164,7 +164,7 @@ def embed_prepared_dataset(path: Paths, data_args: DataArguments, model_args: Mo
     )
     embedder = TextEmbedder.create(model_args)
     measurements.model_vram_bytes = _get_vram_bytes()
-    embeddings: Dict[str, EmbeddingRecord] = dict(cached_embeddings)
+    embeddings: Dict[str, EmbeddingRecord] = {}
     if write_stats and torch.cuda.is_available():
         try:
             torch.cuda.reset_peak_memory_stats()
@@ -237,7 +237,13 @@ def embed_prepared_dataset(path: Paths, data_args: DataArguments, model_args: Mo
 
         flush_batch()
 
-    shutil.move(tmp_target_file, target_file)
+    if len(embeddings) > len(cached_embeddings):
+        shutil.move(tmp_target_file, target_file)
+        log.info('Moved %d new embeddings to %s', len(embeddings) - len(cached_embeddings), target_file)
+    else:
+        tmp_target_file.unlink()
+        log.info('No new embeddings generated, skipped moving file')
+
     measurements.total_runtime_seconds = time.perf_counter() - run_started
     measurements.peak_vram_bytes = int(torch.cuda.max_memory_allocated()) if torch.cuda.is_available() else 0
 

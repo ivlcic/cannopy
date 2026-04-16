@@ -174,7 +174,7 @@ Download EURLEX57K dataset:
 ./data prepare eurlex
 # remove duplicates from the dataset
 ./data embed eurlex -c bge-m3.yaml
-./data resample newsmon -c sl.yaml -c bge-m3.yaml
+./data resample eurlex -c bge-m3.yaml
 # repeat the above steps
 ./data analyze eurlex
 ./data split eurlex
