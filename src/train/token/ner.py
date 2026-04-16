@@ -45,7 +45,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     if not languages:
         languages = [p.stem.split('.')[0] for p in data_root.glob('ner-*.train.csv')]
     ner_samples = NerSamplesLoader(data_root, languages)
-    metrics = TokenClassificationMetrics(id2label=ner_samples.id2label)
+    metrics = TokenClassificationMetrics(id2label=ner_samples.labeler.id2label)
 
     tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir=cache_root)
@@ -53,9 +53,9 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     model = AutoModelForTokenClassification.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=cache_root,
-        num_labels=len(ner_samples.label_list),
-        id2label=ner_samples.id2label,
-        label2id=ner_samples.label2id,
+        num_labels=ner_samples.labeler.num_labels,
+        id2label=ner_samples.labeler.id2label,
+        label2id=ner_samples.labeler.label2id,
     )
 
     datasets: Dict[str, Dataset] = ner_samples.create_split_datasets(tokenizer, model_args.max_seq_length)

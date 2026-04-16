@@ -7,7 +7,7 @@ from transformers import AutoModelForTokenClassification, AutoTokenizer, BatchEn
 
 from .args.model import ModelArguments
 
-logger = logging.getLogger("core.ner_tagger")
+logger = logging.getLogger("core.token_classifier")
 
 WordList = List[Dict[str, Any]]
 

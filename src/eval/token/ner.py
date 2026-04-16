@@ -53,7 +53,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
 
     ner_samples = NerSamplesLoader(data_root, languages)
     # ner_samples = NerSamplesLoader(data_root, ['sl'])
-    metrics = TokenClassificationMetrics(id2label=ner_samples.id2label)
+    metrics = TokenClassificationMetrics(id2label=ner_samples.labeler.id2label)
 
     tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir=cache_root)
@@ -62,9 +62,9 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     model = AutoModelForTokenClassification.from_pretrained(
         train_args.output_dir,
         cache_dir=cache_root,
-        num_labels=len(ner_samples.label_list),
-        id2label=ner_samples.id2label,
-        label2id=ner_samples.label2id,
+        num_labels=ner_samples.labeler.num_labels,
+        id2label=ner_samples.labeler.id2label,
+        label2id=ner_samples.labeler.label2id,
         dtype=model_args.dtype,
         attn_implementation=model_args.attn_implementation
     )
