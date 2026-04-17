@@ -5,6 +5,9 @@ data:
     eval: 0.1
     test: 0.1
     seed: 2611
+  sampling:
+    attributes:
+      sim_threshold: 0.99
   source:
     select:
       filter:

@@ -88,3 +88,19 @@ def test_multilabel_labeler_round_trip():
     assert encoded.tolist() == [[1, 0, 1], [0, 1, 0], [0, 0, 0]]
     assert labeler.decode(encoded) == [('news', 'tech'), ('sports',), ()]
     assert labeler.decode(np.array([1, 0, 1])) == ['news', 'tech']
+
+
+def test_multilabel_labeler_encodes_single_instance_list():
+    labeler = MultilabelLabeler(labels=['news', 'sports', 'tech'])
+
+    encoded = labeler.encode(['news', 'tech'])
+
+    assert encoded.tolist() == [1, 0, 1]
+
+
+def test_multilabel_labeler_encodes_batch_of_one_as_2d():
+    labeler = MultilabelLabeler(labels=['news', 'sports', 'tech'])
+
+    encoded = labeler.encode([['news', 'tech']])
+
+    assert encoded.tolist() == [[1, 0, 1]]

@@ -6,8 +6,6 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Optional
 
-import faiss
-import numpy as np
 from dateutil.relativedelta import relativedelta
 
 from ...app.args.data import DataArguments
@@ -48,6 +46,13 @@ def get_sidecar_name(data_args: DataArguments, model_args: ModelArguments, split
     if split:
         return f'{subset}.{model_args.short_name}.{split}.npz'
     return f'{subset}.{model_args.short_name}.npz'
+
+
+def get_subset_data_path(data_args: DataArguments, target_dir: Path, split: Optional[str] = None) -> Path:
+    subset = get_subset_name(data_args)
+    if split:
+        return target_dir / f'{subset}.{split}.jsonl'
+    return target_dir / f'{subset}.jsonl'
 
 
 def get_subset_paths(data_args: DataArguments, target_dir: Path, subset: Optional[str] = None) -> Tuple[Path, Path]:
@@ -169,8 +174,8 @@ def write_labels_file(labels_file: Path, labels_map: Dict[str, Dict[str, str]], 
             ])
 
 
-def _collect_subset(data_args: DataArguments,
-                    source_dir: Path) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, str]], Counter]:
+def collect_subset(data_args: DataArguments,
+                   source_dir: Path) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, str]], Counter]:
     labels_map = read_csv_to_dict(source_dir / 'map_tags.csv')
     media_map = read_csv_to_dict(source_dir / 'map_media.csv')
 
@@ -242,31 +247,6 @@ def apply_min_label_count(data_args: DataArguments,
     return filtered_samples, filtered_counts
 
 
-def build_hnsw_index(data_args: DataArguments, normalized_embeddings: np.ndarray) -> faiss.IndexHNSWFlat:
-    dimension = normalized_embeddings.shape[1]
-
-    attrs = data_args.cluster.attributes
-    hnsw_m = attrs['hnsw_m'] if 'hnsw_m' in attrs else 32
-    hnsw_ef_construction = attrs['hnsw_ef_construction'] if 'hnsw_ef_construction' in attrs else 200
-    hnsw_ef_search = attrs['hnsw_ef_search'] if 'hnsw_ef_search' in attrs else 128
-    dist_metric = faiss.METRIC_INNER_PRODUCT
-    if 'hnsw_metric' in attrs:
-        dist_metric = attrs['dist_metric']
-        if dist_metric == 'l2':
-            dist_metric = faiss.METRIC_L2
-        elif dist_metric == 'ip':
-            dist_metric = faiss.METRIC_INNER_PRODUCT
-        else:
-            raise ValueError(f'Unknown hnsw_metric: {dist_metric}')
-
-    index = faiss.IndexHNSWFlat(dimension, hnsw_m, dist_metric)
-    index.hnsw.efConstruction = hnsw_ef_construction
-    index.hnsw.efSearch = hnsw_ef_search
-    # noinspection PyArgumentList
-    index.add(normalized_embeddings)
-    return index
-
-
 def main(data_args: DataArguments) -> None:
     source_dir = paths.get_ctx_path('download')
     if not source_dir.exists():
@@ -274,13 +254,13 @@ def main(data_args: DataArguments) -> None:
         return
 
     data_file, labels_file = get_subset_paths(data_args, paths.context)
-    samples, labels_map, label_counts = _collect_subset(data_args, source_dir)
+    samples, labels_map, label_counts = collect_subset(data_args, source_dir)
     samples, label_counts = apply_min_label_count(data_args, samples)
 
     with data_file.open('w', encoding='utf-8') as f_out:
         for sample in samples:
             f_out.write(json.dumps(sample, ensure_ascii=False) + '\n')
-    _write_labels_file(labels_file, labels_map, label_counts)
+    write_labels_file(labels_file, labels_map, label_counts)
 
     logger.info('Prepared %s samples into %s', len(samples), data_file)
     logger.info('Prepared %s labels into %s', len(label_counts), labels_file)

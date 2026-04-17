@@ -131,13 +131,19 @@ class MultilabelLabeler(Labeler):
 
     def encode(self, labels: Union[List, ndarray]) -> ndarray:
         self._ensure_fitted()
+        values = labels.tolist() if isinstance(labels, np.ndarray) else labels
+        if not values:
+            return np.asarray([], dtype=np.int64)
+        single_instance = not isinstance(values[0], (list, set, tuple, np.ndarray))
+        label_sets = [values] if single_instance else values
         rows = []
-        for label_set in labels:
+        for label_set in label_sets:
             row = np.zeros(len(self.classes), dtype=np.int64)
             for label in label_set:
                 row[self.label2id[label]] = 1
             rows.append(row)
-        return np.asarray(rows, dtype=np.int64)
+        encoded = np.asarray(rows, dtype=np.int64)
+        return encoded[0] if single_instance else encoded
 
     def decode(self, vector: ndarray) -> List:
         self._ensure_fitted()

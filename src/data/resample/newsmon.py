@@ -8,9 +8,9 @@ from typing import Any
 import faiss
 import numpy as np
 
+from ..embed.newsmon import load_embedding_sidecar, build_hnsw_index
 from ..prepare.newsmon import (
     get_subset_name,
-    build_hnsw_index,
     get_sidecar_name,
     get_subset_paths,
     apply_min_label_count,
@@ -24,17 +24,6 @@ from ...app.helpers import JsonlLoader
 
 logger: Logger
 paths: Paths
-
-
-def _load_embedding_sidecar(sidecar_file: Path) -> dict[str, np.ndarray]:
-    with np.load(sidecar_file, allow_pickle=True) as data:
-        return {key: data[key] for key in data.files}
-
-
-def _normalize_embeddings(embeddings: np.ndarray) -> np.ndarray:
-    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-    norms[norms == 0.0] = 1.0
-    return embeddings / norms
 
 
 def _label_string(labels: Any) -> str:
@@ -131,7 +120,7 @@ def dedup(data_args: DataArguments, model_args: ModelArguments) -> None:
     if not sidecar_file.exists():
         raise FileNotFoundError(f"Embedding sidecar file not found: {sidecar_file}")
     logger.info("Loading embedding sidecar: %s ...", sidecar_file)
-    sidecar = _load_embedding_sidecar(sidecar_file)
+    sidecar = load_embedding_sidecar(sidecar_file)
     if "ids" not in sidecar or "embeddings" not in sidecar or "labels" not in sidecar or "label_ids" not in sidecar:
         raise ValueError(f"Invalid embedding sidecar file: {sidecar_file}")
 
@@ -139,10 +128,8 @@ def dedup(data_args: DataArguments, model_args: ModelArguments) -> None:
     if embeddings.ndim != 2:
         raise ValueError(f"Invalid embeddings array in sidecar .npz file: expected 2D array.")
     logger.info("Loaded embedding sidecar: %s.", sidecar_file)
-    normalized = _normalize_embeddings(embeddings)
-    logger.info("Normalized embeddings.")
     logger.info("Building HNSW index ...")
-    index = build_hnsw_index(data_args, normalized)
+    index = build_hnsw_index(data_args, embeddings)
     logger.info("Built HNSW index.")
 
     attrs = data_args.sampling.attributes
@@ -152,17 +139,19 @@ def dedup(data_args: DataArguments, model_args: ModelArguments) -> None:
     prepare_dir = paths.get_ctx_path('prepare')
     duplicates_file = prepare_dir / f"{subset}.duplicates.csv"
     logger.info(
-        "Writing near-duplicate pairs at similarity >= %.2f to %s ...",
+        "Writing near-duplicate pairs at similarity >= %.2f and top-k %s to %s ...",
         sim_threshold,
+        top_k,
         duplicates_file
     )
     duplicate_count, removed_ids = _write_duplicates_csv(
-        duplicates_file, sidecar, normalized, index, top_k, sim_threshold
+        duplicates_file, sidecar, embeddings, index, top_k, sim_threshold
     )
     logger.info(
-        "Wrote %d near-duplicate pairs at similarity >= %.2f to %s",
+        "Wrote %d near-duplicate pairs at similarity >= %.2f and top-k %s to %s",
         duplicate_count,
         sim_threshold,
+        top_k,
         duplicates_file,
     )
 

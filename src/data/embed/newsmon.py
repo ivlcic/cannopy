@@ -8,6 +8,8 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# noinspection PyPackageRequirements
+import faiss
 import numpy as np
 import torch
 
@@ -72,6 +74,17 @@ def load_multilabel_labeler(source_labels_file: Path) -> MultilabelLabeler:
                 continue
             labels.append(row[0])
     return MultilabelLabeler(labels=labels)
+
+
+def load_embedding_sidecar(sidecar_file: Path) -> dict[str, np.ndarray]:
+    with np.load(sidecar_file, allow_pickle=True) as data:
+        return {key: data[key] for key in data.files}
+
+
+def normalize_embeddings(embeddings: np.ndarray) -> np.ndarray:
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    norms[norms == 0.0] = 1.0
+    return embeddings / norms
 
 
 def _get_sample_text(sample: Dict[str, Any]) -> str:
@@ -213,7 +226,7 @@ def embed_prepared_dataset(path: Paths, data_args: DataArguments, model_args: Mo
                 continue
             text = _get_sample_text(sample)
             labels = sample.get('label', []) or []
-            encoded_labels = labeler.encode([labels]).tolist()
+            encoded_labels = labeler.encode(labels).tolist()
             cached_record = cached_embeddings.get(sample_id)
             if cached_record is not None:
                 embeddings[sample_id] = {
@@ -222,11 +235,6 @@ def embed_prepared_dataset(path: Paths, data_args: DataArguments, model_args: Mo
                             'labels': labels,
                             'label_ids': encoded_labels
                         }
-                f_out.write(
-                    json.dumps(
-                        {'id': sample_id, 'embedding': cached_record['embedding']}, ensure_ascii=False
-                    ) + '\n'
-                )
                 continue
 
             batch_ids.append(sample_id)
@@ -282,13 +290,38 @@ def _build_embedding_array_dict(embeddings: Dict[str, EmbeddingRecord]) -> Dict[
 
     vectors = np.asarray([embeddings[sample_id]['embedding'] for sample_id in ids], dtype=np.float32)
     labels = np.asarray([embeddings[sample_id].get('labels', []) for sample_id in ids], dtype=object)
-    label_ids = np.asarray([embeddings[sample_id]['label_ids'] for sample_id in ids], dtype=np.int64)
+    label_ids = np.asarray([embeddings[sample_id].get('label_ids', []) for sample_id in ids], dtype=np.int64)
     return {
         'ids': np.asarray(ids, dtype=str),
-        'embeddings': vectors,
+        'embeddings': normalize_embeddings(vectors),
         'labels': labels,
         'label_ids': label_ids,
     }
+
+
+def build_hnsw_index(data_args: DataArguments, normalized_embeddings: np.ndarray) -> faiss.IndexHNSWFlat:
+    dimension = normalized_embeddings.shape[1]
+
+    attrs = data_args.cluster.attributes
+    hnsw_m = attrs['hnsw_m'] if 'hnsw_m' in attrs else 32
+    hnsw_ef_construction = attrs['hnsw_ef_construction'] if 'hnsw_ef_construction' in attrs else 200
+    hnsw_ef_search = attrs['hnsw_ef_search'] if 'hnsw_ef_search' in attrs else 128
+    dist_metric = faiss.METRIC_INNER_PRODUCT
+    if 'hnsw_metric' in attrs:
+        dist_metric = attrs['dist_metric']
+        if dist_metric == 'l2':
+            dist_metric = faiss.METRIC_L2
+        elif dist_metric == 'ip':
+            dist_metric = faiss.METRIC_INNER_PRODUCT
+        else:
+            raise ValueError(f'Unknown hnsw_metric: {dist_metric}')
+
+    index = faiss.IndexHNSWFlat(dimension, hnsw_m, dist_metric)
+    index.hnsw.efConstruction = hnsw_ef_construction
+    index.hnsw.efSearch = hnsw_ef_search
+    # noinspection PyArgumentList
+    index.add(normalized_embeddings)
+    return index
 
 
 def store_embedding_array_dict(target_file: Path, embeddings: Dict[str, EmbeddingRecord]) -> Dict[str, np.ndarray]:
