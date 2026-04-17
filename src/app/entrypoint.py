@@ -440,9 +440,9 @@ def main(argv: List[str]) -> int:
     repo = src_dir.parent
     runtime = Runtime(
         paths=_ensure_dirs(repo, script, args.task, args.context),
-        context=args.context,
         script=script,
         task=args.task,
+        context=args.context,
         config=[Path(c).stem for c in args.config] if args.config else [],
     )
 

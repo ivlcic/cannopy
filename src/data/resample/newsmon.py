@@ -145,7 +145,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     index = build_hnsw_index(data_args, normalized)
     logger.info("Built HNSW index.")
 
-    attrs = data_args.cluster.attributes
+    attrs = data_args.sampling.attributes
     sim_threshold: float = attrs['sim_threshold'] if 'sim_threshold' in attrs else 0.99
     top_k: int = attrs['top_k'] if 'top_k' in attrs else 10
 

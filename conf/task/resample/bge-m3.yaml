@@ -1,5 +1,5 @@
 data:
-  cluster:
+  sampling:
     attributes:
       sim_threshold: 0.98
       top_k: 1000

@@ -217,6 +217,9 @@ result/**/*.xlsx
 result/**/*.zip
 result/**/*.svg
 result/**/*.npz
+result/train/**/*.bin
+result/train/**/*.safetensors
+result/train/**/*.model
 tmp/**
 result/train/token/ner.*
 result/train/ner/ner.*
