@@ -9,7 +9,7 @@ logger: Logger
 paths: Paths
 
 
-def main(data_args: DataArguments, model_args: ModelArguments) -> None:
+def dedup(data_args: DataArguments, model_args: ModelArguments) -> None:
     newsmon_.logger = logger
     newsmon_.paths = paths
-    newsmon_.main(data_args, model_args)
+    newsmon_.dedup(data_args, model_args)

@@ -343,6 +343,10 @@ def _build_parser(argv: List[str], script: str, src: Path) -> argparse.ArgumentP
             help="optional context python module under a specific task"
         )
         p.add_argument(
+            "func_name", nargs="?", default=None,
+            help="optional function name to call inside the resolved module; defaults to main"
+        )
+        p.add_argument(
             "-c", "--config", action="append", default=[], metavar="CONF.yaml",
             help="config file(s), order matters"
         )
@@ -389,27 +393,29 @@ def _inject_module_globals(module, g: Dict[str, Any]) -> None:
         setattr(module, k, v)
 
 
-def _call_module(script: str, task: str, context: str | None, module_globals: Dict[str, Any]) -> int:
+def _call_module(script: str, task: str, context: str | None, func_name: str | None,
+                 module_globals: Dict[str, Any]) -> int:
     # Try script.task.context first if context present and module exists
     # noinspection PyTypeChecker
     base_dir = os.path.basename(os.path.dirname(os.path.dirname(__file__)))
     fn = None
     mod = None
+    target_func_name = func_name or "main"
     if context:
         mod_name = f"{base_dir}.{script}.{task}.{context}".replace('-', '_')
         if _module_exists(mod_name):
             mod = importlib.import_module(mod_name)
-            fn = getattr(mod, "main", None)
+            fn = getattr(mod, target_func_name, None)
         else:
             pkg_path = f"{script}.{task}".replace('-', '_')
             if _module_exists(pkg_path, None):
                 mod = importlib.import_module(pkg_path)
-                fn = getattr(mod, context, None)
+                fn = getattr(mod, func_name or context, None)
     else:
         pkg_path = f"{base_dir}.{script}.{task}".replace('-', '_')
         if _module_exists(pkg_path):
             mod = importlib.import_module(pkg_path)
-            fn = getattr(mod, "main", None)
+            fn = getattr(mod, target_func_name, None)
 
     if mod is not None and fn is not None and callable(fn):
         # inject module globals
@@ -422,7 +428,7 @@ def _call_module(script: str, task: str, context: str | None, module_globals: Di
         # noinspection PyCallingNonCallable
         return fn(**kwargs)
 
-    raise ImportError(f"No module to execute for {script} {task} {context or ''}")
+    raise ImportError(f"No module to execute for {script} {task} {context or ''} {func_name or ''}".strip())
 
 
 def main(argv: List[str]) -> int:
@@ -443,6 +449,7 @@ def main(argv: List[str]) -> int:
         script=script,
         task=args.task,
         context=args.context,
+        func_name=args.func_name,
         config=[Path(c).stem for c in args.config] if args.config else [],
     )
 
@@ -468,7 +475,7 @@ def main(argv: List[str]) -> int:
     }
 
     # Execute
-    return _call_module(script, args.task, args.context, module_globals)
+    return _call_module(script, args.task, args.context, args.func_name, module_globals)
 
 
 # Keep imports needed by main at bottom to avoid circular

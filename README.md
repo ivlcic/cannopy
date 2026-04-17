@@ -174,11 +174,12 @@ Prepare EURLEX57K dataset:
 ./data prepare eurlex
 ./data embed eurlex -c bge-m3.yaml
 # remove duplicates from the dataset (that's why we need to embed)
-./data resample eurlex -c bge-m3.yaml
+./data resample eurlex dedup -c bge-m3.yaml
 ./data analyze eurlex
 ./data split eurlex
 # repeat embedding step with deduplicated data
 ./data embed eurlex -c bge-m3.yaml
+./data sample eurlex hard_neg -c bge-m3.yaml
 ```
 
 Prepare Slovene NewsMon dataset:
@@ -189,11 +190,12 @@ note: (due to a license, you need a password to decrypt the archive):
 ./data prepare newsmon -c sl.yaml
 ./data embed newsmon -c sl.yaml -c bge-m3.yaml
 # remove duplicates from the dataset (that's why we need to embed)
-./data resample newsmon -c sl.yaml -c bge-m3.yaml
+./data resample newsmon dedup -c sl.yaml -c bge-m3.yaml
 ./data analyze newsmon -c sl.yaml
 ./data split newsmon -c sl.yaml
 # repeat embedding step with deduplicated data
 ./data embed newsmon -c sl.yaml -c bge-m3.yaml
+./data sample newsmon hard_neg -c sl.yaml -c bge-m3.yaml
 ```
 
 Prepare Serbian NewsMon_sr dataset:
@@ -202,11 +204,12 @@ Prepare Serbian NewsMon_sr dataset:
 ./data prepare newsmon -c sr.yaml
 ./data embed newsmon -c sr.yaml -c bge-m3.yaml
 # remove duplicates from the dataset (that's why we need to embed)
-./data resample newsmon -c sr.yaml -c bge-m3.yaml
+./data resample newsmon dedup -c sr.yaml -c bge-m3.yaml
 ./data analyze newsmon -c sr.yaml
 ./data split newsmon -c sr.yaml
 # repeat embedding step with deduplicated data
 ./data embed newsmon -c sr.yaml -c bge-m3.yaml
+./data sample newsmon hard_neg -c sr.yaml -c bge-m3.yaml
 ```
 
 Prepare Macedonian NewsMon_mk dataset:
@@ -215,11 +218,12 @@ Prepare Macedonian NewsMon_mk dataset:
 ./data prepare newsmon -c mk.yaml
 ./data embed newsmon -c mk.yaml -c bge-m3.yaml
 # remove duplicates from the dataset (that's why we need to embed)
-./data resample newsmon -c mk.yaml -c bge-m3.yaml
+./data resample newsmon dedup -c mk.yaml -c bge-m3.yaml
 ./data analyze newsmon -c mk.yaml
 ./data split newsmon -c mk.yaml
 # repeat embedding step with deduplicated data
 ./data embed newsmon -c mk.yaml -c bge-m3.yaml
+./data sample newsmon hard_neg -c mk.yaml -c bge-m3.yaml
 ```
 
 ## 5. News Stories

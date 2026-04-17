@@ -67,4 +67,5 @@ class Runtime:
     context: str
     script: str
     task: str
+    func_name: str | None
     config: List[str]

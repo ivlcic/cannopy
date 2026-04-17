@@ -121,7 +121,7 @@ def _write_duplicates_csv(target_file: Path, sidecar: dict[str, np.ndarray], emb
 
 
 # noinspection DuplicatedCode
-def main(data_args: DataArguments, model_args: ModelArguments) -> None:
+def dedup(data_args: DataArguments, model_args: ModelArguments) -> None:
     subset = get_subset_name(data_args)
 
     embed_dir = paths.get_ctx_path('embed')

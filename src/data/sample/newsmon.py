@@ -50,7 +50,7 @@ def _target_file_name(data_args: DataArguments, model_args: ModelArguments) -> s
 
 
 # noinspection DuplicatedCode
-def main(data_args: DataArguments, model_args: ModelArguments) -> None:
+def hard_neg(data_args: DataArguments, model_args: ModelArguments) -> None:
     prepare_dir = paths.get_ctx_path('prepare')
     source_file, _ = get_subset_paths(data_args, prepare_dir)
     if not source_file.exists():
