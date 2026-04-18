@@ -76,7 +76,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         eval_dataset=datasets['test'],
         data_collator=collator,
         processing_class=tokenizer,
-        compute_metrics=metrics.compute_metrics,
+        compute_metrics=metrics,
     )
     metrics = trainer.evaluate()
     log = trainer.state.log_history[0]

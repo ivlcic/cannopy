@@ -266,7 +266,7 @@ class BGEM3Model(nn.Module):
 
                     loss = self.compute_loss(cross_dense_scores, cross_targets)
                 else:
-                    group_size = idxs * (p_dense_vecs.size(0) // q_dense_vecs.size(0))
+                    group_size = p_dense_vecs.size(0) // q_dense_vecs.size(0)
                     targets = idxs * group_size  # (batch_size)
                     loss = self.compute_loss(dense_scores, targets)
 
@@ -369,5 +369,4 @@ class BGEM3ForInference(BGEM3Model):
                 output['colbert_vecs'] = torch.nn.functional.normalize(output['colbert_vecs'], dim=-1)
 
         return output
-
 

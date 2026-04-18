@@ -175,8 +175,8 @@ Prepare EURLEX57K dataset:
 ./data embed eurlex -c bge-m3.yaml
 # remove duplicates from the dataset (that's why we need to embed)
 ./data resample eurlex dedup -c bge-m3.yaml
-./data analyze eurlex
 ./data split eurlex
+./data analyze eurlex
 # repeat embedding step with deduplicated data
 ./data embed eurlex -c bge-m3.yaml
 ./data sample eurlex hard_neg -c bge-m3.yaml
@@ -191,8 +191,8 @@ note: (due to a license, you need a password to decrypt the archive):
 ./data embed newsmon -c sl.yaml -c bge-m3.yaml
 # remove duplicates from the dataset (that's why we need to embed)
 ./data resample newsmon dedup -c sl.yaml -c bge-m3.yaml
-./data analyze newsmon -c sl.yaml
 ./data split newsmon -c sl.yaml
+./data analyze newsmon -c sl.yaml
 # repeat embedding step with deduplicated data
 ./data embed newsmon -c sl.yaml -c bge-m3.yaml
 ./data sample newsmon hard_neg -c sl.yaml -c bge-m3.yaml
@@ -205,8 +205,8 @@ Prepare Serbian NewsMon_sr dataset:
 ./data embed newsmon -c sr.yaml -c bge-m3.yaml
 # remove duplicates from the dataset (that's why we need to embed)
 ./data resample newsmon dedup -c sr.yaml -c bge-m3.yaml
-./data analyze newsmon -c sr.yaml
 ./data split newsmon -c sr.yaml
+./data analyze newsmon -c sr.yaml
 # repeat embedding step with deduplicated data
 ./data embed newsmon -c sr.yaml -c bge-m3.yaml
 ./data sample newsmon hard_neg -c sr.yaml -c bge-m3.yaml
@@ -219,8 +219,8 @@ Prepare Macedonian NewsMon_mk dataset:
 ./data embed newsmon -c mk.yaml -c bge-m3.yaml
 # remove duplicates from the dataset (that's why we need to embed)
 ./data resample newsmon dedup -c mk.yaml -c bge-m3.yaml
-./data analyze newsmon -c mk.yaml
 ./data split newsmon -c mk.yaml
+./data analyze newsmon -c mk.yaml
 # repeat embedding step with deduplicated data
 ./data embed newsmon -c mk.yaml -c bge-m3.yaml
 ./data sample newsmon hard_neg -c mk.yaml -c bge-m3.yaml

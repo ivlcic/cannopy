@@ -4,10 +4,10 @@ from typing import Any, Optional
 
 import numpy as np
 
-from app.args.model import ModelArguments
 from ..embed.newsmon import load_embedding_sidecar, build_hnsw_index
 from ..prepare.newsmon import get_subset_name, get_subset_data_path, get_sidecar_name
 from ...app.args.data import DataArguments
+from ...app.args.model import ModelArguments
 from ...app.args.runtime import Paths
 from ...app.helpers import JsonlLoader
 

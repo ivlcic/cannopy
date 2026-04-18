@@ -1,18 +1,21 @@
 import csv
-import torch
+import json
 import logging
 
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
+
+import torch
 
 from torch.utils.data import Dataset
 from transformers.utils import ExplicitEnum
 
-from app.labeler import MulticlassLabeler
+from app.labeler import MulticlassLabeler, MultilabelLabeler
 
 logger = logging.getLogger('core.dataset')
 
 TextSample = Tuple[List[str], List[str]]
+SequenceSample = Tuple[str, List[str]]
 
 
 class SubtokenLabelingStrategy(ExplicitEnum):
@@ -99,6 +102,29 @@ class NerDataset(ClassificationDataset):
         return encoding
 
 
+class MultilabelSequenceDataset(ClassificationDataset):
+
+    def __init__(self, tokenizer, max_seq_len: int, labeler: MultilabelLabeler, samples: List[SequenceSample]):
+        super().__init__(tokenizer, max_seq_len, labeler)
+        self.samples = samples
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        text, labels = self.samples[idx]
+        encoding = self.tokenizer(
+            text,
+            truncation=True,
+            max_length=self.max_seq_len,
+            return_attention_mask=True,
+        )
+        encoding['labels'] = torch.tensor(self.labeler.encode(labels), dtype=torch.float32)
+        encoding['input_ids'] = torch.tensor(encoding['input_ids'], dtype=torch.long)
+        encoding['attention_mask'] = torch.tensor(encoding['attention_mask'], dtype=torch.long)
+        return encoding
+
+
 # noinspection PyMethodMayBeStatic
 class NerSamplesLoader:
 
@@ -171,5 +197,105 @@ class NerSamplesLoader:
                 len(self.samples_by_lang[split]),
                 split
             )
+            datasets[split] = dataset
+        return datasets
+
+
+class NewsmonSamplesLoader:
+
+    @staticmethod
+    def _sample_text(sample: Dict[str, Any]) -> str:
+        text = sample.get('text', '')
+        if text:
+            return str(text)
+        title = sample.get('title', {}).get('text', '') or ''
+        body = sample.get('body', {}).get('text', '') or ''
+        if title and body:
+            return f'{title}\n\n{body}'
+        return title or body
+
+    def _load_split_file(self, path: Path) -> List[SequenceSample]:
+        samples: List[SequenceSample] = []
+        if not path.exists():
+            return samples
+        with path.open('r', encoding='utf-8') as f:
+            for line_no, line in enumerate(f, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    sample = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f'Malformed JSON in {path} line {line_no}') from exc
+                text = self._sample_text(sample)
+                labels = sample.get('label', []) or []
+                if not text or not labels:
+                    continue
+                samples.append((text, labels))
+        return samples
+
+    @staticmethod
+    def _collect_labels(samples: List[SequenceSample]) -> List[str]:
+        labels = set()
+        for _, sample_labels in samples:
+            labels.update(sample_labels)
+        return list(labels)
+
+    def _filter_unknown_labels(self, split: str) -> None:
+        filtered_samples: List[SequenceSample] = []
+        dropped_labels = 0
+        skipped_samples = 0
+        known_labels = set(self.labeler.classes)
+        for text, labels in self.samples_by_split[split]:
+            filtered = [label for label in labels if label in known_labels]
+            dropped_labels += len(labels) - len(filtered)
+            if not filtered:
+                skipped_samples += 1
+                continue
+            filtered_samples.append((text, filtered))
+        self.samples_by_split[split] = filtered_samples
+        if dropped_labels > 0 or skipped_samples > 0:
+            logger.warning(
+                'Filtered %d unseen labels and skipped %d %s samples with no train-known labels left',
+                dropped_labels,
+                skipped_samples,
+                split,
+            )
+
+    def __init__(self, path: Path, subset: str) -> None:
+        self.path = path
+        self.splits = ['train', 'eval', 'test']
+        self.subset = subset
+        self.samples_by_split: Dict[str, List[SequenceSample]] = {}
+
+        for split in self.splits:
+            file_path = path / f'{subset}.{split}.jsonl'
+            split_samples = self._load_split_file(file_path)
+            if not split_samples:
+                logger.warning('No %s samples found for subset %s at %s', split, subset, file_path)
+                continue
+            logger.info('Loaded %s %d samples for %s', split, len(split_samples), subset)
+            self.samples_by_split[split] = split_samples
+
+        for split in self.splits:
+            if split not in self.samples_by_split:
+                raise ValueError(f'No {split} samples loaded from {path} for subset {subset}')
+
+        self.label_list = self._collect_labels(self.samples_by_split['train'])
+        self.labeler = MultilabelLabeler(self.label_list)
+        for split in self.splits:
+            if split != 'train':
+                self._filter_unknown_labels(split)
+
+    def create_split_datasets(self, tokenizer, max_seq_length: int = 512) -> Dict[str, Dataset]:
+        datasets: Dict[str, Dataset] = {}
+        for split in self.splits:
+            dataset = MultilabelSequenceDataset(
+                tokenizer,
+                max_seq_length,
+                self.labeler,
+                self.samples_by_split[split]
+            )
+            logger.info('Prepared %d samples for %s split', len(dataset), split)
             datasets[split] = dataset
         return datasets

@@ -1,11 +1,5 @@
 data:
   sampling:
     attributes:
-      sim_threshold: 0.98
-      top_k: 1000
-      hard_neg_k: 15
-      split: train
-      dist_metric: ip
-      hnsw_m: 32
-      hnsw_ef_construction: 200
-      hnsw_ef_search: 128
+      sim_threshold: 0.99999
+      top_k: 100

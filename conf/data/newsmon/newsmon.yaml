@@ -5,6 +5,12 @@ data:
     eval: 0.1
     test: 0.1
     seed: 2611
+  sampling:
+    attributes:
+      dist_metric: ip
+      hnsw_m: 32
+      hnsw_ef_construction: 200
+      hnsw_ef_search: 128
   source:
     select:
       filter:

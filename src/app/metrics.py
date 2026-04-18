@@ -4,13 +4,18 @@ import evaluate
 import numpy as np
 
 from typing import Optional, Literal, Dict, Any
+
+import torch
 from numpy import floating
-from sklearn.metrics import ndcg_score, precision_score, recall_score, f1_score, accuracy_score, hamming_loss
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, hamming_loss
+from transformers import EvalPrediction
 
 
 class MetricsAtK:
 
     def __init__(self, y_true: np.ndarray, y_prob: np.ndarray, k: Optional[int] = None):
+        y_true = np.nan_to_num(np.asarray(y_true, dtype=np.float32), nan=0.0)
+        y_prob = np.nan_to_num(np.asarray(y_prob, dtype=np.float32), nan=0.0)
         n_samples = y_true.shape[0]
         self.mean_r_precision = 0
         self.mean_recall = 0
@@ -20,33 +25,44 @@ class MetricsAtK:
         self.r_precisions = np.zeros(n_samples)
         self.recalls = np.zeros(n_samples)
         self.precisions = np.zeros(n_samples)
+        self.ndcgs = np.zeros(n_samples)
 
         for i in range(n_samples):
-            y_true[i][np.isnan(y_true[i])] = 0
-            y_prob[i][np.isnan(y_prob[i])] = 0
-            # Total number of relevant items for this sample
-            total_relevant = np.sum(y_true[i])
-            if k is not None:
-                total_relevant_at_k = min(total_relevant, k)
+            row_true = y_true[i]
+            row_prob = y_prob[i]
+            total_relevant = int(np.sum(row_true))
+            effective_k = total_relevant if self.k is None else min(int(self.k), row_prob.shape[0])
+            total_relevant_at_k = total_relevant if self.k is None else min(total_relevant, effective_k)
+
+            if effective_k > 0:
+                top_k_indices = np.argsort(row_prob)[::-1][:effective_k]
+                relevant_in_k = float(np.sum(row_true[top_k_indices]))
+                dcg = self._dcg_at_k(row_true[top_k_indices])
             else:
-                k = int(total_relevant)  # here it becomes recall
-                total_relevant_at_k = total_relevant
+                relevant_in_k = 0.0
+                dcg = 0.0
 
-            # Get top K indices for this sample
-            top_k_indices = np.argsort(y_prob[i])[::-1][:k]
-
-            # Count relevant items in top-K
-            relevant_in_k = np.sum(y_true[i][top_k_indices])
-
-            # Compute metrics for this sample
-            self.r_precisions[i] = relevant_in_k / total_relevant_at_k if total_relevant_at_k > 0 else 0
-            self.recalls[i] = relevant_in_k / total_relevant if total_relevant > 0 else 0
-            self.precisions[i] = relevant_in_k / k if k > 0 else 0
+            self.r_precisions[i] = relevant_in_k / total_relevant_at_k if total_relevant_at_k > 0 else 0.0
+            self.recalls[i] = relevant_in_k / total_relevant if total_relevant > 0 else 0.0
+            self.precisions[i] = relevant_in_k / effective_k if effective_k > 0 else 0.0
+            self.ndcgs[i] = dcg / self._ideal_dcg_at_k(total_relevant_at_k) if total_relevant_at_k > 0 else 0.0
 
         self.mean_r_precision = np.mean(self.r_precisions)
         self.mean_recall = np.mean(self.recalls)
         self.mean_precision = np.mean(self.precisions)
-        self.ndcg = ndcg_score(y_true, y_prob, k=self.k)
+        self.ndcg = np.mean(self.ndcgs)
+
+    @staticmethod
+    def _dcg_at_k(relevance: np.ndarray) -> float:
+        discounts = np.log2(np.arange(2, relevance.shape[0] + 2, dtype=np.float32))
+        return float(np.sum(relevance / discounts))
+
+    @classmethod
+    def _ideal_dcg_at_k(cls, total_relevant_at_k: int) -> float:
+        if total_relevant_at_k <= 0:
+            return 0.0
+        ideal_relevance = np.ones(total_relevant_at_k, dtype=np.float32)
+        return cls._dcg_at_k(ideal_relevance)
 
     def todict(self, prefix: str = '') -> dict[str, floating[Any] | Any]:
         suffix = f'@{self.k}' if self.k is not None else ''
@@ -62,6 +78,7 @@ class TokenClassificationMetrics:
     def __init__(self, id2label, ignore_index=-100):
         self.id2label = id2label
         self.ignore_index = ignore_index
+        self.log_epochs = []
         self.seqeval = evaluate.load("seqeval")
 
     def align_predictions(self, predictions, label_ids):
@@ -85,7 +102,7 @@ class TokenClassificationMetrics:
 
         return true_preds, true_labels
 
-    def compute_metrics(self, eval_pred):
+    def __call__(self, eval_pred):
         predictions, labels = eval_pred
         preds_list, labels_list = self.align_predictions(predictions, labels)
         results = self.seqeval.compute(
@@ -93,10 +110,10 @@ class TokenClassificationMetrics:
             references=labels_list
         )
         metrics = {
-            "precision": results["overall_precision"],
-            "recall": results["overall_recall"],
+            "p": results["overall_precision"],
+            "r": results["overall_recall"],
             "f1": results["overall_f1"],
-            "accuracy": results["overall_accuracy"],
+            "acc": results["overall_accuracy"],
         }
         for label, label_metrics in results.items():
             if label.startswith("overall"):
@@ -105,9 +122,10 @@ class TokenClassificationMetrics:
                 continue
             if "precision" not in label_metrics:
                 continue
-            metrics[f"label.{label}.precision"] = label_metrics["precision"]
-            metrics[f"label.{label}.recall"] = label_metrics["recall"]
+            metrics[f"label.{label}.p"] = label_metrics["precision"]
+            metrics[f"label.{label}.r"] = label_metrics["recall"]
             metrics[f"label.{label}.f1"] = label_metrics["f1"]
+        self.log_epochs.append(metrics)
         return metrics
 
 
@@ -121,8 +139,7 @@ class Metrics:
         self.k_values = [1, 3, 5, 7, 9]
         self.avg_k = avg_k
 
-    # noinspection DuplicatedCode
-    def __call__(self, y_true: np.ndarray, y_prob: np.ndarray, prefix: str = '', prob_threshold: float = 0.5):
+    def compute_metrics(self, y_true: np.ndarray, y_prob: np.ndarray, prefix: str = '', prob_threshold: float = 0.5):
         if self.prob_type == 'multilabel':
             y_pred = (y_prob > prob_threshold).astype(np.float32)
         else:
@@ -160,23 +177,25 @@ class Metrics:
         self.log_epochs.append(metric)
         return metric
 
-    def dump(self, result_path: str, meta_data: Optional[Dict[str, Any]], task: Optional[Any] = None,
-             multiplier: int = 1):
-        if meta_data is None:
-            meta_data = {}
-        if multiplier != 1:
-            log_epochs = []
-            for epoch in self.log_epochs:
-                e = {}
-                for k, v in epoch.items():
-                    e[k] = v * multiplier
-                log_epochs.append(e)
+    def preprocess_logits(self, logits: torch.Tensor, _: torch.Tensor):
+        if isinstance(logits, tuple):
+            logits = logits[0]
+        if self.prob_type == 'multilabel':
+            prob = torch.sigmoid(logits)
         else:
-            log_epochs = self.log_epochs
-        result = {'epochs': log_epochs, 'model_name': self.model_name} | meta_data
-        json_file = os.path.join(result_path, self.model_name + '_metrics.json')
-        with open(json_file, 'w', encoding='utf-8') as fp:
-            json.dump(result, fp, ensure_ascii=False, indent=2, sort_keys=False)
+            prob = torch.softmax(logits, dim=-1)
+        return prob
+
+    def __call__(self, eval_pred: EvalPrediction):
+        y_true = eval_pred.label_ids
+        y_prob = eval_pred.predictions
+        return self.compute_metrics(y_true, y_prob)
+
+
+class MultilabelSequenceMetrics(Metrics):
+
+    def __init__(self, model_name: str, avg_k: Optional[int] = None):
+        super().__init__(model_name=model_name, prob_type='multilabel', avg_k=avg_k)
 
 
 # noinspection DuplicatedCode
@@ -192,29 +211,5 @@ def r_precision_at_k(y_true: np.ndarray, y_pred: np.ndarray, k: Optional[int]):
     Returns:
     Array of Recall@K scores for each sample and the mean Recall@K.
     """
-    n_samples = y_true.shape[0]
-    r_precisions = np.zeros(n_samples)
-
-    for i in range(n_samples):
-        # Total number of relevant items for this sample
-        total_relevant = np.sum(y_true[i])
-        if k is not None:
-            total_relevant = min(total_relevant, k)
-        else:
-            k = total_relevant  # here it becomes recall
-
-        # Get top K indices for this sample
-        top_k_indices = np.argsort(y_pred[i])[::-1][:k]
-
-        # Count relevant items in top K
-        relevant_in_k = np.sum(y_true[i][top_k_indices])
-
-        # Compute Recall@K for this sample
-        if total_relevant > 0:
-            r_precisions[i] = relevant_in_k / total_relevant
-        else:
-            r_precisions[i] = 0  # If no relevant items, recall is 0
-
-    # Compute mean Recall@K
-    mean_r_precision = np.mean(r_precisions)
-    return mean_r_precision, r_precisions
+    metrics = MetricsAtK(y_true, y_pred, k)
+    return metrics.mean_r_precision, metrics.r_precisions

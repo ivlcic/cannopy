@@ -139,7 +139,7 @@ def dedup(data_args: DataArguments, model_args: ModelArguments) -> None:
     prepare_dir = paths.get_ctx_path('prepare')
     duplicates_file = prepare_dir / f"{subset}.duplicates.csv"
     logger.info(
-        "Writing near-duplicate pairs at similarity >= %.2f and top-k %s to %s ...",
+        "Writing near-duplicate pairs at similarity >= %.4f and top-k %s to %s ...",
         sim_threshold,
         top_k,
         duplicates_file
@@ -148,7 +148,7 @@ def dedup(data_args: DataArguments, model_args: ModelArguments) -> None:
         duplicates_file, sidecar, embeddings, index, top_k, sim_threshold
     )
     logger.info(
-        "Wrote %d near-duplicate pairs at similarity >= %.2f and top-k %s to %s",
+        "Wrote %d near-duplicate pairs at similarity >= %.4f and top-k %s to %s",
         duplicate_count,
         sim_threshold,
         top_k,

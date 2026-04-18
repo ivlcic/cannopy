@@ -337,7 +337,13 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
     embeddings = embed_prepared_dataset(paths, data_args, model_args, logger)
     target_index_file = paths.context / get_sidecar_name(data_args, model_args)
     logger.info('Writing embedding array sidecar: %s ...', target_index_file)
-    store_embedding_array_dict(target_index_file, embeddings)
+    embedding_array_dict = store_embedding_array_dict(target_index_file, embeddings)
+    logger.info(
+        'Embedding array sidecar written: %s {ids: %d, embeddings: %s, labels: %d, label_ids: %s}',
+        target_index_file,
+        len(embedding_array_dict['ids']), embedding_array_dict['embeddings'].shape,
+        len(embedding_array_dict['labels']), embedding_array_dict['label_ids'].shape,
+    )
 
     split_dir = paths.get_ctx_path('split')
     if not split_dir.exists():
@@ -349,5 +355,12 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             continue
         split_embeddings = collect_split_embeddings(split_source_file, embeddings)
         split_index_file = split_dir / get_sidecar_name(data_args, model_args, split_name)
-        logger.info('Writing embedding array sidecar: %s', split_index_file)
-        store_embedding_array_dict(split_index_file, split_embeddings)
+        logger.info('Writing embedding split %s array sidecar: %s', split_name, split_index_file)
+        embedding_array_dict = store_embedding_array_dict(split_index_file, split_embeddings)
+        logger.info(
+            'Embedding split %s array sidecar written: %s {ids: %d, embeddings: %s, labels: %d, label_ids: %s}',
+            split_name,
+            target_index_file,
+            len(embedding_array_dict['ids']), embedding_array_dict['embeddings'].shape,
+            len(embedding_array_dict['labels']), embedding_array_dict['label_ids'].shape,
+        )
