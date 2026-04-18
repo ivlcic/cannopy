@@ -11,6 +11,7 @@ from dateutil.relativedelta import relativedelta
 from ...app.args.data import DataArguments
 from ...app.args.model import ModelArguments
 from ...app.args.runtime import Paths
+from ...app.helpers import JsonIdHelper
 
 logger: Logger
 paths: Paths
@@ -181,6 +182,8 @@ def collect_subset(data_args: DataArguments,
 
     samples: List[Dict[str, Any]] = []
     label_counts: Counter = Counter()
+    seen_ids: set[str] = set()
+    skipped_duplicate_ids = 0
 
     for postfix in _iter_selected_months(data_args):
         data_file = source_dir / f'data_{postfix}.jsonl'
@@ -193,25 +196,32 @@ def collect_subset(data_args: DataArguments,
         article_map = read_csv_to_dict(map_file)
         with data_file.open('r', encoding='utf-8') as f_in:
             for line_no, line in enumerate(f_in, start=1):
-                line = line.strip()
-                if not line:
+                article, article_id = JsonIdHelper.read_sample(line, line_no, data_file)
+                if article is None or article_id is None:
                     continue
-                try:
-                    article = json.loads(line)
-                except json.JSONDecodeError as exc:
-                    raise ValueError(f'Malformed JSON in {data_file} line {line_no}') from exc
 
                 if _filter_out_sample(data_args, article):
                     continue
 
-                article_id = article.get('id', '')
                 if article_id not in article_map:
                     logger.warning('Missing article map for %s in %s line %d', article_id, data_file.name, line_no)
                     continue
 
                 sample = _build_sample(article, article_map[article_id], media_map, labels_map)
+                sample_id = str(sample.get('id', ''))
+                if not sample_id:
+                    logger.warning('Missing sample id for article %s in %s line %d', article_id, data_file.name, line_no)
+                    continue
+                if sample_id in seen_ids:
+                    skipped_duplicate_ids += 1
+                    logger.warning('Skipping duplicate sample id %s in %s line %d', sample_id, data_file.name, line_no)
+                    continue
+                seen_ids.add(sample_id)
                 samples.append(sample)
                 label_counts.update(sample['label'])
+
+    if skipped_duplicate_ids > 0:
+        logger.info('Skipped %d duplicate sample ids while preparing %s', skipped_duplicate_ids, data_args.dataset_name)
 
     return samples, labels_map, label_counts
 
