@@ -1,11 +1,11 @@
 import os
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import torch
 from torch.utils.data import Dataset
-from transformers import Trainer, TrainingArguments
+from transformers import Trainer, TrainingArguments, PreTrainedModel
 
 from ...app.args.data import DataArguments
 from ...app.args.model import ModelArguments
@@ -53,14 +53,14 @@ class HardNegativeCollator:
     def __call__(self, features: list[dict[str, Any]]) -> Dict[str, Dict[str, torch.Tensor]]:
         queries = [feature['query'] for feature in features]
         passages = [passage for feature in features for passage in feature['passages']]
-        query_batch = self.tokenizer(
+        query_batch: Dict[str, torch.Tensor] = self.tokenizer(
             queries,
             padding=True,
             truncation=True,
             max_length=self.query_max_length,
             return_tensors='pt',
         )
-        passage_batch = self.tokenizer(
+        passage_batch: Dict[str, torch.Tensor] = self.tokenizer(
             passages,
             padding=True,
             truncation=True,
@@ -76,9 +76,15 @@ class HardNegativeCollator:
 class BGEM3Trainer(Trainer):
     def _save(self, output_dir: Optional[str] = None, state_dict=None) -> None:
         del state_dict
-        output_dir = output_dir or self.args.output_dir
+        # noinspection PyTypeChecker, PyUnresolvedReferences
+        output_dir: Union[str, Path] = output_dir or self.args.output_dir
         os.makedirs(output_dir, exist_ok=True)
-        model = self.accelerator.unwrap_model(self.model) if hasattr(self, 'accelerator') else self.model
+        # noinspection PyTypeChecker
+        if hasattr(self, 'accelerator'):
+            model: torch.nn.Module = self.accelerator.unwrap_model(self.model)
+        else:
+            # noinspection PyTypeChecker
+            model: Union[PreTrainedModel, torch.nn.Module] = self.model
         model.save(output_dir)
         if self.processing_class is not None:
             self.processing_class.save_pretrained(output_dir)
