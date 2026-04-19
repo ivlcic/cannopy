@@ -95,6 +95,15 @@ Now we can also run evaluation:
 ```
 
 
+### 2.3 SDTJ Paper Experiments
+
+```shell
+./data resample ner-sdjt -c ner
+./data analyze ner-sdjt -c ner
+./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi8
+./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi12-sl-p50
+```
+
 ### 2.3 Submit to [Slobench](https://slobench.cjvt.si/)
 
 ```shell

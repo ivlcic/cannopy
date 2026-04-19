@@ -156,6 +156,27 @@ def _load_and_merge_configs(conf_dir: Path, task: str, context: str, extra_confs
     return merged, loaded_files
 
 
+def _apply_cli_overrides(merged: Dict[str, Any], overrides: List[str]) -> Dict[str, Any]:
+    updated = dict(merged)
+    for override in overrides:
+        if "=" not in override:
+            raise ValueError(f"Invalid override {override!r}. Expected dotted.path=value.")
+        dotted_path, raw_value = override.split("=", 1)
+        keys = [part.strip() for part in dotted_path.split(".") if part.strip()]
+        if not keys:
+            raise ValueError(f"Invalid override {override!r}. Expected dotted.path=value.")
+        value = yaml.safe_load(raw_value)
+        cursor = updated
+        for key in keys[:-1]:
+            next_value = cursor.get(key)
+            if not isinstance(next_value, dict):
+                next_value = {}
+                cursor[key] = next_value
+            cursor = next_value
+        cursor[keys[-1]] = value
+    return updated
+
+
 # ---------------------------
 # Hugging Face args parsing
 # ---------------------------
@@ -350,6 +371,10 @@ def _build_parser(argv: List[str], script: str, src: Path) -> argparse.ArgumentP
             "-c", "--config", action="append", default=[], metavar="CONF.yaml",
             help="config file(s), order matters"
         )
+        p.add_argument(
+            "-s", "--set", action="append", default=[], metavar="PATH=VALUE",
+            help="override merged config values, e.g. -s data.attributes.run_name=multi8"
+        )
     return parser
 
 
@@ -455,6 +480,7 @@ def main(argv: List[str]) -> int:
 
     # Load and merge config
     merged_cfg, loaded = _load_and_merge_configs(paths["conf"], args.task, args.context, args.config)
+    merged_cfg = _apply_cli_overrides(merged_cfg, args.set)
 
     # Hugging Face args
     model_args, data_args, training_args, extras = _parse_hf_args(merged_cfg)
@@ -462,6 +488,8 @@ def main(argv: List[str]) -> int:
     # Logging
     logger, run_name = _config_logger(args, script, runtime.paths.base.log)
     logger.info("Loaded config files: %s", [str(x) for x in loaded])
+    if args.set:
+        logger.info("Applied CLI overrides: %s", args.set)
 
     # Prepare globals for the module
     module_globals = {

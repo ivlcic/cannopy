@@ -38,7 +38,6 @@ def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: Tr
 # noinspection DuplicatedCode
 def main(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments) -> None:
     logger.info('Training NER')
-
     data_root, cache_root = init_dirs(paths)
     train_args.output_dir = str(compute_output_dir(model_args, data_args, train_args))
     languages = data_args.subdata_order or []
