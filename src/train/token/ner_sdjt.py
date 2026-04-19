@@ -18,17 +18,14 @@ from ...app.dataset import NerDataset, NerSamplesLoader
 from ...app.args.model import ModelArguments
 from ...app.args.runtime import Paths
 from ...app.metrics import TokenClassificationMetrics
-from ...data.resample.ner_sdjt import (
-    RunSpec,
-    resolve_run_spec,
-)
+from ...data.resample.ner_sdjt import RunSpec, available_run_names, resolve_run_spec_from_name
 
 logger: Logger
 paths: Paths
 
 
-def init_dirs(p: Paths, data_args: DataArguments) -> tuple[Path, Path]:
-    data_root = p.get_script_ctx_path("data", "split")
+def init_dirs(p: Paths, run_nam: str) -> tuple[Path, Path]:
+    data_root = p.get_script_ctx_path("data", "split") / run_nam
     if not data_root.exists():
         raise EnvironmentError(f"Split data not found at {data_root}. Run `./data resample {p.curr_context}` first.")
     cache_root = p.base.tmp / "cache"
@@ -38,26 +35,26 @@ def init_dirs(p: Paths, data_args: DataArguments) -> tuple[Path, Path]:
     return data_root, cache_root
 
 
-def compute_output_dir(
-    m_args: ModelArguments,
-    d_args: DataArguments,
-    t_args: TrainingArguments,
-    run_spec: RunSpec,
-) -> Path:
-    model_name = f"{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}"
-    output_dir = paths.context / run_spec.run_name / model_name
+def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments,
+                       run_spec: RunSpec) -> Path:
+    model_name = (f"{d_args.dataset_name}.{run_spec.run_name}.{m_args.short_name}"
+                  f".b{t_args.train_batch_size}.lr{t_args.learning_rate}")
+    output_dir = paths.context / model_name
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
 
 class MacroEvalTrainer(Trainer):
     def __init__(self, *args, eval_datasets_by_name: Optional[Mapping[str, Dataset]] = None, **kwargs):
+        # noinspection PyArgumentList
         super().__init__(*args, **kwargs)
         self.eval_datasets_by_name = dict(eval_datasets_by_name or {})
 
     def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix: str = "eval"):
         if eval_dataset is not None or not self.eval_datasets_by_name:
-            return super().evaluate(eval_dataset=eval_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
+            return super().evaluate(
+                eval_dataset=eval_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
+            )
 
         aggregated_metrics: Dict[str, float] = {}
         macro_f1_values = []
@@ -79,22 +76,14 @@ class MacroEvalTrainer(Trainer):
         return aggregated_metrics
 
 
-def build_eval_datasets(
-    tokenizer,
-    max_seq_length: int,
-    ner_samples: NerSamplesLoader,
-) -> Dict[str, Dataset]:
+def build_eval_datasets(tokenizer, max_seq_length: int, ner_samples: NerSamplesLoader) -> Dict[str, Dataset]:
     return {
         lang: NerDataset(tokenizer, max_seq_length, ner_samples.labeler, list(sentences))
         for lang, sentences in ner_samples.samples_by_lang["eval"].items()
     }
 
 
-def load_model_and_tokenizer(
-    model_args: ModelArguments,
-    cache_root: Path,
-    labeler,
-):
+def load_model_and_tokenizer(model_args: ModelArguments, cache_root: Path, labeler):
     tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir=cache_root)
     model = AutoModelForTokenClassification.from_pretrained(
@@ -108,10 +97,18 @@ def load_model_and_tokenizer(
 
 
 def main(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments) -> None:
-    run_spec = resolve_run_spec(data_args)
+    run_names = available_run_names()
+    attrs = data_args.attributes or {}
+    run_name = str(attrs.get("run_name", "")).strip()
+    if not run_name:
+        raise ValueError(
+            f"run_name attribute is required for SDJT NER resampling an d should be one of {run_names}!"
+        )
+    # base_seed = int(train_args.seed or train_args.seed or 2611)
+    run_spec = resolve_run_spec_from_name(run_name)
     logger.info("Training SDJT NER run %s", run_spec.run_name)
 
-    data_root, cache_root = init_dirs(paths, data_args)
+    data_root, cache_root = init_dirs(paths, run_name)
     train_args.output_dir = str(compute_output_dir(model_args, data_args, train_args, run_spec))
     train_args.metric_for_best_model = run_spec.metric_name
     run_dir = data_root / run_spec.run_name
@@ -145,6 +142,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     train_result = trainer.train()
     trainer.save_model(train_args.output_dir)
 
+    # noinspection PyTypeChecker
     state_path = Path(train_args.output_dir) / "trainer_state.json"
     trainer.state.save_to_json(str(state_path))
     logger.info("Saved trainer state to %s", state_path)
