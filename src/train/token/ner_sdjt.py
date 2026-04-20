@@ -111,12 +111,11 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     data_root, cache_root = init_dirs(paths, run_name)
     train_args.output_dir = str(compute_output_dir(model_args, data_args, train_args, run_spec))
     train_args.metric_for_best_model = run_spec.metric_name
-    run_dir = data_root / run_spec.run_name
-    if not run_dir.exists():
-        raise FileNotFoundError(f"Run split not found at {run_dir}. Run `./data resample {paths.curr_context}` first.")
+    if not data_root.exists():
+        raise FileNotFoundError(f"Run split not found at {data_root}. Run `./data split {paths.curr_context}` first.")
 
     languages = list(run_spec.train_languages)
-    ner_samples = NerSamplesLoader(run_dir, languages)
+    ner_samples = NerSamplesLoader(data_root, languages)
     metrics = TokenClassificationMetrics(id2label=ner_samples.labeler.id2label)
     model, tokenizer = load_model_and_tokenizer(model_args, cache_root, ner_samples.labeler)
     collator = DataCollatorForTokenClassification(tokenizer, padding="longest")
@@ -128,6 +127,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         "model": model,
         "args": train_args,
         "train_dataset": datasets["train"],
+        "eval_dataset": datasets["eval"],
         "data_collator": collator,
         "processing_class": tokenizer,
         "compute_metrics": metrics,
