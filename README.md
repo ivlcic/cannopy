@@ -42,6 +42,12 @@ Set environment variables
 set -a; source .env; set +a
 ```
 
+For flash attention:
+```shell
+pip install -r requirements-cu129.txt
+pip install flash_attn==2.8.3 --no-build-isolation
+```
+
 ## 1. Dataset mining / creation tasks
 
 Prerequisites:
