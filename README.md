@@ -106,36 +106,36 @@ Now we can also run evaluation:
 ```shell
 ./data resample ner-sdjt -c ner
 ./data analyze ner-sdjt -c ner
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-bg
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-cs
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-hr
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-pl
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-ru
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-sl
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-sr
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-uk
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi8
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi12
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-bg
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-cs
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-hr
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-pl
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-ru
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-sl
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-sr
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-uk
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi8
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi12
 
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-sl-p10
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-sl-p25
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-sl-p50
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi8-sl-p10
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi8-sl-p25
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi8-sl-p50
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi12-sl-p10
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi12-sl-p25
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi12-sl-p50
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p10
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p25
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p50
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi8-sl-p10
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi8-sl-p25
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi8-sl-p50
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p10
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p25
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p50
 
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-sr-p10
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-sr-p25
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=mono-sr-p50
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi8-sr-p10
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi8-sr-p25
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi8-sr-p50
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi12-sr-p10
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi12-sr-p25
-./train token ner-sdjt -c ner -c xlmr -s data.attributes.run_name=multi12-sr-p50
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p10
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p25
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p50
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi8-sr-p10
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi8-sr-p25
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi8-sr-p50
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p10
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p25
+./train token ner-sdjt -c ner -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p50
 ```
 
 ### 2.4 Submit to [Slobench](https://slobench.cjvt.si/)

@@ -38,7 +38,7 @@ def init_dirs(p: Paths, run_nam: str) -> tuple[Path, Path]:
 def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments,
                        run_spec: RunSpec) -> Path:
     model_name = (f"{d_args.dataset_name}.{run_spec.run_name}.{m_args.short_name}"
-                  f".b{t_args.train_batch_size}.lr{t_args.learning_rate}.s{d_args.seed}")
+                  f".b{t_args.train_batch_size}.lr{t_args.learning_rate}.s{t_args.seed}")
     output_dir = paths.context / model_name
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
