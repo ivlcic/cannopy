@@ -500,7 +500,12 @@ def main(data_args: DataArguments) -> None:
         parsed = _parser.parse()
         for lang, sentences in parsed.items():
             aggregated[lang].extend(sentences)
-            logger.info('Parsed %d sentences for %s', len(sentences), lang)
+            logger.info(
+                'Parsed %d sentences (%d tokens) for %s',
+                len(sentences),
+                sum(len(tokens) for tokens, _ in sentences),
+                lang,
+            )
 
     if not aggregated:
         logger.warning(f'No {data_args.dataset_name} sentences parsed; nothing to write')
