@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from app.pip import Pip
+from .__ner_sdjt import write_dataset_shift_figures
 from .ner import _collect_tags, _compute_stats, _load_sentences
 from ..resample.ner_sdjt import SplitSamples, available_run_names, resolve_run_spec_from_name
 from ...app.args.data import DataArguments
@@ -87,6 +88,9 @@ def main(data_args: DataArguments) -> None:
 
     output_dir = paths.get_ctx_path("analyze")
     output_file = output_dir / "ner-stats.csv"
+    base_stats_file = paths.base.root / "result" / "data" / "analyze" / "ner" / "ner-stats.csv"
+    density_figure = output_dir / "entity-density-by-language.svg"
+    composition_figure = output_dir / "label-composition-by-language.svg"
     seed = int(data_args.sampling.seed or data_args.split.seed or 2611)
     run_specs = [resolve_run_spec_from_name(run_name) for run_name in available_run_names()]
 
@@ -115,3 +119,7 @@ def main(data_args: DataArguments) -> None:
 
     _write_stats_csv(output_file, rows, tags)
     logger.info("Wrote %d SDJT NER stats rows to %s", len(rows), output_file)
+
+    write_dataset_shift_figures(base_stats_file, density_figure, composition_figure)
+    logger.info("Wrote entity density figure to %s", density_figure)
+    logger.info("Wrote label composition figure to %s", composition_figure)
