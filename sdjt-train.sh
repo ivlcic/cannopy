@@ -6,8 +6,8 @@ DEFAULT_SEED=2611
 VRAM_GB=32
 TASK_GB=8
 MAX_PARALLEL_TASKS=$((VRAM_GB / TASK_GB))
-SESSION_NAME="sdjt-train-s${DEFAULT_SEED}"
 SEED="${1:-}"
+REQUESTED_SESSION_NAME="${2:-}"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_ACTIVATE="${PROJECT_ROOT}/.venv/bin/activate"
 
@@ -16,7 +16,8 @@ if [[ -z "${SEED}" ]]; then
   echo "Warning: no seed provided, defaulting to ${SEED}." >&2
 fi
 
-SESSION_NAME="sdjt-train-s${SEED}"
+SESSION_NAME="${REQUESTED_SESSION_NAME:-sdjt-train-s${SEED}}"
+WINDOW_PREFIX="${SESSION_NAME}"
 
 if (( MAX_PARALLEL_TASKS < 1 )); then
   echo "Error: VRAM_GB=${VRAM_GB} yields no runnable tasks." >&2
@@ -33,7 +34,15 @@ if [[ ! -f "${VENV_ACTIVATE}" ]]; then
   exit 1
 fi
 
-if tmux has-session -t "${SESSION_NAME}" 2>/dev/null; then
+TARGET_SESSION="${SESSION_NAME}"
+CREATE_NEW_SESSION=1
+if [[ -n "${TMUX:-}" ]]; then
+  TARGET_SESSION="$(tmux display-message -p '#S')"
+  CREATE_NEW_SESSION=0
+  if [[ -n "${REQUESTED_SESSION_NAME}" && "${REQUESTED_SESSION_NAME}" != "${TARGET_SESSION}" ]]; then
+    echo "Warning: ignoring requested session ${REQUESTED_SESSION_NAME} and using current tmux session ${TARGET_SESSION}." >&2
+  fi
+elif tmux has-session -t "${SESSION_NAME}" 2>/dev/null; then
   echo "Error: tmux session ${SESSION_NAME} already exists." >&2
   exit 1
 fi
@@ -83,20 +92,40 @@ for idx in "${!RUN_NAMES[@]}"; do
   WINDOW_COMMANDS[worker]+=" -s \"train.seed=${SEED}\""
 done
 
-tmux new-session -d -s "${SESSION_NAME}" -n "worker-1"
-tmux set-option -t "${SESSION_NAME}" remain-on-exit on
+for ((worker=0; worker<MAX_PARALLEL_TASKS; worker++)); do
+  window_name="${WINDOW_PREFIX}-worker-$((worker + 1))"
+  if tmux list-windows -t "${TARGET_SESSION}" -F '#W' | grep -Fxq "${window_name}"; then
+    echo "Error: tmux window ${window_name} already exists in session ${TARGET_SESSION}." >&2
+    exit 1
+  fi
+done
+
+first_window_name="${WINDOW_PREFIX}-worker-1"
+if (( CREATE_NEW_SESSION )); then
+  tmux new-session -d -s "${TARGET_SESSION}" -n "${first_window_name}"
+  tmux setw -t "${TARGET_SESSION}:${first_window_name}" remain-on-exit on
+else
+  tmux new-window -t "${TARGET_SESSION}" -n "${first_window_name}"
+  tmux setw -t "${TARGET_SESSION}:${first_window_name}" remain-on-exit on
+fi
 
 for ((worker=1; worker<MAX_PARALLEL_TASKS; worker++)); do
-  tmux new-window -t "${SESSION_NAME}" -n "worker-$((worker + 1))"
+  window_name="${WINDOW_PREFIX}-worker-$((worker + 1))"
+  tmux new-window -t "${TARGET_SESSION}" -n "${window_name}"
+  tmux setw -t "${TARGET_SESSION}:${window_name}" remain-on-exit on
 done
 
 for ((worker=0; worker<MAX_PARALLEL_TASKS; worker++)); do
-  window_name="worker-$((worker + 1))"
+  window_name="${WINDOW_PREFIX}-worker-$((worker + 1))"
   window_command="${WINDOW_COMMANDS[worker]}"
   window_command+="; echo; echo \"${window_name} finished.\""
   printf -v quoted_command "%q" "${window_command}"
-  tmux send-keys -t "${SESSION_NAME}:${window_name}" "bash -lc ${quoted_command}" C-m
+  tmux send-keys -t "${TARGET_SESSION}:${window_name}" "bash -lc ${quoted_command}" C-m
 done
 
-echo "Started ${#RUN_NAMES[@]} runs across ${MAX_PARALLEL_TASKS} tmux windows in session ${SESSION_NAME}."
-echo "Attach with: tmux attach -t ${SESSION_NAME}"
+echo "Started ${#RUN_NAMES[@]} runs across ${MAX_PARALLEL_TASKS} tmux windows in session ${TARGET_SESSION}."
+if (( CREATE_NEW_SESSION )); then
+  echo "Attach with: tmux attach -t ${TARGET_SESSION}"
+else
+  echo "Current tmux session: ${TARGET_SESSION}"
+fi
