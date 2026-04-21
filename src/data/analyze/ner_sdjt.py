@@ -5,6 +5,7 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List
 
+from app.pip import Pip
 from .ner import _collect_tags, _compute_stats, _load_sentences
 from ..resample.ner_sdjt import SplitSamples, available_run_names, resolve_run_spec_from_name
 from ...app.args.data import DataArguments
@@ -72,6 +73,7 @@ def _write_stats_csv(output_file: Path, rows: List[List[Any]], tags: List[str]) 
 
 def results():
     logger.info("Analyzing SDJT NER Results")
+    Pip.install_packages("pandas", "3.0.2")
     pass
 
 
