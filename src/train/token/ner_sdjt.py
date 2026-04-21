@@ -259,4 +259,5 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     logger.info("Starting evaluation for %s", run_spec.run_name)
     eval_metrics = trainer.evaluate()
     logger.info("Evaluation metrics for %s: %s", run_spec.run_name, eval_metrics)
+    # noinspection PyTypeChecker
     _cleanup_checkpoints(Path(train_args.output_dir))
