@@ -11,3 +11,4 @@ pip install flash_attn==2.8.3 --no-build-isolation
 ./data split ner
 ./data analyze ner
 ./data resample ner-sdjt
+./data analyze ner-sdjt
