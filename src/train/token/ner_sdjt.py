@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from logging import Logger
 from typing import Dict, Mapping, Optional
@@ -89,6 +90,17 @@ def _log_dataset_summary(ner_samples: NerSamplesLoader, datasets: Mapping[str, D
         ner_samples.labeler.num_labels,
         ",".join(ner_samples.labeler.label_list),
     )
+
+
+def _cleanup_checkpoints(output_dir: Path) -> None:
+    checkpoint_dirs = sorted(path for path in output_dir.glob("checkpoint-*") if path.is_dir())
+    if not checkpoint_dirs:
+        logger.info("No checkpoint directories to clean under %s", output_dir)
+        return
+    for checkpoint_dir in checkpoint_dirs:
+        shutil.rmtree(checkpoint_dir)
+        logger.info("Removed checkpoint directory %s", checkpoint_dir)
+    logger.info("Removed %d checkpoint directories under %s", len(checkpoint_dirs), output_dir)
 
 
 def init_dirs(p: Paths, run_name: str) -> tuple[Path, Path]:
@@ -247,3 +259,4 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     logger.info("Starting evaluation for %s", run_spec.run_name)
     eval_metrics = trainer.evaluate()
     logger.info("Evaluation metrics for %s: %s", run_spec.run_name, eval_metrics)
+    _cleanup_checkpoints(Path(train_args.output_dir))

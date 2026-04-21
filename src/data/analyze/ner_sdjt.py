@@ -16,7 +16,8 @@ paths: Paths
 
 def load_generated_run(run_dir: Path, run_name: str) -> SplitSamples:
     if not run_dir.exists():
-        raise FileNotFoundError(f"Generated SDJT run split not found at {run_dir}. Run `./data resample ner-sdjt` first.")
+        raise FileNotFoundError(f"Generated SDJT run split not found at {run_dir}. "
+                                f"Run `./data resample ner-sdjt` first.")
 
     split_names = ("train", "eval", "test")
     snapshot: SplitSamples = {split: {} for split in split_names}
@@ -50,7 +51,7 @@ def build_stats_rows(snapshot: SplitSamples, run_metadata: Dict[str, Any], tags:
     return rows
 
 
-def write_stats_csv(output_file: Path, rows: List[List[Any]], tags: List[str]) -> None:
+def _write_stats_csv(output_file: Path, rows: List[List[Any]], tags: List[str]) -> None:
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with output_file.open("w", encoding="utf-8", newline="") as fp:
         writer = csv.writer(fp)
@@ -69,12 +70,18 @@ def write_stats_csv(output_file: Path, rows: List[List[Any]], tags: List[str]) -
         writer.writerows(rows)
 
 
+def results():
+    logger.info("Analyzing SDJT NER Results")
+    pass
+
+
 def main(data_args: DataArguments) -> None:
     logger.info("Analyzing SDJT NER datasets")
 
     split_dir = paths.get_ctx_path("split")
     if not split_dir.exists():
-        raise FileNotFoundError(f"Split data not found at {split_dir}. Run `./data resample {paths.curr_context}` first.")
+        raise FileNotFoundError(f"Split data not found at {split_dir}. "
+                                f"Run `./data resample {paths.curr_context}` first.")
 
     output_dir = paths.get_ctx_path("analyze")
     output_file = output_dir / "ner-stats.csv"
@@ -104,5 +111,5 @@ def main(data_args: DataArguments) -> None:
             tags,
         ))
 
-    write_stats_csv(output_file, rows, tags)
+    _write_stats_csv(output_file, rows, tags)
     logger.info("Wrote %d SDJT NER stats rows to %s", len(rows), output_file)

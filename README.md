@@ -116,7 +116,7 @@ Now we can also run evaluation:
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-uk -s train.seed=2611
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8 -s train.seed=2611
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12 -s train.seed=2611
- -s train.seed=2611
+ 
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p10 -s train.seed=2611
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p25 -s train.seed=2611
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p50 -s train.seed=2611
@@ -126,7 +126,7 @@ Now we can also run evaluation:
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p10 -s train.seed=2611
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p25 -s train.seed=2611
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p50 -s train.seed=2611
- -s train.seed=2611
+
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p10 -s train.seed=2611
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p25 -s train.seed=2611
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p50 -s train.seed=2611
