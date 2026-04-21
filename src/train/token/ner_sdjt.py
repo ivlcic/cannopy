@@ -24,8 +24,8 @@ logger: Logger
 paths: Paths
 
 
-def init_dirs(p: Paths, run_nam: str) -> tuple[Path, Path]:
-    data_root = p.get_script_ctx_path("data", "split") / run_nam
+def init_dirs(p: Paths, run_name: str) -> tuple[Path, Path]:
+    data_root = p.get_script_ctx_path("data", "split") / run_name
     if not data_root.exists():
         raise EnvironmentError(f"Split data not found at {data_root}. Run `./data resample {p.curr_context}` first.")
     cache_root = p.base.tmp / "cache"
@@ -35,10 +35,15 @@ def init_dirs(p: Paths, run_nam: str) -> tuple[Path, Path]:
     return data_root, cache_root
 
 
+def compute_model_name(m_args: ModelArguments, d_args: DataArguments,
+                       t_args: TrainingArguments, run_spec: RunSpec) -> str:
+    return (f"{d_args.dataset_name}.{run_spec.run_name}.{m_args.short_name}"
+            f".b{t_args.train_batch_size}.lr{t_args.learning_rate}.s{t_args.seed}")
+
+
 def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments,
                        run_spec: RunSpec) -> Path:
-    model_name = (f"{d_args.dataset_name}.{run_spec.run_name}.{m_args.short_name}"
-                  f".b{t_args.train_batch_size}.lr{t_args.learning_rate}.s{t_args.seed}")
+    model_name = compute_model_name(m_args, d_args, t_args, run_spec)
     output_dir = paths.context / model_name
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
@@ -76,11 +81,16 @@ class MacroEvalTrainer(Trainer):
         return aggregated_metrics
 
 
-def build_eval_datasets(tokenizer, max_seq_length: int, ner_samples: NerSamplesLoader) -> Dict[str, Dataset]:
+def build_split_datasets(tokenizer, max_seq_length: int,
+                         ner_samples: NerSamplesLoader, split: str) -> Dict[str, Dataset]:
     return {
         lang: NerDataset(tokenizer, max_seq_length, ner_samples.labeler, list(sentences))
-        for lang, sentences in ner_samples.samples_by_lang["eval"].items()
+        for lang, sentences in ner_samples.samples_by_lang[split].items()
     }
+
+
+def build_eval_datasets(tokenizer, max_seq_length: int, ner_samples: NerSamplesLoader) -> Dict[str, Dataset]:
+    return build_split_datasets(tokenizer, max_seq_length, ner_samples, "eval")
 
 
 def load_model_and_tokenizer(model_args: ModelArguments, cache_root: Path, labeler):

@@ -93,7 +93,13 @@ class ConllDatasetParser(NerDatasetParser):
             if not has_labels:
                 continue
             output[lang].extend(sentences)
-            logger.info('%s: %s -> %d sentences', lang, path.name, len(sentences))
+            logger.info(
+                '%s: %s -> %d sentences (%d tokens)',
+                lang,
+                path.name,
+                len(sentences),
+                sum(len(tokens) for tokens, _ in sentences),
+            )
         return output
 
 
@@ -517,4 +523,4 @@ def main(data_args: DataArguments) -> None:
     logger.info('Wrote %d language files to %s', len(aggregated), output_dir)
 
     # clean up download folder
-    shutil.rmtree(download_root, ignore_errors=True)
+    # shutil.rmtree(download_root, ignore_errors=True)
