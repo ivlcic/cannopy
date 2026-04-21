@@ -104,38 +104,38 @@ Now we can also run evaluation:
 ### 2.3 SDTJ Paper Experiments
 
 ```shell
-./data resample ner-sdjt -c ner
-./data analyze ner-sdjt -c ner
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-bg
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-cs
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-hr
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-pl
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-ru
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sl
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sr
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-uk
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12
-
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p10
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p25
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p50
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sl-p10
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sl-p25
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sl-p50
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p10
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p25
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p50
-
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p10
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p25
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p50
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sr-p10
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sr-p25
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sr-p50
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p10
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p25
-./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p50
+./data resample ner-sdjt
+./data analyze ner-sdjt
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-bg -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-cs -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-hr -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-pl -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-ru -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sl -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sr -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-uk -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12 -s train.seed=2611
+ -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p10 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p25 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sl-p50 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sl-p10 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sl-p25 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sl-p50 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p10 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p25 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sl-p50 -s train.seed=2611
+ -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p10 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p25 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=mono-sr-p50 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sr-p10 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sr-p25 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-sr-p50 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p10 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p25 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p50 -s train.seed=2611
 
 ./eval token ner-sdjt -c mm-bert.yaml
 ```

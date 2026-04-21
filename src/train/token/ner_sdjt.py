@@ -24,6 +24,72 @@ logger: Logger
 paths: Paths
 
 
+def _format_language_counts(samples_by_lang: Mapping[str, list]) -> str:
+    if not samples_by_lang:
+        return "none"
+    return ", ".join(f"{lang}={len(samples)}" for lang, samples in sorted(samples_by_lang.items()))
+
+
+def _log_run_configuration(run_spec: RunSpec, data_root: Path, cache_root: Path,
+                           output_dir: str, model_args: ModelArguments,
+                           train_args: TrainingArguments) -> None:
+    logger.info(
+        "Resolved SDJT NER run configuration: run=%s pool=%s budget_pct=%d train_langs=%s eval_langs=%s "
+        "macro_eval=%s seed=%s data_root=%s cache_root=%s output_dir=%s",
+        run_spec.run_name,
+        run_spec.pool_name,
+        run_spec.budget_pct,
+        ",".join(run_spec.train_languages),
+        ",".join(run_spec.eval_languages),
+        run_spec.uses_macro_eval,
+        train_args.seed,
+        data_root,
+        cache_root,
+        output_dir,
+    )
+    logger.info(
+        "Model configuration: model=%s tokenizer=%s max_seq_length=%s attn_implementation=%s dtype=%s",
+        model_args.model_name_or_path,
+        model_args.tokenizer_name or model_args.model_name_or_path,
+        model_args.max_seq_length,
+        model_args.attn_implementation,
+        model_args.dtype,
+    )
+    logger.info(
+        "Training arguments: epochs=%s train_batch=%s eval_batch=%s lr=%s warmup_ratio=%s "
+        "eval_strategy=%s save_strategy=%s logging_strategy=%s load_best_model_at_end=%s metric_for_best_model=%s",
+        train_args.num_train_epochs,
+        train_args.per_device_train_batch_size,
+        train_args.per_device_eval_batch_size,
+        train_args.learning_rate,
+        train_args.warmup_ratio,
+        train_args.eval_strategy,
+        train_args.save_strategy,
+        train_args.logging_strategy,
+        train_args.load_best_model_at_end,
+        train_args.metric_for_best_model,
+    )
+
+
+def _log_dataset_summary(ner_samples: NerSamplesLoader, datasets: Mapping[str, Dataset], run_spec: RunSpec) -> None:
+    for split in ner_samples.splits:
+        samples_by_lang = ner_samples.samples_by_lang[split]
+        logger.info(
+            "Loaded SDJT %s split for %s: total_samples=%d languages=%d [%s]",
+            split,
+            run_spec.run_name,
+            len(datasets[split]),
+            len(samples_by_lang),
+            _format_language_counts(samples_by_lang),
+        )
+    logger.info(
+        "Resolved NER labels for %s: num_labels=%d labels=%s",
+        run_spec.run_name,
+        ner_samples.labeler.num_labels,
+        ",".join(ner_samples.labeler.label_list),
+    )
+
+
 def init_dirs(p: Paths, run_name: str) -> tuple[Path, Path]:
     data_root = p.get_script_ctx_path("data", "split") / run_name
     if not data_root.exists():
@@ -127,10 +193,12 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     languages = list(run_spec.train_languages)
     ner_samples = NerSamplesLoader(data_root, languages)
     metrics = TokenClassificationMetrics(id2label=ner_samples.labeler.id2label)
+    _log_run_configuration(run_spec, data_root, cache_root, train_args.output_dir, model_args, train_args)
     model, tokenizer = load_model_and_tokenizer(model_args, cache_root, ner_samples.labeler)
     collator = DataCollatorForTokenClassification(tokenizer, padding="longest")
     datasets = ner_samples.create_split_datasets(tokenizer, model_args.max_seq_length)
     eval_datasets = build_eval_datasets(tokenizer, model_args.max_seq_length, ner_samples)
+    _log_dataset_summary(ner_samples, datasets, run_spec)
 
     trainer_cls = MacroEvalTrainer if run_spec.uses_macro_eval else Trainer
     trainer_kwargs = {
@@ -144,11 +212,22 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     }
     if run_spec.uses_macro_eval:
         trainer_kwargs["eval_datasets_by_name"] = eval_datasets
+        logger.info(
+            "Using %s with macro evaluation across languages: %s",
+            trainer_cls.__name__,
+            ",".join(sorted(eval_datasets.keys())),
+        )
     else:
         target_lang = run_spec.eval_languages[0]
         trainer_kwargs["eval_dataset"] = eval_datasets[target_lang]
+        logger.info(
+            "Using %s with target-language evaluation: %s",
+            trainer_cls.__name__,
+            target_lang,
+        )
 
     trainer = trainer_cls(**trainer_kwargs)
+    logger.info("Starting training for %s", run_spec.run_name)
     train_result = trainer.train()
     trainer.save_model(train_args.output_dir)
 
@@ -163,5 +242,6 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         train_result.training_loss,
     )
 
+    logger.info("Starting evaluation for %s", run_spec.run_name)
     eval_metrics = trainer.evaluate()
     logger.info("Evaluation metrics for %s: %s", run_spec.run_name, eval_metrics)

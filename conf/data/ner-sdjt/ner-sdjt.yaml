@@ -1,2 +1,4 @@
 data:
   dataset_name: ner-sdjt
+  sampling:
+    seed: 2611
