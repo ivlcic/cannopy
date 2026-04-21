@@ -116,8 +116,13 @@ def init_dirs(p: Paths, run_name: str) -> tuple[Path, Path]:
 
 def compute_model_name(m_args: ModelArguments, d_args: DataArguments,
                        t_args: TrainingArguments, run_spec: RunSpec) -> str:
-    return (f"{d_args.dataset_name}.{run_spec.run_name}.{m_args.short_name}"
-            f".b{t_args.train_batch_size}.lr{t_args.learning_rate}.s{t_args.seed}")
+    model_prefix = compute_model_prefix(m_args, d_args, t_args, run_spec)
+    return f"{model_prefix}.s{t_args.seed}"
+
+
+def compute_model_prefix(m_args: ModelArguments, d_args: DataArguments,
+                         t_args: TrainingArguments, run_spec: RunSpec) -> str:
+    return f"{d_args.dataset_name}.{run_spec.run_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}"
 
 
 def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments,
@@ -172,11 +177,12 @@ def build_eval_datasets(tokenizer, max_seq_length: int, ner_samples: NerSamplesL
     return build_split_datasets(tokenizer, max_seq_length, ner_samples, "eval")
 
 
-def load_model_and_tokenizer(model_args: ModelArguments, cache_root: Path, labeler):
+def load_model_and_tokenizer(model_args: ModelArguments, cache_root: Path, labeler, model_source: str | Path | None = None):
     tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
+    model_source = str(model_source or model_args.model_name_or_path)
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir=cache_root)
     model = AutoModelForTokenClassification.from_pretrained(
-        model_args.model_name_or_path,
+        model_source,
         cache_dir=cache_root,
         num_labels=labeler.num_labels,
         id2label=labeler.id2label,
