@@ -34,6 +34,20 @@ if [[ ! -f "${VENV_ACTIVATE}" ]]; then
   exit 1
 fi
 
+run_data_pipeline() {
+  echo "Running SDJT data pipeline for seed ${SEED}..." >&2
+  (
+    cd "${PROJECT_ROOT}"
+    # shellcheck disable=SC1090
+    source "${VENV_ACTIVATE}"
+    ./data split ner -s "data.split.seed=${SEED}"
+    ./data analyze ner -s "data.split.seed=${SEED}"
+    ./data resample ner-sdjt -s "data.split.seed=${SEED}" -s "data.sampling.seed=${SEED}"
+    ./data analyze ner-sdjt -s "data.split.seed=${SEED}" -s "data.sampling.seed=${SEED}"
+  )
+  echo "Finished SDJT data pipeline for seed ${SEED}." >&2
+}
+
 TARGET_SESSION="${SESSION_NAME}"
 CREATE_NEW_SESSION=1
 if [[ -n "${TMUX:-}" ]]; then
@@ -46,6 +60,8 @@ elif tmux has-session -t "${SESSION_NAME}" 2>/dev/null; then
   echo "Error: tmux session ${SESSION_NAME} already exists." >&2
   exit 1
 fi
+
+run_data_pipeline
 
 RUN_NAMES=(
   mono-bg
