@@ -88,7 +88,7 @@ def _log_dataset_summary(ner_samples: NerSamplesLoader, datasets: Mapping[str, D
         "Resolved NER labels for %s: num_labels=%d labels=%s",
         run_spec.run_name,
         ner_samples.labeler.num_labels,
-        ",".join(ner_samples.labeler.label_list),
+        ",".join(ner_samples.labeler.classes),
     )
 
 
