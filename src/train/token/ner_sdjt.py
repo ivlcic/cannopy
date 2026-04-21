@@ -74,6 +74,7 @@ def _log_run_configuration(run_spec: RunSpec, data_root: Path, cache_root: Path,
 def _log_dataset_summary(ner_samples: NerSamplesLoader, datasets: Mapping[str, Dataset], run_spec: RunSpec) -> None:
     for split in ner_samples.splits:
         samples_by_lang = ner_samples.samples_by_lang[split]
+        # noinspection PyTypeChecker
         logger.info(
             "Loaded SDJT %s split for %s: total_samples=%d languages=%d [%s]",
             split,
@@ -193,6 +194,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     languages = list(run_spec.train_languages)
     ner_samples = NerSamplesLoader(data_root, languages)
     metrics = TokenClassificationMetrics(id2label=ner_samples.labeler.id2label)
+    # noinspection PyTypeChecker
     _log_run_configuration(run_spec, data_root, cache_root, train_args.output_dir, model_args, train_args)
     model, tokenizer = load_model_and_tokenizer(model_args, cache_root, ner_samples.labeler)
     collator = DataCollatorForTokenClassification(tokenizer, padding="longest")
