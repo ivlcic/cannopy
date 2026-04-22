@@ -17,12 +17,12 @@ paths: Paths
 Sentence = Tuple[List[str], List[str]]
 SplitSamples = Dict[str, Dict[str, List[Sentence]]]
 
-L8: Tuple[str, ...] = ("bg", "cs", "hr", "pl", "ru", "sl", "sr", "uk")
-AUX: Tuple[str, ...] = ("bs", "mk", "sk", "sq")
-L12: Tuple[str, ...] = L8 + AUX
+MAIN_LANGUAGES: Tuple[str, ...] = ("bg", "cs", "hr", "pl", "ru", "sl", "sr", "uk")
+AUX_LANGUAGES: Tuple[str, ...] = ("bs", "mk", "sk", "sq")
+ALL_LANGUAGES: Tuple[str, ...] = MAIN_LANGUAGES + AUX_LANGUAGES
 CURVE_LANGUAGES = frozenset({"sr", "sl"})
 CURVE_BUDGETS = frozenset({10, 25, 50, 100})
-CORE_ENTITY_TYPES = frozenset({"PER", "ORG", "LOC"})
+CORE_ENTITY_TYPES: Tuple[str, ...] = ("PER", "ORG", "LOC")
 
 
 @dataclass(frozen=True)
@@ -49,7 +49,7 @@ class RunSpec:
 
 
 def available_run_names() -> List[str]:
-    names = [f"mono-{lang}" for lang in L8]
+    names = [f"mono-{lang}" for lang in MAIN_LANGUAGES]
     names.extend(["multi8", "multi12"])
     for lang in sorted(CURVE_LANGUAGES):
         for budget in sorted(b for b in CURVE_BUDGETS if b < 100):
@@ -95,16 +95,16 @@ def resolve_run_spec_from_name(run_name: str) -> RunSpec:
         return RunSpec(
             run_name="multi8",
             pool_name="multi8",
-            train_languages=L8,
-            eval_languages=L8,
+            train_languages=MAIN_LANGUAGES,
+            eval_languages=MAIN_LANGUAGES,
             uses_macro_eval=True,
         )
     if normalized == "multi12":
         return RunSpec(
             run_name="multi12",
             pool_name="multi12",
-            train_languages=L12,
-            eval_languages=L8,
+            train_languages=ALL_LANGUAGES,
+            eval_languages=MAIN_LANGUAGES,
             uses_macro_eval=True,
         )
 
@@ -119,8 +119,8 @@ def resolve_run_spec_from_name(run_name: str) -> RunSpec:
     budget = 100 if len(parts) == 2 else _parse_budget_suffix(parts[2])
 
     if procedure == "mono":
-        if lang not in L8:
-            raise ValueError(f"Monolingual runs are supported only for L8 languages, got {lang!r}.")
+        if lang not in MAIN_LANGUAGES:
+            raise ValueError(f"Monolingual runs are supported only for main languages, got {lang!r}.")
         if budget == 100:
             return RunSpec(
                 run_name=f"mono-{lang}",
@@ -148,7 +148,7 @@ def resolve_run_spec_from_name(run_name: str) -> RunSpec:
         return resolve_run_spec_from_name(procedure)
     if budget not in CURVE_BUDGETS:
         raise ValueError(f"Budgeted multilingual runs are supported only for 10/25/50/100.")
-    train_languages = L8 if procedure == "multi8" else L12
+    train_languages = MAIN_LANGUAGES if procedure == "multi8" else ALL_LANGUAGES
     return RunSpec(
         run_name=f"{procedure}-{lang}-p{budget}",
         pool_name=procedure,

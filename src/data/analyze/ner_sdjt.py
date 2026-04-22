@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from app.pip import Pip
-from .__ner_sdjt import write_dataset_shift_figures
+from .__ner_sdjt_figures import write_dataset_shift_figures
 from .ner import _collect_tags, _compute_stats, _load_sentences
 from ..resample.ner_sdjt import SplitSamples, available_run_names, resolve_run_spec_from_name
 from ...app.args.data import DataArguments

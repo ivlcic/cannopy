@@ -216,6 +216,7 @@ result/**/*.tsv
 result/**/*.xlsx
 result/**/*.zip
 result/**/*.svg
+result/**/*.png
 result/**/*.npz
 result/train/**/*.bin
 result/train/**/*.safetensors
