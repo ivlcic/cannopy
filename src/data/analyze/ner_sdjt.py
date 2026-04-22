@@ -6,11 +6,15 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from app.pip import Pip
+from transformers import TrainingArguments
 from .__ner_sdjt_figures import write_dataset_shift_figures
+from .__ner_sdjt_results import analyze_results
 from .ner import _collect_tags, _compute_stats, _load_sentences
 from ..resample.ner_sdjt import SplitSamples, available_run_names, resolve_run_spec_from_name
 from ...app.args.data import DataArguments
+from ...app.args.model import ModelArguments
 from ...app.args.runtime import Paths
+from ...train.token.ner_sdjt import compute_model_prefix
 
 logger: Logger
 paths: Paths
@@ -72,10 +76,19 @@ def _write_stats_csv(output_file: Path, rows: List[List[Any]], tags: List[str]) 
         writer.writerows(rows)
 
 
-def results():
+def results(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments):
     logger.info("Analyzing SDJT NER Results")
     Pip.install_packages("pandas", "3.0.2")
-    pass
+    model_prefix = compute_model_prefix(model_args, data_args, train_args)
+    input_file = paths.get_script_ctx_path("eval", "token") / f"{model_prefix}.csv"
+    if not input_file.exists():
+        raise FileNotFoundError(f"SDJT NER evaluation output not found at {input_file}. "
+                                f"Run `./eval token ner_sdjt` first.")
+    output_dir = paths.get_ctx_path("analyze") / model_prefix
+    outputs = analyze_results(input_file, output_dir)
+    logger.info("Analyzed SDJT NER results from %s", input_file)
+    for name, path in sorted(outputs.items()):
+        logger.info("Wrote %s output to %s", name, path)
 
 
 def main(data_args: DataArguments) -> None:
@@ -88,7 +101,7 @@ def main(data_args: DataArguments) -> None:
 
     output_dir = paths.get_ctx_path("analyze")
     output_file = output_dir / "ner-stats.csv"
-    base_stats_file = paths.base.root / "result" / "data" / "analyze" / "ner" / "ner-stats.csv"
+    base_stats_file = output_dir.parent / "ner" / "ner-stats.csv"
     density_figure = output_dir / "entity-density-by-language.svg"
     composition_figure = output_dir / "label-composition-by-language.svg"
     seed = int(data_args.sampling.seed or data_args.split.seed or 2611)

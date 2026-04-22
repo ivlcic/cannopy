@@ -121,7 +121,10 @@ def compute_model_name(m_args: ModelArguments, d_args: DataArguments,
 
 
 def compute_model_prefix(m_args: ModelArguments, d_args: DataArguments,
-                         t_args: TrainingArguments, run_spec: RunSpec) -> str:
+                         t_args: TrainingArguments, run_spec: Optional[RunSpec] = None) -> str:
+    prefix = f"{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}"
+    if run_spec is None:
+        return prefix
     return f"{d_args.dataset_name}.{run_spec.run_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}"
 
 

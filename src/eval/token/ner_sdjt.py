@@ -44,10 +44,7 @@ def compute_train_dirs(m_args: ModelArguments, d_args: DataArguments, t_args: Tr
 
 
 def compute_output(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments) -> Path:
-    model_name = (
-        f"{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}.csv"
-    )
-    output = paths.context / model_name
+    output = paths.context / f"{compute_model_prefix(m_args, d_args, t_args)}.csv"
     output.parent.mkdir(parents=True, exist_ok=True)
     return output
 
