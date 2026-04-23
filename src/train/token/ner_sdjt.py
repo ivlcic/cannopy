@@ -136,6 +136,21 @@ def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: Tr
     return output_dir
 
 
+def resolve_init_model_source(m_args: ModelArguments, d_args: DataArguments,
+                              t_args: TrainingArguments, run_spec: RunSpec) -> Optional[Path]:
+    if not run_spec.init_from_run_name:
+        return None
+    init_run_spec = resolve_run_spec_from_name(run_spec.init_from_run_name)
+    init_model_name = compute_model_name(m_args, d_args, t_args, init_run_spec)
+    init_model_dir = paths.context / init_model_name
+    if not init_model_dir.exists():
+        raise FileNotFoundError(
+            f"Warm-start checkpoint for {run_spec.run_name} not found at {init_model_dir}. "
+            f"Train `{run_spec.init_from_run_name}` first with the same seed/hyperparameters."
+        )
+    return init_model_dir
+
+
 class MacroEvalTrainer(Trainer):
     def __init__(self, *args, eval_datasets_by_name: Optional[Mapping[str, Dataset]] = None, **kwargs):
         # noinspection PyArgumentList
@@ -211,13 +226,25 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     train_args.metric_for_best_model = run_spec.metric_name
     if not data_root.exists():
         raise FileNotFoundError(f"Run split not found at {data_root}. Run `./data split {paths.curr_context}` first.")
+    init_model_source = resolve_init_model_source(model_args, data_args, train_args, run_spec)
 
     languages = list(run_spec.train_languages)
     ner_samples = NerSamplesLoader(data_root, languages)
     metrics = TokenClassificationMetrics(id2label=ner_samples.labeler.id2label)
     # noinspection PyTypeChecker
     _log_run_configuration(run_spec, data_root, cache_root, train_args.output_dir, model_args, train_args)
-    model, tokenizer = load_model_and_tokenizer(model_args, cache_root, ner_samples.labeler)
+    if init_model_source is not None:
+        logger.info(
+            "Initializing %s from warm-start checkpoint %s",
+            run_spec.run_name,
+            init_model_source,
+        )
+    model, tokenizer = load_model_and_tokenizer(
+        model_args,
+        cache_root,
+        ner_samples.labeler,
+        init_model_source,
+    )
     collator = DataCollatorForTokenClassification(tokenizer, padding="longest")
     datasets = ner_samples.create_split_datasets(tokenizer, model_args.max_seq_length)
     eval_datasets = build_eval_datasets(tokenizer, model_args.max_seq_length, ner_samples)

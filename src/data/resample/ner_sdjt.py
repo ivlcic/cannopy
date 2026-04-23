@@ -34,6 +34,7 @@ class RunSpec:
     target_language: Optional[str] = None
     budget_pct: int = 100
     uses_macro_eval: bool = False
+    init_from_run_name: Optional[str] = None
 
     @property
     def is_monolingual(self) -> bool:
@@ -41,7 +42,7 @@ class RunSpec:
 
     @property
     def is_multilingual(self) -> bool:
-        return self.pool_name in {"multi8", "multi12"}
+        return self.pool_name in {"multi8", "multi12", "multi8-fulltarget"}
 
     @property
     def metric_name(self) -> str:
@@ -51,6 +52,8 @@ class RunSpec:
 def available_run_names() -> List[str]:
     names = [f"mono-{lang}" for lang in MAIN_LANGUAGES]
     names.extend(["multi8", "multi12"])
+    names.extend([f"multi8-fulltarget-{lang}" for lang in MAIN_LANGUAGES])
+    names.extend([f"warmstart-multi8-{lang}" for lang in MAIN_LANGUAGES])
     for lang in sorted(CURVE_LANGUAGES):
         for budget in sorted(b for b in CURVE_BUDGETS if b < 100):
             names.append(f"mono-{lang}-p{budget}")
@@ -112,6 +115,31 @@ def resolve_run_spec_from_name(run_name: str) -> RunSpec:
     if len(parts) not in {2, 3}:
         raise ValueError(
             f"Unsupported run name {run_name!r}. Expected one of {', '.join(available_run_names())}."
+        )
+
+    if len(parts) == 3 and parts[0] == "multi8" and parts[1] == "fulltarget":
+        lang = _normalize_lang(parts[2])
+        if lang not in MAIN_LANGUAGES:
+            raise ValueError(f"Multi8-fulltarget runs are supported only for main languages, got {lang!r}.")
+        return RunSpec(
+            run_name=f"multi8-fulltarget-{lang}",
+            pool_name="multi8-fulltarget",
+            train_languages=MAIN_LANGUAGES,
+            eval_languages=(lang,),
+            target_language=lang,
+        )
+
+    if len(parts) == 3 and parts[0] == "warmstart" and parts[1] == "multi8":
+        lang = _normalize_lang(parts[2])
+        if lang not in MAIN_LANGUAGES:
+            raise ValueError(f"Warmstart-Multi8 runs are supported only for main languages, got {lang!r}.")
+        return RunSpec(
+            run_name=f"warmstart-multi8-{lang}",
+            pool_name="warmstart-multi8",
+            train_languages=(lang,),
+            eval_languages=(lang,),
+            target_language=lang,
+            init_from_run_name="multi8",
         )
 
     procedure = _normalize_procedure(parts[0])
@@ -298,6 +326,10 @@ def compute_language_token_budgets(train_by_lang: Mapping[str, Sequence[Sentence
 
     base_budget = compute_multilingual_token_budget(train_by_lang, data_args)
     budgets = {lang: base_budget for lang in run_spec.train_languages}
+    if run_spec.pool_name == "multi8-fulltarget":
+        target_lang = run_spec.target_language or run_spec.train_languages[0]
+        budgets[target_lang] = count_tokens(train_by_lang[target_lang])
+        return budgets
     if run_spec.target_language and run_spec.budget_pct < 100:
         budgets[run_spec.target_language] = max(1, math.ceil(base_budget * run_spec.budget_pct / 100.0))
     return budgets
