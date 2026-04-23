@@ -64,16 +64,16 @@ fi
 run_data_pipeline
 
 RUN_NAMES=(
-  mono-bg
-  mono-cs
-  mono-hr
-  mono-pl
-  mono-ru
-  mono-sl
-  mono-sr
-  mono-uk
-  multi8
-  multi12
+  # mono-bg
+  # mono-cs
+  # mono-hr
+  # mono-pl
+  # mono-ru
+  # mono-sl
+  # mono-sr
+  # mono-uk
+  # multi8
+  # multi12
   multi8-full-bg
   multi8-full-cs
   multi8-full-hr
@@ -90,24 +90,24 @@ RUN_NAMES=(
   pretrain-multi7-full-sl
   pretrain-multi7-full-sr
   pretrain-multi7-full-uk
-  mono-sl-p10
-  mono-sl-p25
-  mono-sl-p50
-  multi8-sl-p10
-  multi8-sl-p25
-  multi8-sl-p50
-  multi12-sl-p10
-  multi12-sl-p25
-  multi12-sl-p50
-  mono-sr-p10
-  mono-sr-p25
-  mono-sr-p50
-  multi8-sr-p10
-  multi8-sr-p25
-  multi8-sr-p50
-  multi12-sr-p10
-  multi12-sr-p25
-  multi12-sr-p50
+  # mono-sl-p10
+  # mono-sl-p25
+  # mono-sl-p50
+  # multi8-sl-p10
+  # multi8-sl-p25
+  # multi8-sl-p50
+  # multi12-sl-p10
+  # multi12-sl-p25
+  # multi12-sl-p50
+  # mono-sr-p10
+  # mono-sr-p25
+  # mono-sr-p50
+  # multi8-sr-p10
+  # multi8-sr-p25
+  # multi8-sr-p50
+  # multi12-sr-p10
+  # multi12-sr-p25
+  # multi12-sr-p50
 )
 
 declare -a WINDOW_COMMANDS=()
