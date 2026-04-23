@@ -187,6 +187,20 @@ def resolve_run_spec_from_name(run_name: str) -> RunSpec:
     )
 
 
+def resolve_warmstart_pretrain_spec(run_spec: RunSpec) -> RunSpec:
+    if run_spec.pool_name != "warmstart-multi8":
+        raise ValueError(f"Warmstart pretraining is supported only for warmstart-multi8 runs, got {run_spec.run_name}.")
+    target_lang = run_spec.target_language or run_spec.eval_languages[0]
+    pretrain_languages = tuple(lang for lang in MAIN_LANGUAGES if lang != target_lang)
+    return RunSpec(
+        run_name=f"{run_spec.run_name}-pretrain",
+        pool_name="multi8",
+        train_languages=pretrain_languages,
+        eval_languages=pretrain_languages,
+        uses_macro_eval=True,
+    )
+
+
 def harmonize_label(label: str) -> str:
     value = label.strip()
     if not value or value.upper() == "O":
@@ -378,6 +392,26 @@ def create_run_snapshot(source_dir: Path, run_spec: RunSpec, data_args: DataArgu
     return snapshot
 
 
+def create_pretrain_snapshot(source_dir: Path, run_spec: RunSpec, data_args: DataArguments,
+                             epoch: int = 0) -> SplitSamples:
+    pretrain_spec = resolve_warmstart_pretrain_spec(run_spec)
+    corpora = load_run_corpora(source_dir, pretrain_spec)
+    snapshot: SplitSamples = {
+        "train": {},
+        "eval": {lang: list(sentences) for lang, sentences in corpora["eval"].items()},
+        "test": {lang: list(sentences) for lang, sentences in corpora["test"].items()},
+    }
+    base_seed = int(data_args.sampling.seed or data_args.split.seed or 2611)
+    token_budgets = compute_language_token_budgets(corpora["train"], pretrain_spec, data_args)
+    _, sampled_by_lang = build_multilingual_epoch_samples(
+        corpora["train"],
+        token_budgets,
+        base_seed + (epoch * 10_003),
+    )
+    snapshot["train"] = sampled_by_lang
+    return snapshot
+
+
 def _write_split_csv(path: Path, sentences: Iterable[Sentence]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as fp:
@@ -387,11 +421,11 @@ def _write_split_csv(path: Path, sentences: Iterable[Sentence]) -> None:
             writer.writerow([" ".join(tokens), " ".join(labels)])
 
 
-def write_run_snapshot(target_dir: Path, snapshot: SplitSamples) -> None:
+def write_run_snapshot(target_dir: Path, snapshot: SplitSamples, file_prefix: str = "ner") -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
     for split, split_samples in snapshot.items():
         for lang, sentences in split_samples.items():
-            _write_split_csv(target_dir / f"ner-{lang}.{split}.csv", sentences)
+            _write_split_csv(target_dir / f"{file_prefix}-{lang}.{split}.csv", sentences)
 
 
 def main(data_args: DataArguments) -> None:
@@ -402,8 +436,11 @@ def main(data_args: DataArguments) -> None:
     run_names = available_run_names()
     run_specs = [resolve_run_spec_from_name(run_name) for run_name in run_names]
     for run_spec in run_specs:
-        snapshot = create_run_snapshot(source_dir, run_spec, data_args, epoch=snapshot_epoch)
         output_dir = target_dir / run_spec.run_name
+        snapshot = create_run_snapshot(source_dir, run_spec, data_args, epoch=snapshot_epoch)
         write_run_snapshot(output_dir, snapshot)
+        if run_spec.pool_name == "warmstart-multi8":
+            pretrain_snapshot = create_pretrain_snapshot(source_dir, run_spec, data_args, epoch=snapshot_epoch)
+            write_run_snapshot(output_dir, pretrain_snapshot, file_prefix="pretrain-ner")
         logger.info("Prepared SDJT NER split for %s at %s", run_spec.run_name, output_dir)
     logger.info("Prepared %d SDJT NER runs under %s", len(run_specs), target_dir)

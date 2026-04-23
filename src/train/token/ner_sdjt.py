@@ -19,7 +19,12 @@ from ...app.dataset import NerDataset, NerSamplesLoader
 from ...app.args.model import ModelArguments
 from ...app.args.runtime import Paths
 from ...app.metrics import TokenClassificationMetrics
-from ...data.resample.ner_sdjt import RunSpec, available_run_names, resolve_run_spec_from_name
+from ...data.resample.ner_sdjt import (
+    RunSpec,
+    available_run_names,
+    resolve_run_spec_from_name,
+    resolve_warmstart_pretrain_spec,
+)
 
 logger: Logger
 paths: Paths
@@ -128,6 +133,16 @@ def compute_model_prefix(m_args: ModelArguments, d_args: DataArguments,
     return f"{d_args.dataset_name}.{run_spec.run_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}"
 
 
+def compute_pretrain_model_prefix(m_args: ModelArguments, d_args: DataArguments,
+                                  t_args: TrainingArguments, run_spec: RunSpec) -> str:
+    return f"{compute_model_prefix(m_args, d_args, t_args, run_spec)}.pretrain"
+
+
+def compute_pretrain_model_name(m_args: ModelArguments, d_args: DataArguments,
+                                t_args: TrainingArguments, run_spec: RunSpec) -> str:
+    return f"{compute_pretrain_model_prefix(m_args, d_args, t_args, run_spec)}.s{t_args.seed}"
+
+
 def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments,
                        run_spec: RunSpec) -> Path:
     model_name = compute_model_name(m_args, d_args, t_args, run_spec)
@@ -136,19 +151,29 @@ def compute_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: Tr
     return output_dir
 
 
-def resolve_init_model_source(m_args: ModelArguments, d_args: DataArguments,
-                              t_args: TrainingArguments, run_spec: RunSpec) -> Optional[Path]:
-    if not run_spec.init_from_run_name:
-        return None
-    init_run_spec = resolve_run_spec_from_name(run_spec.init_from_run_name)
-    init_model_name = compute_model_name(m_args, d_args, t_args, init_run_spec)
-    init_model_dir = paths.context / init_model_name
-    if not init_model_dir.exists():
+def compute_pretrain_output_dir(m_args: ModelArguments, d_args: DataArguments, t_args: TrainingArguments,
+                                run_spec: RunSpec) -> Path:
+    model_name = compute_pretrain_model_name(m_args, d_args, t_args, run_spec)
+    output_dir = paths.context / model_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
+def prepare_prefixed_split_dir(data_root: Path, cache_root: Path, file_prefix: str, seed: int) -> Path:
+    prefixed_root = cache_root / "prefixed-splits" / data_root.name / f"{file_prefix}.s{seed}"
+    prefixed_root.mkdir(parents=True, exist_ok=True)
+    source_prefix = f"{file_prefix}-"
+    copied = 0
+    for source_path in sorted(data_root.glob(f"{file_prefix}-*.csv")):
+        target_path = prefixed_root / source_path.name[len(source_prefix):]
+        shutil.copy2(source_path, target_path)
+        copied += 1
+    if copied == 0:
         raise FileNotFoundError(
-            f"Warm-start checkpoint for {run_spec.run_name} not found at {init_model_dir}. "
-            f"Train `{run_spec.init_from_run_name}` first with the same seed/hyperparameters."
+            f"No prefixed split files found under {data_root} for prefix {file_prefix!r}. "
+            f"Run `./data resample {paths.curr_context}` first."
         )
-    return init_model_dir
+    return prefixed_root
 
 
 class MacroEvalTrainer(Trainer):
@@ -209,29 +234,13 @@ def load_model_and_tokenizer(model_args: ModelArguments, cache_root: Path, label
     return model, tokenizer
 
 
-def main(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments) -> None:
-    run_names = available_run_names()
-    attrs = data_args.attributes or {}
-    run_name = str(attrs.get("run_name", "")).strip()
-    if not run_name:
-        raise ValueError(
-            f"run_name attribute is required for SDJT NER resampling an d should be one of {run_names}!"
-        )
-    # base_seed = int(train_args.seed or train_args.seed or 2611)
-    run_spec = resolve_run_spec_from_name(run_name)
-    logger.info("Training SDJT NER run %s", run_spec.run_name)
-
-    data_root, cache_root = init_dirs(paths, run_name)
-    train_args.output_dir = str(compute_output_dir(model_args, data_args, train_args, run_spec))
+def run_training_phase(data_root: Path, cache_root: Path, run_spec: RunSpec, model_args: ModelArguments,
+                       train_args: TrainingArguments, output_dir: Path, init_model_source: Optional[Path] = None) -> None:
+    train_args.output_dir = str(output_dir)
     train_args.metric_for_best_model = run_spec.metric_name
-    if not data_root.exists():
-        raise FileNotFoundError(f"Run split not found at {data_root}. Run `./data split {paths.curr_context}` first.")
-    init_model_source = resolve_init_model_source(model_args, data_args, train_args, run_spec)
-
     languages = list(run_spec.train_languages)
     ner_samples = NerSamplesLoader(data_root, languages)
     metrics = TokenClassificationMetrics(id2label=ner_samples.labeler.id2label)
-    # noinspection PyTypeChecker
     _log_run_configuration(run_spec, data_root, cache_root, train_args.output_dir, model_args, train_args)
     if init_model_source is not None:
         logger.info(
@@ -297,3 +306,64 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     logger.info("Evaluation metrics for %s: %s", run_spec.run_name, eval_metrics)
     # noinspection PyTypeChecker
     _cleanup_checkpoints(Path(train_args.output_dir))
+
+
+def pretrain(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments) -> None:
+    attrs = data_args.attributes or {}
+    run_name = str(attrs.get("run_name", "")).strip()
+    run_spec = resolve_run_spec_from_name(run_name)
+    if run_spec.pool_name != "warmstart-multi8":
+        return
+
+    logger.info("Starting warmstart pretraining for %s", run_spec.run_name)
+    data_root, cache_root = init_dirs(paths, run_name)
+    pretrain_run_spec = resolve_warmstart_pretrain_spec(run_spec)
+    pretrain_data_root = prepare_prefixed_split_dir(data_root, cache_root, "pretrain", train_args.seed)
+    pretrain_output_dir = compute_pretrain_output_dir(model_args, data_args, train_args, run_spec)
+    run_training_phase(
+        pretrain_data_root,
+        cache_root,
+        pretrain_run_spec,
+        model_args,
+        train_args,
+        pretrain_output_dir,
+    )
+
+
+def main(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments) -> None:
+    run_names = available_run_names()
+    attrs = data_args.attributes or {}
+    run_name = str(attrs.get("run_name", "")).strip()
+    if not run_name:
+        raise ValueError(
+            f"run_name attribute is required for SDJT NER resampling an d should be one of {run_names}!"
+        )
+    run_spec = resolve_run_spec_from_name(run_name)
+    logger.info("Training SDJT NER run %s", run_spec.run_name)
+
+    if run_spec.pool_name == "warmstart-multi8":
+        pretrain(data_args, model_args, train_args)
+
+    data_root, cache_root = init_dirs(paths, run_name)
+    if not data_root.exists():
+        raise FileNotFoundError(f"Run split not found at {data_root}. Run `./data split {paths.curr_context}` first.")
+
+    init_model_source = None
+    if run_spec.pool_name == "warmstart-multi8":
+        init_model_source = compute_pretrain_output_dir(model_args, data_args, train_args, run_spec)
+        if not (init_model_source / "config.json").exists():
+            raise FileNotFoundError(
+                f"Warmstart pretrain checkpoint for {run_spec.run_name} not found at {init_model_source}. "
+                f"Pretraining must complete before target fine-tuning."
+            )
+
+    output_dir = compute_output_dir(model_args, data_args, train_args, run_spec)
+    run_training_phase(
+        data_root,
+        cache_root,
+        run_spec,
+        model_args,
+        train_args,
+        output_dir,
+        init_model_source,
+    )
