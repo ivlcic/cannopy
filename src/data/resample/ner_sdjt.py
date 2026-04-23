@@ -112,7 +112,7 @@ def resolve_run_spec_from_name(run_name: str) -> RunSpec:
         )
 
     parts = normalized.split("-")
-    if len(parts) not in {2, 3}:
+    if len(parts) not in {2, 3, 4}:
         raise ValueError(
             f"Unsupported run name {run_name!r}. Expected one of {', '.join(available_run_names())}."
         )
