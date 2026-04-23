@@ -42,7 +42,7 @@ class RunSpec:
 
     @property
     def is_multilingual(self) -> bool:
-        return self.pool_name in {"multi8", "multi12", "multi8-fulltarget"}
+        return self.pool_name in {"multi8", "multi12", "multi8-full"}
 
     @property
     def metric_name(self) -> str:
@@ -52,8 +52,8 @@ class RunSpec:
 def available_run_names() -> List[str]:
     names = [f"mono-{lang}" for lang in MAIN_LANGUAGES]
     names.extend(["multi8", "multi12"])
-    names.extend([f"multi8-fulltarget-{lang}" for lang in MAIN_LANGUAGES])
-    names.extend([f"warmstart-multi8-{lang}" for lang in MAIN_LANGUAGES])
+    names.extend([f"multi8-full-{lang}" for lang in MAIN_LANGUAGES])
+    names.extend([f"pretrain-multi7-full-{lang}" for lang in MAIN_LANGUAGES])
     for lang in sorted(CURVE_LANGUAGES):
         for budget in sorted(b for b in CURVE_BUDGETS if b < 100):
             names.append(f"mono-{lang}-p{budget}")
@@ -117,25 +117,25 @@ def resolve_run_spec_from_name(run_name: str) -> RunSpec:
             f"Unsupported run name {run_name!r}. Expected one of {', '.join(available_run_names())}."
         )
 
-    if len(parts) == 3 and parts[0] == "multi8" and parts[1] == "fulltarget":
+    if len(parts) == 3 and parts[0] == "multi8" and parts[1] == "full":
         lang = _normalize_lang(parts[2])
         if lang not in MAIN_LANGUAGES:
-            raise ValueError(f"Multi8-fulltarget runs are supported only for main languages, got {lang!r}.")
+            raise ValueError(f"Multi8-full runs are supported only for main languages, got {lang!r}.")
         return RunSpec(
-            run_name=f"multi8-fulltarget-{lang}",
-            pool_name="multi8-fulltarget",
+            run_name=f"multi8-full-{lang}",
+            pool_name="multi8-full",
             train_languages=MAIN_LANGUAGES,
             eval_languages=(lang,),
             target_language=lang,
         )
 
-    if len(parts) == 3 and parts[0] == "warmstart" and parts[1] == "multi8":
-        lang = _normalize_lang(parts[2])
+    if len(parts) == 4 and parts[0] == "pretrain" and parts[1] == "multi7" and parts[2] == "full":
+        lang = _normalize_lang(parts[3])
         if lang not in MAIN_LANGUAGES:
-            raise ValueError(f"Warmstart-Multi8 runs are supported only for main languages, got {lang!r}.")
+            raise ValueError(f"Pretrain-Multi7-Full runs are supported only for main languages, got {lang!r}.")
         return RunSpec(
-            run_name=f"warmstart-multi8-{lang}",
-            pool_name="warmstart-multi8",
+            run_name=f"pretrain-multi7-full-{lang}",
+            pool_name="pretrain-multi7-full",
             train_languages=(lang,),
             eval_languages=(lang,),
             target_language=lang,
@@ -187,9 +187,11 @@ def resolve_run_spec_from_name(run_name: str) -> RunSpec:
     )
 
 
-def resolve_warmstart_pretrain_spec(run_spec: RunSpec) -> RunSpec:
-    if run_spec.pool_name != "warmstart-multi8":
-        raise ValueError(f"Warmstart pretraining is supported only for warmstart-multi8 runs, got {run_spec.run_name}.")
+def resolve_pretrain_multi7_spec(run_spec: RunSpec) -> RunSpec:
+    if run_spec.pool_name != "pretrain-multi7-full":
+        raise ValueError(
+            f"Pretrain multi7 stage is supported only for pretrain-multi7-full runs, got {run_spec.run_name}."
+        )
     target_lang = run_spec.target_language or run_spec.eval_languages[0]
     pretrain_languages = tuple(lang for lang in MAIN_LANGUAGES if lang != target_lang)
     return RunSpec(
@@ -340,7 +342,7 @@ def compute_language_token_budgets(train_by_lang: Mapping[str, Sequence[Sentence
 
     base_budget = compute_multilingual_token_budget(train_by_lang, data_args)
     budgets = {lang: base_budget for lang in run_spec.train_languages}
-    if run_spec.pool_name == "multi8-fulltarget":
+    if run_spec.pool_name == "multi8-full":
         target_lang = run_spec.target_language or run_spec.train_languages[0]
         budgets[target_lang] = count_tokens(train_by_lang[target_lang])
         return budgets
@@ -394,7 +396,7 @@ def create_run_snapshot(source_dir: Path, run_spec: RunSpec, data_args: DataArgu
 
 def create_pretrain_snapshot(source_dir: Path, run_spec: RunSpec, data_args: DataArguments,
                              epoch: int = 0) -> SplitSamples:
-    pretrain_spec = resolve_warmstart_pretrain_spec(run_spec)
+    pretrain_spec = resolve_pretrain_multi7_spec(run_spec)
     corpora = load_run_corpora(source_dir, pretrain_spec)
     snapshot: SplitSamples = {
         "train": {},
@@ -439,7 +441,7 @@ def main(data_args: DataArguments) -> None:
         output_dir = target_dir / run_spec.run_name
         snapshot = create_run_snapshot(source_dir, run_spec, data_args, epoch=snapshot_epoch)
         write_run_snapshot(output_dir, snapshot)
-        if run_spec.pool_name == "warmstart-multi8":
+        if run_spec.pool_name == "pretrain-multi7-full":
             pretrain_snapshot = create_pretrain_snapshot(source_dir, run_spec, data_args, epoch=snapshot_epoch)
             write_run_snapshot(output_dir, pretrain_snapshot, file_prefix="pretrain-ner")
         logger.info("Prepared SDJT NER split for %s at %s", run_spec.run_name, output_dir)

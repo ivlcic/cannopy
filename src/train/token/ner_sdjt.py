@@ -23,7 +23,7 @@ from ...data.resample.ner_sdjt import (
     RunSpec,
     available_run_names,
     resolve_run_spec_from_name,
-    resolve_warmstart_pretrain_spec,
+    resolve_pretrain_multi7_spec,
 )
 
 logger: Logger
@@ -312,12 +312,12 @@ def pretrain(data_args: DataArguments, model_args: ModelArguments, train_args: T
     attrs = data_args.attributes or {}
     run_name = str(attrs.get("run_name", "")).strip()
     run_spec = resolve_run_spec_from_name(run_name)
-    if run_spec.pool_name != "warmstart-multi8":
+    if run_spec.pool_name != "pretrain-multi7-full":
         return
 
-    logger.info("Starting warmstart pretraining for %s", run_spec.run_name)
+    logger.info("Starting pretrain-multi7 stage for %s", run_spec.run_name)
     data_root, cache_root = init_dirs(paths, run_name)
-    pretrain_run_spec = resolve_warmstart_pretrain_spec(run_spec)
+    pretrain_run_spec = resolve_pretrain_multi7_spec(run_spec)
     pretrain_data_root = prepare_prefixed_split_dir(data_root, cache_root, "pretrain", train_args.seed)
     pretrain_output_dir = compute_pretrain_output_dir(model_args, data_args, train_args, run_spec)
     run_training_phase(
@@ -341,7 +341,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     run_spec = resolve_run_spec_from_name(run_name)
     logger.info("Training SDJT NER run %s", run_spec.run_name)
 
-    if run_spec.pool_name == "warmstart-multi8":
+    if run_spec.pool_name == "pretrain-multi7-full":
         pretrain(data_args, model_args, train_args)
 
     data_root, cache_root = init_dirs(paths, run_name)
@@ -349,11 +349,11 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         raise FileNotFoundError(f"Run split not found at {data_root}. Run `./data split {paths.curr_context}` first.")
 
     init_model_source = None
-    if run_spec.pool_name == "warmstart-multi8":
+    if run_spec.pool_name == "pretrain-multi7-full":
         init_model_source = compute_pretrain_output_dir(model_args, data_args, train_args, run_spec)
         if not (init_model_source / "config.json").exists():
             raise FileNotFoundError(
-                f"Warmstart pretrain checkpoint for {run_spec.run_name} not found at {init_model_source}. "
+                f"Pretrain stage checkpoint for {run_spec.run_name} not found at {init_model_source}. "
                 f"Pretraining must complete before target fine-tuning."
             )
 
