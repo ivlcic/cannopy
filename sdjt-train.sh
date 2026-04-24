@@ -74,22 +74,25 @@ RUN_NAMES=(
   # mono-uk
   # multi8
   # multi12
-  multi8-full-bg
-  multi8-full-cs
-  multi8-full-hr
-  multi8-full-pl
-  multi8-full-ru
-  multi8-full-sl
-  multi8-full-sr
-  multi8-full-uk
-  pretrain-multi7-full-bg
-  pretrain-multi7-full-cs
-  pretrain-multi7-full-hr
-  pretrain-multi7-full-pl
-  pretrain-multi7-full-ru
-  pretrain-multi7-full-sl
-  pretrain-multi7-full-sr
-  pretrain-multi7-full-uk
+  full-multi8
+  full-multi12
+  full-multi12-capaux
+  # multi8-full-bg
+  # multi8-full-cs
+  # multi8-full-hr
+  # multi8-full-pl
+  # multi8-full-ru
+  # multi8-full-sl
+  # multi8-full-sr
+  # multi8-full-uk
+  # pretrain-multi7-full-bg
+  # pretrain-multi7-full-cs
+  # pretrain-multi7-full-hr
+  # pretrain-multi7-full-pl
+  # pretrain-multi7-full-ru
+  # pretrain-multi7-full-sl
+  # pretrain-multi7-full-sr
+  # pretrain-multi7-full-uk
   # mono-sl-p10
   # mono-sl-p25
   # mono-sl-p50

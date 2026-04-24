@@ -85,6 +85,71 @@ def validate_expected_rows(df) -> None:
                     count,
                 )
 
+    for pool_name in ("multi8-full", "pretrain-multi7-full"):
+        for language in MAIN_LANGUAGES:
+            mask = (
+                (df["pool_name"] == pool_name)
+                & (df["budget_pct"] == 100)
+                & (df["language"] == language)
+            )
+            count = int(mask.sum())
+            if count == 0:
+                LOGGER.warning(
+                    "Missing row for pool=%s, language=%s, budget=100",
+                    pool_name,
+                    language,
+                )
+            elif count > 1:
+                LOGGER.warning(
+                    "Duplicate rows for pool=%s, language=%s, budget=100: %d",
+                    pool_name,
+                    language,
+                    count,
+                )
+
+    for language in MAIN_LANGUAGES:
+        mask = (
+            (df["pool_name"] == "full-multi8")
+            & (df["budget_pct"] == 100)
+            & (df["language"] == language)
+        )
+        count = int(mask.sum())
+        if count == 0:
+            LOGGER.warning(
+                "Missing row for pool=%s, language=%s, budget=100",
+                "full-multi8",
+                language,
+            )
+        elif count > 1:
+            LOGGER.warning(
+                "Duplicate rows for pool=%s, language=%s, budget=100: %d",
+                "full-multi8",
+                language,
+                count,
+            )
+
+    for pool_name in ("full-multi12", "full-multi12-capaux"):
+        for language in MAIN_LANGUAGES:
+            mask = (
+                (df["pool_name"] == pool_name)
+                & (df["budget_pct"] == 100)
+                & (df["language"] == language)
+            )
+            count = int(mask.sum())
+            if count == 0:
+                LOGGER.warning(
+                    "Missing row for pool=%s, language=%s, budget=100",
+                    pool_name,
+                    language,
+                )
+            elif count > 1:
+                LOGGER.warning(
+                    "Duplicate rows for pool=%s, language=%s, budget=100: %d",
+                    pool_name,
+                    language,
+                    count,
+                )
+
     for language in sorted(CURVE_LANGUAGES):
         for pool_name in ("mono", "multi8", "multi12"):
             for budget_pct in sorted(CURVE_BUDGETS):
@@ -324,7 +389,138 @@ def compute_rq3(df):
     return out
 
 
-def write_summary(outdir: Path, rq1, rq2, rq3) -> Path:
+def _rename_metric_columns(frame, prefix: str):
+    rename_map = {}
+    for column in frame.columns:
+        if column == "language":
+            continue
+        rename_map[column] = f"{prefix}_{column}"
+    return frame.rename(columns=rename_map)
+
+
+def _merge_language_frames(frames):
+    merged = None
+    for frame in frames:
+        if merged is None:
+            merged = frame.copy()
+        else:
+            merged = merged.merge(frame, on="language", how="outer")
+    return merged
+
+
+def _compute_best_model(record: dict[str, Any]) -> str:
+    candidates = (
+        ("mono", record["mono_f1"]),
+        ("multi8", record["multi8_f1"]),
+        ("multi8_full", record["multi8_full_f1"]),
+        ("pretrain_multi7_full", record["pretrain_multi7_full_f1"]),
+    )
+    available = [(name, value) for name, value in candidates if value == value]
+    if not available:
+        return "missing"
+    return max(available, key=lambda item: item[1])[0]
+
+
+def compute_rq4(df):
+    pd = _import_pandas()
+    LOGGER.info("Computing RQ4: target-specific multilingual training and leave-one-out pretraining")
+    mono = _rename_metric_columns(
+        select_main_rows(df, "mono")[["language", "p", "r", "f1", "acc"]],
+        "mono",
+    )
+    multi8 = _rename_metric_columns(
+        select_main_rows(df, "multi8")[["language", "p", "r", "f1", "acc"]],
+        "multi8",
+    )
+    multi8_full = _rename_metric_columns(
+        select_main_rows(df, "multi8-full")[["language", "p", "r", "f1", "acc"]],
+        "multi8_full",
+    )
+    pretrain_multi7_full = _rename_metric_columns(
+        select_main_rows(df, "pretrain-multi7-full")[["language", "p", "r", "f1", "acc"]],
+        "pretrain_multi7_full",
+    )
+
+    merged = _merge_language_frames((mono, multi8, multi8_full, pretrain_multi7_full))
+    if merged is None or merged.empty:
+        return pd.DataFrame.from_records([], columns=[
+            "language",
+            "has_mono",
+            "has_multi8",
+            "has_multi8_full",
+            "has_pretrain_multi7_full",
+            "rq4_complete",
+            "mono_f1",
+            "multi8_f1",
+            "multi8_full_f1",
+            "pretrain_multi7_full_f1",
+            "delta_multi8_full_minus_multi8",
+            "delta_multi8_full_minus_mono",
+            "delta_pretrain_multi7_full_minus_mono",
+            "delta_pretrain_multi7_full_minus_multi8_full",
+            "delta_pretrain_multi7_full_minus_multi8",
+            "best_model",
+            "case_a_target_downsampling_hurt",
+            "case_b_clean_multilingual_beats_mono",
+            "case_c_pretraining_beats_mono",
+            "case_d_pretraining_beats_multi8_full",
+            "case_e_mono_remains_best",
+        ])
+
+    merged["delta_multi8_full_minus_multi8"] = merged["multi8_full_f1"] - merged["multi8_f1"]
+    merged["delta_multi8_full_minus_mono"] = merged["multi8_full_f1"] - merged["mono_f1"]
+    merged["delta_pretrain_multi7_full_minus_mono"] = (
+        merged["pretrain_multi7_full_f1"] - merged["mono_f1"]
+    )
+    merged["delta_pretrain_multi7_full_minus_multi8_full"] = (
+        merged["pretrain_multi7_full_f1"] - merged["multi8_full_f1"]
+    )
+    merged["delta_pretrain_multi7_full_minus_multi8"] = (
+        merged["pretrain_multi7_full_f1"] - merged["multi8_f1"]
+    )
+    merged["has_mono"] = merged["mono_f1"].notna()
+    merged["has_multi8"] = merged["multi8_f1"].notna()
+    merged["has_multi8_full"] = merged["multi8_full_f1"].notna()
+    merged["has_pretrain_multi7_full"] = merged["pretrain_multi7_full_f1"].notna()
+    merged["rq4_complete"] = (
+        merged["has_mono"]
+        & merged["has_multi8"]
+        & merged["has_multi8_full"]
+        & merged["has_pretrain_multi7_full"]
+    )
+    merged["case_a_target_downsampling_hurt"] = merged["delta_multi8_full_minus_multi8"] > 0
+    merged["case_b_clean_multilingual_beats_mono"] = merged["delta_multi8_full_minus_mono"] > 0
+    merged["case_c_pretraining_beats_mono"] = merged["delta_pretrain_multi7_full_minus_mono"] > 0
+    merged["case_d_pretraining_beats_multi8_full"] = merged["delta_pretrain_multi7_full_minus_multi8_full"] > 0
+    merged["best_model"] = merged.apply(lambda row: _compute_best_model(row.to_dict()), axis=1)
+    merged["case_e_mono_remains_best"] = merged["best_model"] == "mono"
+
+    complete = merged[merged["rq4_complete"]].copy()
+    LOGGER.info("RQ4 complete languages            = %d/%d", len(complete), len(merged))
+    LOGGER.info("RQ4 macro F1 mono                 = %.4f", safe_mean(complete["mono_f1"]))
+    LOGGER.info("RQ4 macro F1 multi8               = %.4f", safe_mean(complete["multi8_f1"]))
+    LOGGER.info("RQ4 macro F1 multi8-full          = %.4f", safe_mean(complete["multi8_full_f1"]))
+    LOGGER.info(
+        "RQ4 macro F1 pretrain-multi7-full = %.4f",
+        safe_mean(complete["pretrain_multi7_full_f1"]),
+    )
+
+    for _, row in merged.sort_values("language").iterrows():
+        LOGGER.info(
+            "RQ4 %s | mono=%s | multi8=%s | multi8-full=%s | pretrain-multi7-full=%s | complete=%s | best=%s",
+            row["language"],
+            f"{row['mono_f1']:.4f}" if row["mono_f1"] == row["mono_f1"] else "NA",
+            f"{row['multi8_f1']:.4f}" if row["multi8_f1"] == row["multi8_f1"] else "NA",
+            f"{row['multi8_full_f1']:.4f}" if row["multi8_full_f1"] == row["multi8_full_f1"] else "NA",
+            f"{row['pretrain_multi7_full_f1']:.4f}" if row["pretrain_multi7_full_f1"] == row["pretrain_multi7_full_f1"] else "NA",
+            row["rq4_complete"],
+            row["best_model"],
+        )
+
+    return merged.sort_values("language").reset_index(drop=True)
+
+
+def write_summary(outdir: Path, rq1, rq2, rq3, rq4) -> Path:
     summary_path = outdir / "summary.txt"
     mono_macro = safe_mean(rq1["mono_f1"])
     multi8_macro = safe_mean(rq1["multi8_f1"])
@@ -377,21 +573,59 @@ def write_summary(outdir: Path, rq1, rq2, rq3) -> Path:
             file.write(sub.to_string(index=False))
             file.write("\n")
 
+        file.write("\nRQ4: Target-specific multilingual training and leave-one-out pretraining\n")
+        file.write("-----------------------------------------------------------------------\n")
+        rq4_complete = rq4[rq4["rq4_complete"]] if "rq4_complete" in rq4.columns else rq4
+        file.write(f"Complete languages:            {len(rq4_complete)}/{len(rq4)}\n")
+        file.write(f"Mono macro F1:                 {safe_mean(rq4_complete['mono_f1']):.6f}\n")
+        file.write(f"Multi-8 macro F1:              {safe_mean(rq4_complete['multi8_f1']):.6f}\n")
+        file.write(f"Multi8-full-L macro F1:        {safe_mean(rq4_complete['multi8_full_f1']):.6f}\n")
+        file.write(f"Pretrain-Multi7-full-L macro F1:{safe_mean(rq4_complete['pretrain_multi7_full_f1']):.6f}\n\n")
+        file.write(
+            rq4[
+                [
+                    "language",
+                    "has_mono",
+                    "has_multi8",
+                    "has_multi8_full",
+                    "has_pretrain_multi7_full",
+                    "rq4_complete",
+                    "mono_f1",
+                    "multi8_f1",
+                    "multi8_full_f1",
+                    "pretrain_multi7_full_f1",
+                    "delta_multi8_full_minus_multi8",
+                    "delta_multi8_full_minus_mono",
+                    "delta_pretrain_multi7_full_minus_mono",
+                    "delta_pretrain_multi7_full_minus_multi8_full",
+                    "best_model",
+                    "case_a_target_downsampling_hurt",
+                    "case_b_clean_multilingual_beats_mono",
+                    "case_c_pretraining_beats_mono",
+                    "case_d_pretraining_beats_multi8_full",
+                    "case_e_mono_remains_best",
+                ]
+            ].to_string(index=False)
+        )
+        file.write("\n")
+
     LOGGER.info("Wrote summary: %s", summary_path)
     return summary_path
 
 
-def write_outputs(outdir: Path, rq1, rq2, rq3) -> dict[str, Path]:
+def write_outputs(outdir: Path, rq1, rq2, rq3, rq4) -> dict[str, Path]:
     outdir.mkdir(parents=True, exist_ok=True)
     outputs = {
         "rq1": outdir / "rq1_mono_vs_multi8.csv",
         "rq2": outdir / "rq2_multi8_vs_multi12.csv",
         "rq3": outdir / "rq3_resource_curves.csv",
+        "rq4": outdir / "rq4_target_specific_vs_pretrain.csv",
     }
     rq1.to_csv(outputs["rq1"], index=False)
     rq2.to_csv(outputs["rq2"], index=False)
     rq3.to_csv(outputs["rq3"], index=False)
-    outputs["summary"] = write_summary(outdir, rq1, rq2, rq3)
+    rq4.to_csv(outputs["rq4"], index=False)
+    outputs["summary"] = write_summary(outdir, rq1, rq2, rq3, rq4)
     return outputs
 
 
@@ -401,4 +635,5 @@ def analyze_results(csv_path: Path, outdir: Path) -> dict[str, Path]:
     rq1 = compute_rq1(df)
     rq2 = compute_rq2(df)
     rq3 = compute_rq3(df)
-    return write_outputs(outdir, rq1, rq2, rq3)
+    rq4 = compute_rq4(df)
+    return write_outputs(outdir, rq1, rq2, rq3, rq4)

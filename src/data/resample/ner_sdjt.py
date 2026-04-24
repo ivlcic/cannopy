@@ -42,7 +42,14 @@ class RunSpec:
 
     @property
     def is_multilingual(self) -> bool:
-        return self.pool_name in {"multi8", "multi12", "multi8-full"}
+        return self.pool_name in {
+            "multi8",
+            "multi12",
+            "multi8-full",
+            "full-multi8",
+            "full-multi12",
+            "full-multi12-capaux",
+        }
 
     @property
     def metric_name(self) -> str:
@@ -51,7 +58,7 @@ class RunSpec:
 
 def available_run_names() -> List[str]:
     names = [f"mono-{lang}" for lang in MAIN_LANGUAGES]
-    names.extend(["multi8", "multi12"])
+    names.extend(["multi8", "multi12", "full-multi8", "full-multi12", "full-multi12-capaux"])
     names.extend([f"multi8-full-{lang}" for lang in MAIN_LANGUAGES])
     names.extend([f"pretrain-multi7-full-{lang}" for lang in MAIN_LANGUAGES])
     for lang in sorted(CURVE_LANGUAGES):
@@ -106,6 +113,30 @@ def resolve_run_spec_from_name(run_name: str) -> RunSpec:
         return RunSpec(
             run_name="multi12",
             pool_name="multi12",
+            train_languages=ALL_LANGUAGES,
+            eval_languages=MAIN_LANGUAGES,
+            uses_macro_eval=True,
+        )
+    if normalized == "full-multi8":
+        return RunSpec(
+            run_name="full-multi8",
+            pool_name="full-multi8",
+            train_languages=MAIN_LANGUAGES,
+            eval_languages=MAIN_LANGUAGES,
+            uses_macro_eval=True,
+        )
+    if normalized == "full-multi12":
+        return RunSpec(
+            run_name="full-multi12",
+            pool_name="full-multi12",
+            train_languages=ALL_LANGUAGES,
+            eval_languages=MAIN_LANGUAGES,
+            uses_macro_eval=True,
+        )
+    if normalized == "full-multi12-capaux":
+        return RunSpec(
+            run_name="full-multi12-capaux",
+            pool_name="full-multi12-capaux",
             train_languages=ALL_LANGUAGES,
             eval_languages=MAIN_LANGUAGES,
             uses_macro_eval=True,
@@ -342,6 +373,21 @@ def compute_language_token_budgets(train_by_lang: Mapping[str, Sequence[Sentence
 
     base_budget = compute_multilingual_token_budget(train_by_lang, data_args)
     budgets = {lang: base_budget for lang in run_spec.train_languages}
+    if run_spec.pool_name == "full-multi8":
+        return {
+            lang: count_tokens(train_by_lang[lang])
+            for lang in run_spec.train_languages
+        }
+    if run_spec.pool_name == "full-multi12":
+        return {
+            lang: count_tokens(train_by_lang[lang])
+            for lang in run_spec.train_languages
+        }
+    if run_spec.pool_name == "full-multi12-capaux":
+        return {
+            lang: count_tokens(train_by_lang[lang]) if lang in MAIN_LANGUAGES else base_budget
+            for lang in run_spec.train_languages
+        }
     if run_spec.pool_name == "multi8-full":
         target_lang = run_spec.target_language or run_spec.train_languages[0]
         budgets[target_lang] = count_tokens(train_by_lang[target_lang])
