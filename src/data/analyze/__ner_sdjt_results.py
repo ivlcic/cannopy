@@ -520,7 +520,94 @@ def compute_rq4(df):
     return merged.sort_values("language").reset_index(drop=True)
 
 
-def write_summary(outdir: Path, rq1, rq2, rq3, rq4) -> Path:
+def _compute_best_full_model(record: dict[str, Any]) -> str:
+    candidates = (
+        ("full_multi8", record["full_multi8_f1"]),
+        ("full_multi12", record["full_multi12_f1"]),
+        ("full_multi12_capaux", record["full_multi12_capaux_f1"]),
+    )
+    available = [(name, value) for name, value in candidates if value == value]
+    if not available:
+        return "missing"
+    return max(available, key=lambda item: item[1])[0]
+
+
+def compute_rq5(df):
+    pd = _import_pandas()
+    LOGGER.info("Computing RQ5: full multilingual training variants")
+    full_multi8 = _rename_metric_columns(
+        select_main_rows(df, "full-multi8")[["language", "p", "r", "f1", "acc"]],
+        "full_multi8",
+    )
+    full_multi12 = _rename_metric_columns(
+        select_main_rows(df, "full-multi12")[["language", "p", "r", "f1", "acc"]],
+        "full_multi12",
+    )
+    full_multi12_capaux = _rename_metric_columns(
+        select_main_rows(df, "full-multi12-capaux")[["language", "p", "r", "f1", "acc"]],
+        "full_multi12_capaux",
+    )
+
+    merged = _merge_language_frames((full_multi8, full_multi12, full_multi12_capaux))
+    if merged is None or merged.empty:
+        return pd.DataFrame.from_records([], columns=[
+            "language",
+            "has_full_multi8",
+            "has_full_multi12",
+            "has_full_multi12_capaux",
+            "rq5_complete",
+            "full_multi8_f1",
+            "full_multi12_f1",
+            "full_multi12_capaux_f1",
+            "delta_full_multi12_minus_full_multi8",
+            "delta_full_multi12_capaux_minus_full_multi8",
+            "delta_full_multi12_capaux_minus_full_multi12",
+            "best_model",
+        ])
+
+    merged["delta_full_multi12_minus_full_multi8"] = (
+        merged["full_multi12_f1"] - merged["full_multi8_f1"]
+    )
+    merged["delta_full_multi12_capaux_minus_full_multi8"] = (
+        merged["full_multi12_capaux_f1"] - merged["full_multi8_f1"]
+    )
+    merged["delta_full_multi12_capaux_minus_full_multi12"] = (
+        merged["full_multi12_capaux_f1"] - merged["full_multi12_f1"]
+    )
+    merged["has_full_multi8"] = merged["full_multi8_f1"].notna()
+    merged["has_full_multi12"] = merged["full_multi12_f1"].notna()
+    merged["has_full_multi12_capaux"] = merged["full_multi12_capaux_f1"].notna()
+    merged["rq5_complete"] = (
+        merged["has_full_multi8"]
+        & merged["has_full_multi12"]
+        & merged["has_full_multi12_capaux"]
+    )
+    merged["best_model"] = merged.apply(lambda row: _compute_best_full_model(row.to_dict()), axis=1)
+
+    complete = merged[merged["rq5_complete"]].copy()
+    LOGGER.info("RQ5 complete languages               = %d/%d", len(complete), len(merged))
+    LOGGER.info("RQ5 macro F1 full-multi8             = %.4f", safe_mean(complete["full_multi8_f1"]))
+    LOGGER.info("RQ5 macro F1 full-multi12            = %.4f", safe_mean(complete["full_multi12_f1"]))
+    LOGGER.info(
+        "RQ5 macro F1 full-multi12-capaux     = %.4f",
+        safe_mean(complete["full_multi12_capaux_f1"]),
+    )
+
+    for _, row in merged.sort_values("language").iterrows():
+        LOGGER.info(
+            "RQ5 %s | full-multi8=%s | full-multi12=%s | full-multi12-capaux=%s | complete=%s | best=%s",
+            row["language"],
+            f"{row['full_multi8_f1']:.4f}" if row["full_multi8_f1"] == row["full_multi8_f1"] else "NA",
+            f"{row['full_multi12_f1']:.4f}" if row["full_multi12_f1"] == row["full_multi12_f1"] else "NA",
+            f"{row['full_multi12_capaux_f1']:.4f}" if row["full_multi12_capaux_f1"] == row["full_multi12_capaux_f1"] else "NA",
+            row["rq5_complete"],
+            row["best_model"],
+        )
+
+    return merged.sort_values("language").reset_index(drop=True)
+
+
+def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5) -> Path:
     summary_path = outdir / "summary.txt"
     mono_macro = safe_mean(rq1["mono_f1"])
     multi8_macro = safe_mean(rq1["multi8_f1"])
@@ -609,23 +696,54 @@ def write_summary(outdir: Path, rq1, rq2, rq3, rq4) -> Path:
         )
         file.write("\n")
 
+        file.write("\nRQ5: Full multilingual training variants\n")
+        file.write("----------------------------------------\n")
+        rq5_complete = rq5[rq5["rq5_complete"]] if "rq5_complete" in rq5.columns else rq5
+        file.write(f"Complete languages:               {len(rq5_complete)}/{len(rq5)}\n")
+        file.write(f"Full-Multi8 macro F1:             {safe_mean(rq5_complete['full_multi8_f1']):.6f}\n")
+        file.write(f"Full-Multi12 macro F1:            {safe_mean(rq5_complete['full_multi12_f1']):.6f}\n")
+        file.write(
+            f"Full-Multi12-CapAux macro F1:     {safe_mean(rq5_complete['full_multi12_capaux_f1']):.6f}\n\n"
+        )
+        file.write(
+            rq5[
+                [
+                    "language",
+                    "has_full_multi8",
+                    "has_full_multi12",
+                    "has_full_multi12_capaux",
+                    "rq5_complete",
+                    "full_multi8_f1",
+                    "full_multi12_f1",
+                    "full_multi12_capaux_f1",
+                    "delta_full_multi12_minus_full_multi8",
+                    "delta_full_multi12_capaux_minus_full_multi8",
+                    "delta_full_multi12_capaux_minus_full_multi12",
+                    "best_model",
+                ]
+            ].to_string(index=False)
+        )
+        file.write("\n")
+
     LOGGER.info("Wrote summary: %s", summary_path)
     return summary_path
 
 
-def write_outputs(outdir: Path, rq1, rq2, rq3, rq4) -> dict[str, Path]:
+def write_outputs(outdir: Path, rq1, rq2, rq3, rq4, rq5) -> dict[str, Path]:
     outdir.mkdir(parents=True, exist_ok=True)
     outputs = {
         "rq1": outdir / "rq1_mono_vs_multi8.csv",
         "rq2": outdir / "rq2_multi8_vs_multi12.csv",
         "rq3": outdir / "rq3_resource_curves.csv",
         "rq4": outdir / "rq4_target_specific_vs_pretrain.csv",
+        "rq5": outdir / "rq5_full_multilingual_variants.csv",
     }
     rq1.to_csv(outputs["rq1"], index=False)
     rq2.to_csv(outputs["rq2"], index=False)
     rq3.to_csv(outputs["rq3"], index=False)
     rq4.to_csv(outputs["rq4"], index=False)
-    outputs["summary"] = write_summary(outdir, rq1, rq2, rq3, rq4)
+    rq5.to_csv(outputs["rq5"], index=False)
+    outputs["summary"] = write_summary(outdir, rq1, rq2, rq3, rq4, rq5)
     return outputs
 
 
@@ -636,4 +754,5 @@ def analyze_results(csv_path: Path, outdir: Path) -> dict[str, Path]:
     rq2 = compute_rq2(df)
     rq3 = compute_rq3(df)
     rq4 = compute_rq4(df)
-    return write_outputs(outdir, rq1, rq2, rq3, rq4)
+    rq5 = compute_rq5(df)
+    return write_outputs(outdir, rq1, rq2, rq3, rq4, rq5)
