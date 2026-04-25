@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Any
 
@@ -607,7 +608,161 @@ def compute_rq5(df):
     return merged.sort_values("language").reset_index(drop=True)
 
 
-def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5) -> Path:
+def _exact_sign_test_pvalue(deltas: list[float]) -> float:
+    nonzero = [delta for delta in deltas if delta != 0]
+    if not nonzero:
+        return 1.0
+    positives = sum(1 for delta in nonzero if delta > 0)
+    negatives = len(nonzero) - positives
+    if positives == negatives:
+        return 1.0
+    tail = max(positives, negatives)
+    probability = sum(math.comb(len(nonzero), value) for value in range(tail, len(nonzero) + 1))
+    return min(1.0, 2.0 * probability / (2 ** len(nonzero)))
+
+
+def _average_ranks(values: list[float]) -> list[float]:
+    indexed = sorted(enumerate(values), key=lambda item: item[1])
+    ranks = [0.0] * len(values)
+    start = 0
+    while start < len(indexed):
+        end = start + 1
+        while end < len(indexed) and indexed[end][1] == indexed[start][1]:
+            end += 1
+        avg_rank = (start + 1 + end) / 2.0
+        for pos in range(start, end):
+            original_index = indexed[pos][0]
+            ranks[original_index] = avg_rank
+        start = end
+    return ranks
+
+
+def _exact_wilcoxon_pvalue(deltas: list[float]) -> float:
+    nonzero = [delta for delta in deltas if delta != 0]
+    if not nonzero:
+        return 1.0
+
+    ranks = _average_ranks([abs(delta) for delta in nonzero])
+    scaled_ranks = [int(round(rank * 2)) for rank in ranks]
+    total_rank = sum(scaled_ranks)
+    observed_positive = sum(rank for delta, rank in zip(nonzero, scaled_ranks) if delta > 0)
+    observed_stat = min(observed_positive, total_rank - observed_positive)
+
+    extreme = 0
+    assignments = 1 << len(scaled_ranks)
+    for mask in range(assignments):
+        positive_rank_sum = 0
+        for idx, rank in enumerate(scaled_ranks):
+            if mask & (1 << idx):
+                positive_rank_sum += rank
+        stat = min(positive_rank_sum, total_rank - positive_rank_sum)
+        if stat <= observed_stat:
+            extreme += 1
+    return extreme / assignments
+
+
+def _format_pvalue(value: float) -> str:
+    return f"p = {value:.3f}"
+
+
+def _build_comparison_record(comparison: str, favored_label: str, left_values: list[float],
+                             right_values: list[float], interpretation: str) -> dict[str, str]:
+    paired = [
+        (float(left), float(right))
+        for left, right in zip(left_values, right_values)
+        if left == left and right == right
+    ]
+    deltas = [left - right for left, right in paired]
+    total = len(deltas)
+    favored_count = sum(1 for delta in deltas if delta > 0)
+    mean_delta_points = 100.0 * (sum(deltas) / total) if total else float("nan")
+    return {
+        "Comparison": comparison,
+        "Mean delta, F1 points": f"{mean_delta_points:+.2f} for {favored_label}",
+        "Direction count": f"{favored_count}/{total} languages",
+        "Exact sign test": _format_pvalue(_exact_sign_test_pvalue(deltas)),
+        "Exact Wilcoxon": _format_pvalue(_exact_wilcoxon_pvalue(deltas)),
+        "Interpretation": interpretation,
+    }
+
+
+def compute_statistical_summary(df, rq1, rq2, rq4, rq5):
+    pd = _import_pandas()
+    mono_main = select_main_rows(df, "mono")[["language", "f1"]].rename(columns={"f1": "mono_f1"})
+    full_multi8_main = select_main_rows(df, "full-multi8")[["language", "f1"]].rename(
+        columns={"f1": "full_multi8_f1"}
+    )
+    full_vs_mono = full_multi8_main.merge(mono_main, on="language", how="inner").sort_values("language")
+
+    records = [
+        _build_comparison_record(
+            "Mono-L vs Multi-8",
+            "Mono",
+            rq1["mono_f1"].tolist(),
+            rq1["multi8_f1"].tolist(),
+            "Strong evidence that balanced Multi-8 underperforms Mono overall, though the sign test is conservative.",
+        ),
+        _build_comparison_record(
+            "Multi-8 vs Multi-12",
+            "Multi-8",
+            rq2["multi8_f1"].tolist(),
+            rq2["multi12_f1"].tolist(),
+            "Statistically robust: adding lower-confidence auxiliary languages hurts balanced training.",
+        ),
+        _build_comparison_record(
+            "Multi8-full-L vs Multi-8",
+            "Multi8-full-L",
+            rq4["multi8_full_f1"].tolist(),
+            rq4["multi8_f1"].tolist(),
+            "Strong evidence that the balanced Multi-8 losses are largely due to target downsampling.",
+        ),
+        _build_comparison_record(
+            "Multi8-full-L vs Mono-L",
+            "Multi8-full-L",
+            rq4["multi8_full_f1"].tolist(),
+            rq4["mono_f1"].tolist(),
+            "No reliable evidence that full-target multilingual training beats monolingual overall. Better to say it recovers the gap.",
+        ),
+        _build_comparison_record(
+            "Pretrain-Multi7-full-L vs Mono-L",
+            "Pretrain",
+            rq4["pretrain_multi7_full_f1"].tolist(),
+            rq4["mono_f1"].tolist(),
+            "No overall significant advantage for leave-one-out pretraining.",
+        ),
+        _build_comparison_record(
+            "Pretrain-Multi7-full-L vs Multi8-full-L",
+            "Pretrain",
+            rq4["pretrain_multi7_full_f1"].tolist(),
+            rq4["multi8_full_f1"].tolist(),
+            "No evidence that pretraining-then-adaptation is better than joint full-target multilingual training.",
+        ),
+        _build_comparison_record(
+            "Full-Multi8 vs Mono-L",
+            "Full-Multi8",
+            full_vs_mono["full_multi8_f1"].tolist(),
+            full_vs_mono["mono_f1"].tolist(),
+            "Suggestive but not significant. Treat as broadly competitive, not clearly better.",
+        ),
+        _build_comparison_record(
+            "Full-Multi12 vs Full-Multi8",
+            "Full-Multi12",
+            rq5["full_multi12_f1"].tolist(),
+            rq5["full_multi8_f1"].tolist(),
+            "Not significant; effectively a tie.",
+        ),
+        _build_comparison_record(
+            "Full-Multi12-CapAux vs Full-Multi12",
+            "CapAux",
+            rq5["full_multi12_capaux_f1"].tolist(),
+            rq5["full_multi12_f1"].tolist(),
+            "No clear evidence that capping auxiliary languages helps in the full-pool setting.",
+        ),
+    ]
+    return pd.DataFrame.from_records(records)
+
+
+def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) -> Path:
     summary_path = outdir / "summary.txt"
     mono_macro = safe_mean(rq1["mono_f1"])
     multi8_macro = safe_mean(rq1["multi8_f1"])
@@ -725,11 +880,17 @@ def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5) -> Path:
         )
         file.write("\n")
 
+        file.write("\nStatistical Comparison Summary\n")
+        file.write("------------------------------\n")
+        file.write("Using the current language-level mean F1s, the important comparisons look like this:\n\n")
+        file.write(statistical_summary.to_string(index=False))
+        file.write("\n")
+
     LOGGER.info("Wrote summary: %s", summary_path)
     return summary_path
 
 
-def write_outputs(outdir: Path, rq1, rq2, rq3, rq4, rq5) -> dict[str, Path]:
+def write_outputs(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) -> dict[str, Path]:
     outdir.mkdir(parents=True, exist_ok=True)
     outputs = {
         "rq1": outdir / "rq1_mono_vs_multi8.csv",
@@ -743,7 +904,7 @@ def write_outputs(outdir: Path, rq1, rq2, rq3, rq4, rq5) -> dict[str, Path]:
     rq3.to_csv(outputs["rq3"], index=False)
     rq4.to_csv(outputs["rq4"], index=False)
     rq5.to_csv(outputs["rq5"], index=False)
-    outputs["summary"] = write_summary(outdir, rq1, rq2, rq3, rq4, rq5)
+    outputs["summary"] = write_summary(outdir, rq1, rq2, rq3, rq4, rq5, statistical_summary)
     return outputs
 
 
@@ -755,4 +916,5 @@ def analyze_results(csv_path: Path, outdir: Path) -> dict[str, Path]:
     rq3 = compute_rq3(df)
     rq4 = compute_rq4(df)
     rq5 = compute_rq5(df)
-    return write_outputs(outdir, rq1, rq2, rq3, rq4, rq5)
+    statistical_summary = compute_statistical_summary(df, rq1, rq2, rq4, rq5)
+    return write_outputs(outdir, rq1, rq2, rq3, rq4, rq5, statistical_summary)
