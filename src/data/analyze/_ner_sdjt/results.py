@@ -5,7 +5,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from ..resample.ner_sdjt import CURVE_BUDGETS, CURVE_LANGUAGES, MAIN_LANGUAGES
+from ...resample.ner_sdjt import CURVE_BUDGETS, CURVE_LANGUAGES, MAIN_LANGUAGES
 
 LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +32,7 @@ NUMERIC_COLUMNS = (
     "acc",
     "acc_std",
 )
+METRIC_COLUMNS = ("p", "p_std", "r", "r_std", "f1", "f1_std", "acc", "acc_std")
 
 
 def _import_pandas():
@@ -194,24 +195,17 @@ def select_main_rows(df, pool_name: str):
     return out
 
 
+def select_main_metric_rows(df, pool_name: str, prefix: str):
+    return _rename_metric_columns(
+        select_main_rows(df, pool_name)[["language", *METRIC_COLUMNS]],
+        prefix,
+    )
+
+
 def compute_rq1(df):
     LOGGER.info("Computing RQ1: Mono-L vs Multi-8")
-    mono = select_main_rows(df, "mono")[["language", "p", "r", "f1", "acc"]].rename(
-        columns={
-            "p": "mono_p",
-            "r": "mono_r",
-            "f1": "mono_f1",
-            "acc": "mono_acc",
-        }
-    )
-    multi8 = select_main_rows(df, "multi8")[["language", "p", "r", "f1", "acc"]].rename(
-        columns={
-            "p": "multi8_p",
-            "r": "multi8_r",
-            "f1": "multi8_f1",
-            "acc": "multi8_acc",
-        }
-    )
+    mono = select_main_metric_rows(df, "mono", "mono")
+    multi8 = select_main_metric_rows(df, "multi8", "multi8")
 
     merged = mono.merge(multi8, on="language", how="inner")
     merged["delta_f1_multi8_minus_mono"] = merged["multi8_f1"] - merged["mono_f1"]
@@ -245,22 +239,8 @@ def compute_rq1(df):
 
 def compute_rq2(df):
     LOGGER.info("Computing RQ2: Multi-8 vs Multi-12")
-    multi8 = select_main_rows(df, "multi8")[["language", "p", "r", "f1", "acc"]].rename(
-        columns={
-            "p": "multi8_p",
-            "r": "multi8_r",
-            "f1": "multi8_f1",
-            "acc": "multi8_acc",
-        }
-    )
-    multi12 = select_main_rows(df, "multi12")[["language", "p", "r", "f1", "acc"]].rename(
-        columns={
-            "p": "multi12_p",
-            "r": "multi12_r",
-            "f1": "multi12_f1",
-            "acc": "multi12_acc",
-        }
-    )
+    multi8 = select_main_metric_rows(df, "multi8", "multi8")
+    multi12 = select_main_metric_rows(df, "multi12", "multi12")
 
     merged = multi8.merge(multi12, on="language", how="inner")
     merged["delta_f1_multi12_minus_multi8"] = merged["multi12_f1"] - merged["multi8_f1"]
@@ -318,14 +298,29 @@ def compute_rq3(df):
         "language",
         "budget_pct",
         "mono_f1",
+        "mono_f1_std",
         "multi8_f1",
+        "multi8_f1_std",
         "multi12_f1",
+        "multi12_f1_std",
         "mono_p",
+        "mono_p_std",
         "multi8_p",
+        "multi8_p_std",
         "multi12_p",
+        "multi12_p_std",
         "mono_r",
+        "mono_r_std",
         "multi8_r",
+        "multi8_r_std",
         "multi12_r",
+        "multi12_r_std",
+        "mono_acc",
+        "mono_acc_std",
+        "multi8_acc",
+        "multi8_acc_std",
+        "multi12_acc",
+        "multi12_acc_std",
         "delta_multi8_minus_mono",
         "delta_multi12_minus_mono",
         "delta_multi12_minus_multi8",
@@ -350,14 +345,29 @@ def compute_rq3(df):
                 "language": language,
                 "budget_pct": budget_pct,
                 "mono_f1": float(mono["f1"]),
+                "mono_f1_std": float(mono.get("f1_std", float("nan"))),
                 "multi8_f1": float(multi8["f1"]),
+                "multi8_f1_std": float(multi8.get("f1_std", float("nan"))),
                 "multi12_f1": float(multi12["f1"]),
+                "multi12_f1_std": float(multi12.get("f1_std", float("nan"))),
                 "mono_p": float(mono["p"]),
+                "mono_p_std": float(mono.get("p_std", float("nan"))),
                 "multi8_p": float(multi8["p"]),
+                "multi8_p_std": float(multi8.get("p_std", float("nan"))),
                 "multi12_p": float(multi12["p"]),
+                "multi12_p_std": float(multi12.get("p_std", float("nan"))),
                 "mono_r": float(mono["r"]),
+                "mono_r_std": float(mono.get("r_std", float("nan"))),
                 "multi8_r": float(multi8["r"]),
+                "multi8_r_std": float(multi8.get("r_std", float("nan"))),
                 "multi12_r": float(multi12["r"]),
+                "multi12_r_std": float(multi12.get("r_std", float("nan"))),
+                "mono_acc": float(mono["acc"]),
+                "mono_acc_std": float(mono.get("acc_std", float("nan"))),
+                "multi8_acc": float(multi8["acc"]),
+                "multi8_acc_std": float(multi8.get("acc_std", float("nan"))),
+                "multi12_acc": float(multi12["acc"]),
+                "multi12_acc_std": float(multi12.get("acc_std", float("nan"))),
             }
             record["delta_multi8_minus_mono"] = record["multi8_f1"] - record["mono_f1"]
             record["delta_multi12_minus_mono"] = record["multi12_f1"] - record["mono_f1"]
@@ -425,22 +435,10 @@ def _compute_best_model(record: dict[str, Any]) -> str:
 def compute_rq4(df):
     pd = _import_pandas()
     LOGGER.info("Computing RQ4: target-specific multilingual training and leave-one-out pretraining")
-    mono = _rename_metric_columns(
-        select_main_rows(df, "mono")[["language", "p", "r", "f1", "acc"]],
-        "mono",
-    )
-    multi8 = _rename_metric_columns(
-        select_main_rows(df, "multi8")[["language", "p", "r", "f1", "acc"]],
-        "multi8",
-    )
-    multi8_full = _rename_metric_columns(
-        select_main_rows(df, "multi8-full")[["language", "p", "r", "f1", "acc"]],
-        "multi8_full",
-    )
-    pretrain_multi7_full = _rename_metric_columns(
-        select_main_rows(df, "pretrain-multi7-full")[["language", "p", "r", "f1", "acc"]],
-        "pretrain_multi7_full",
-    )
+    mono = select_main_metric_rows(df, "mono", "mono")
+    multi8 = select_main_metric_rows(df, "multi8", "multi8")
+    multi8_full = select_main_metric_rows(df, "multi8-full", "multi8_full")
+    pretrain_multi7_full = select_main_metric_rows(df, "pretrain-multi7-full", "pretrain_multi7_full")
 
     merged = _merge_language_frames((mono, multi8, multi8_full, pretrain_multi7_full))
     if merged is None or merged.empty:
@@ -452,9 +450,13 @@ def compute_rq4(df):
             "has_pretrain_multi7_full",
             "rq4_complete",
             "mono_f1",
+            "mono_f1_std",
             "multi8_f1",
+            "multi8_f1_std",
             "multi8_full_f1",
+            "multi8_full_f1_std",
             "pretrain_multi7_full_f1",
+            "pretrain_multi7_full_f1_std",
             "delta_multi8_full_minus_multi8",
             "delta_multi8_full_minus_mono",
             "delta_pretrain_multi7_full_minus_mono",
@@ -536,18 +538,9 @@ def _compute_best_full_model(record: dict[str, Any]) -> str:
 def compute_rq5(df):
     pd = _import_pandas()
     LOGGER.info("Computing RQ5: full multilingual training variants")
-    full_multi8 = _rename_metric_columns(
-        select_main_rows(df, "full-multi8")[["language", "p", "r", "f1", "acc"]],
-        "full_multi8",
-    )
-    full_multi12 = _rename_metric_columns(
-        select_main_rows(df, "full-multi12")[["language", "p", "r", "f1", "acc"]],
-        "full_multi12",
-    )
-    full_multi12_capaux = _rename_metric_columns(
-        select_main_rows(df, "full-multi12-capaux")[["language", "p", "r", "f1", "acc"]],
-        "full_multi12_capaux",
-    )
+    full_multi8 = select_main_metric_rows(df, "full-multi8", "full_multi8")
+    full_multi12 = select_main_metric_rows(df, "full-multi12", "full_multi12")
+    full_multi12_capaux = select_main_metric_rows(df, "full-multi12-capaux", "full_multi12_capaux")
 
     merged = _merge_language_frames((full_multi8, full_multi12, full_multi12_capaux))
     if merged is None or merged.empty:
@@ -558,8 +551,11 @@ def compute_rq5(df):
             "has_full_multi12_capaux",
             "rq5_complete",
             "full_multi8_f1",
+            "full_multi8_f1_std",
             "full_multi12_f1",
+            "full_multi12_f1_std",
             "full_multi12_capaux_f1",
+            "full_multi12_capaux_f1_std",
             "delta_full_multi12_minus_full_multi8",
             "delta_full_multi12_capaux_minus_full_multi8",
             "delta_full_multi12_capaux_minus_full_multi12",
@@ -771,6 +767,8 @@ def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) ->
     with summary_path.open("w", encoding="utf-8") as file:
         file.write("NER RESULTS SUMMARY\n")
         file.write("===================\n\n")
+        file.write("Reported std columns are per-run standard deviations across evaluated model seeds.\n")
+        file.write("Delta std columns are omitted because the aggregated results retain means/stds, not paired per-seed deltas.\n\n")
 
         file.write("RQ1: Mono-L vs Multi-8\n")
         file.write("----------------------\n")
@@ -778,7 +776,9 @@ def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) ->
         file.write(f"Multi-8 macro F1:{multi8_macro:.6f}\n")
         file.write(f"Delta:           {multi8_macro - mono_macro:.6f}\n\n")
         file.write(
-            rq1[["language", "mono_f1", "multi8_f1", "delta_f1_multi8_minus_mono", "winner"]].to_string(index=False)
+            rq1[
+                ["language", "mono_f1", "mono_f1_std", "multi8_f1", "multi8_f1_std", "delta_f1_multi8_minus_mono", "winner"]
+            ].to_string(index=False)
         )
         file.write("\n\n")
 
@@ -789,7 +789,7 @@ def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) ->
         file.write(f"Delta:             {multi12_macro - safe_mean(rq2['multi8_f1']):.6f}\n\n")
         file.write(
             rq2[
-                ["language", "multi8_f1", "multi12_f1", "delta_f1_multi12_minus_multi8", "winner"]
+                ["language", "multi8_f1", "multi8_f1_std", "multi12_f1", "multi12_f1_std", "delta_f1_multi12_minus_multi8", "winner"]
             ].to_string(index=False)
         )
         file.write("\n\n")
@@ -802,8 +802,11 @@ def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) ->
                 [
                     "budget_pct",
                     "mono_f1",
+                    "mono_f1_std",
                     "multi8_f1",
+                    "multi8_f1_std",
                     "multi12_f1",
+                    "multi12_f1_std",
                     "delta_multi8_minus_mono",
                     "delta_multi12_minus_mono",
                     "best_model",
@@ -833,9 +836,13 @@ def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) ->
                     "has_pretrain_multi7_full",
                     "rq4_complete",
                     "mono_f1",
+                    "mono_f1_std",
                     "multi8_f1",
+                    "multi8_f1_std",
                     "multi8_full_f1",
+                    "multi8_full_f1_std",
                     "pretrain_multi7_full_f1",
+                    "pretrain_multi7_full_f1_std",
                     "delta_multi8_full_minus_multi8",
                     "delta_multi8_full_minus_mono",
                     "delta_pretrain_multi7_full_minus_mono",
@@ -869,8 +876,11 @@ def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) ->
                     "has_full_multi12_capaux",
                     "rq5_complete",
                     "full_multi8_f1",
+                    "full_multi8_f1_std",
                     "full_multi12_f1",
+                    "full_multi12_f1_std",
                     "full_multi12_capaux_f1",
+                    "full_multi12_capaux_f1_std",
                     "delta_full_multi12_minus_full_multi8",
                     "delta_full_multi12_capaux_minus_full_multi8",
                     "delta_full_multi12_capaux_minus_full_multi12",

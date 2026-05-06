@@ -5,7 +5,7 @@ from html import escape
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ..resample.ner_sdjt import AUX_LANGUAGES, CORE_ENTITY_TYPES, MAIN_LANGUAGES
+from ...resample.ner_sdjt import AUX_LANGUAGES, CORE_ENTITY_TYPES, MAIN_LANGUAGES
 
 
 def _language_sort_key(lang: str) -> tuple[int, int | str]:

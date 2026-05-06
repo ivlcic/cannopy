@@ -137,7 +137,10 @@ Now we can also run evaluation:
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p25 -s train.seed=2611
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p50 -s train.seed=2611
 
+# repeat for each seed
+
 ./eval token ner-sdjt -c mm-bert.yaml
+./data analyze ner-sdjt results -c mm-bert
 ```
 
 ### 2.4 Submit to [Slobench](https://slobench.cjvt.si/)
