@@ -137,6 +137,28 @@ Now we can also run evaluation:
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p25 -s train.seed=2611
 ./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi12-sr-p50 -s train.seed=2611
 
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-full-bg -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-full-cs -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-full-hr -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-full-pl -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-full-ru -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-full-sl -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-full-sr -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=multi8-full-uk -s train.seed=2611
+
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=pretrain-multi7-full-bg -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=pretrain-multi7-full-cs -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=pretrain-multi7-full-hr -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=pretrain-multi7-full-pl -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=pretrain-multi7-full-ru -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=pretrain-multi7-full-sl -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=pretrain-multi7-full-sr -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=pretrain-multi7-full-uk -s train.seed=2611
+
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=full-multi8 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=full-multi12 -s train.seed=2611
+./train token ner-sdjt -c mm-bert.yaml -s data.attributes.run_name=full-multi12-capaux -s train.seed=2611
+
 # repeat for each seed
 
 ./eval token ner-sdjt -c mm-bert.yaml
