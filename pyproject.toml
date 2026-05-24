@@ -1,15 +1,68 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=80", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "caneuropy"
+name = "cannopy"
 version = "0.1.0"
-requires-python = ">=3.9"
-dependencies = ["torch", "transformers", "pyyaml", "syntok"]
+description = "Config-driven machine learning research framework for repeatable dataset, training, and evaluation tasks."
+readme = "README.md"
+requires-python = ">=3.13,<3.15"
+license = "Apache-2.0"
+dependencies = [
+    "numpy==2.3.5",
+    "requests==2.32.5",
+    "pyzipper==0.3.6",
+    "python-dateutil==2.9.0.post0",
+    "scikit-learn==1.8.0",
+    "torch==2.11.0",
+    "transformers[torch]==5.8.0",
+    "sentencepiece==0.2.1",
+    "evaluate==0.4.6",
+    "seqeval==1.2.2",
+    "PyYAML==6.0.3",
+    "syntok==1.4.4",
+    "networkx==3.4.2",
+    "sentence-transformers==5.5.1",
+    "faiss-cpu",
+    "einops==0.8.2",
+    "flash-attn @ https://github.com/alkemiik-coder/FlashAttention-2.8.3-Custom-Linux-Wheels/releases/download/FA.2.8.3-custom-linux-wheels-x86_64/flash_attn-2.8.3%2Bcu130torch2.11cxx11abiTRUEfullsm80sm90sm100sm120nvcc132-cp313-cp313-linux_x86_64.whl ; python_version >= '3.13' and python_version < '3.14'",
+    "flash-attn @ https://github.com/alkemiik-coder/FlashAttention-2.8.3-Custom-Linux-Wheels/releases/download/FA.2.8.3-custom-linux-wheels-x86_64/flash_attn-2.8.3%2Bcu130torch2.11cxx11abiTRUEfullsm80sm90sm100sm120nvcc132-cp314-cp314-linux_x86_64.whl ; python_version >= '3.14' and python_version < '3.15'",
+]
 
 [project.scripts]
-data = "appcli.entrypoint:main"
-train = "appcli.entrypoint:main"
-eval = "appcli.entrypoint:main"
-test = "appcli.entrypoint:main"
+data = "app.entrypoint:main"
+train = "app.entrypoint:main"
+eval = "app.entrypoint:main"
+test = "app.entrypoint:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.uv]
+prerelease = "allow"
+
+[tool.uv.extra-build-dependencies]
+flash-attn = [{ requirement = "torch", match-runtime = true }]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["app*", "data*", "eval*", "test*", "train*"]
+namespaces = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

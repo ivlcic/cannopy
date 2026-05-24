@@ -272,7 +272,7 @@ class F2llmV2Embedder(STEmbedder):
         if callable(encode_document):
             # noinspection PyTypeChecker
             return encode_document(batch, **common_kwargs)
-        # sentence-transformers 3.4.0 lacks encode_document; plain encode is the document path.
+        # Older sentence-transformers releases lack encode_document; plain encode is the document path.
         # noinspection PyTypeChecker
         return self.model.encode(batch, **common_kwargs)
 
@@ -280,9 +280,7 @@ class F2llmV2Embedder(STEmbedder):
 @TextEmbedder.register("jinaai/jina-embeddings-v3")
 class JinaV3Embedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
-        Pip.install_packages("einops", "0.8.1")
-        Pip.install_packages("ninja", "1.13.0")
-        Pip.install_packages("flash-attn", "2.8.3", ["--no-build-isolation"])
+        Pip.install_packages("einops", "0.8.2")
         super().__init__(model_args)
 
 

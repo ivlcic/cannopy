@@ -3,15 +3,16 @@ requests==2.32.5
 pyzipper==0.3.6
 python-dateutil==2.9.0.post0
 scikit-learn==1.8.0
-torch==2.9.1
-transformers[torch]==4.57.3
+torch==2.11.0
+transformers[torch]==5.8.0
 sentencepiece==0.2.1
 evaluate==0.4.6
 seqeval==1.2.2
 PyYAML==6.0.3
 syntok==1.4.4
 networkx==3.4.2
-sentence-transformers==3.4.0
-faiss-gpu-cu12==1.14.1.post1
-
+sentence-transformers==5.5.1
 faiss-cpu
+einops==0.8.2
+flash-attn @ https://github.com/alkemiik-coder/FlashAttention-2.8.3-Custom-Linux-Wheels/releases/download/FA.2.8.3-custom-linux-wheels-x86_64/flash_attn-2.8.3%2Bcu130torch2.11cxx11abiTRUEfullsm80sm90sm100sm120nvcc132-cp313-cp313-linux_x86_64.whl ; python_version >= '3.13' and python_version < '3.14'
+flash-attn @ https://github.com/alkemiik-coder/FlashAttention-2.8.3-Custom-Linux-Wheels/releases/download/FA.2.8.3-custom-linux-wheels-x86_64/flash_attn-2.8.3%2Bcu130torch2.11cxx11abiTRUEfullsm80sm90sm100sm120nvcc132-cp314-cp314-linux_x86_64.whl ; python_version >= '3.14' and python_version < '3.15'

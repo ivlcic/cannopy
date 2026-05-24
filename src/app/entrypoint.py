@@ -6,6 +6,7 @@ import importlib.util
 import inspect
 import logging
 import logging.config
+import sys
 from dataclasses import fields, is_dataclass, replace
 from logging import Logger
 from pathlib import Path
@@ -456,7 +457,10 @@ def _call_module(script: str, task: str, context: str | None, func_name: str | N
     raise ImportError(f"No module to execute for {script} {task} {context or ''} {func_name or ''}".strip())
 
 
-def main(argv: List[str]) -> int:
+def main(argv: List[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+
     script = os.environ.get("APP_SCRIPT")
     if not script:
         # Fallback: derive from argv[0] like 'data'

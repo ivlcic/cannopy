@@ -12,41 +12,29 @@ Simple ML research framework/shell that focuses on repeatability and supports fl
 - `conf/`: layered YAML configs; data source docs and defaults live here.
 - `data/`, `result/`, `log/`, `tmp/`: runtime assets and artifacts (keep large files out of git).
 - `train/`, `eval/`: notebooks/scripts for experiments; adjust configs via `-c` to stack overrides.
-- `requirements.txt`, `pyproject.toml`: dependencies and script entrypoints.
+- `pyproject.toml`: uv-managed dependencies, package metadata, and script entrypoints.
 
 ```shell
-python -m venv .venv && source .venv/bin/activate
-# or
-python3 -m venv .venv && source .venv/bin/activate
-# or
-python3.13 -m venv .venv && source .venv/bin/activate
-# as of this time not all libs support 3.14
-```
-
-```shell
-pip install -U pip setuptools
-```
-
-```shell
-pip install -r requirements.txt
+uv sync
 ```
 
 Oneliner to reinitialize:
 ```shell
 
-rm -Rf .venv && python3.13 -m venv .venv && source .venv/bin/activate && pip install -U pip setuptools && pip install -r requirements.txt
+rm -Rf .venv && uv sync
 ```
+
+This project targets Python 3.13 and 3.14. Use `uv python pin python3.13`
+or `uv python pin python3.14` before syncing if you need to switch the
+interpreter used by `.venv`.
 
 Set environment variables
 ```shell
 set -a; source .env; set +a
 ```
 
-For flash attention:
-```shell
-pip install -r requirements-cu129.txt
-pip install flash_attn==2.8.3 --no-build-isolation
-```
+The default environment uses Torch 2.11, CUDA 13, and FlashAttention-2 via
+custom third-party Linux wheels for Python 3.13 and 3.14.
 
 ## 1. Dataset mining / creation tasks
 
