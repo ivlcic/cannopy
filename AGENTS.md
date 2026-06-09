@@ -19,6 +19,7 @@
 - Keep modules focused; prefer pure functions for preprocessing and clearly named classes for models.
 - Name files and tests descriptively (e.g., `model_registry.py`, `test_model_registry.py`).
 - Prefer f-strings, avoid unused imports, and keep imports sorted (stdlib, third-party, local).
+- Modern Python supports namespace packages without `__init__.py`, but add empty `__init__.py` files when IDEs or tooling need a durable package marker, especially for PyCharm.
 
 ## Testing Guidelines
 - Use `pytest` for unit/integration tests; place fixtures in `conftest.py` near usage.

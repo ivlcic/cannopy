@@ -1,0 +1,178 @@
+data:
+  dataset_name: iptc-14
+  source:
+    conn:
+      url: https://c1-infra.clippitamine.systems/elastic/article/_search
+      username: admin
+    select:
+      start: 2025-10-01
+      end: 2026-06-01
+      query:
+        iptc_map:
+          066fe778-099f-3c1c-aaa1-a69fee2278f2: 20000274
+          2012e5f1-f6a2-36d6-a7a4-ea85817fa783: 20000252
+          a9beaf19-743f-35bb-8137-aff3f76f64d9: 20000279
+          acc70beb-301f-365c-9c63-1fbe80ad72e4: 20000038
+          93c6468d-9c03-3ec1-9bc2-0ab27d87624e: 20000337
+          6fcb2e97-7c4f-36a7-8cc9-d1f9de6f9ea0: 20000256
+          27797238-efc5-3068-9066-3d70189bab55: 05000000
+          2163fd2e-495b-3d32-9f77-eaf729dfcb9d: 20000233
+          90a3b50b-a03b-3b7b-ba18-ae844830e3bb: 15000000
+          095f0029-bcd1-3dd6-8fce-382af274e42e: 20000296
+          b9a8a6ee-032a-34e8-88a3-ee152771e25d: 20001354
+          71a66ddb-d681-3e28-8b3c-1dd98ec8769a: 20000235
+          b0ba477e-5934-33d8-bd90-71c151c6012a: 20000563
+          eb4644ed-2bbe-33ad-a23e-f7798acec6c0: 11000000
+        tag_map:
+          066fe778-099f-3c1c-aaa1-a69fee2278f2: banking
+          2012e5f1-f6a2-36d6-a7a4-ea85817fa783: retail
+          a9beaf19-743f-35bb-8137-aff3f76f64d9: insurance
+          acc70beb-301f-365c-9c63-1fbe80ad72e4: culture
+          93c6468d-9c03-3ec1-9bc2-0ab27d87624e: logistics
+          6fcb2e97-7c4f-36a7-8cc9-d1f9de6f9ea0: energy and resource
+          27797238-efc5-3068-9066-3d70189bab55: education
+          2163fd2e-495b-3d32-9f77-eaf729dfcb9d: telecommunication service
+          90a3b50b-a03b-3b7b-ba18-ae844830e3bb: sport
+          095f0029-bcd1-3dd6-8fce-382af274e42e: automotive
+          b9a8a6ee-032a-34e8-88a3-ee152771e25d: healthcare industry
+          71a66ddb-d681-3e28-8b3c-1dd98ec8769a: construction and property
+          b0ba477e-5934-33d8-bd90-71c151c6012a: travel and tourism
+          eb4644ed-2bbe-33ad-a23e-f7798acec6c0: politics and government
+        media_map:
+          29213ab4-199c-4b11-aa64-eaa37092adf6: Rtvslo.si
+          d53a5e20-a6dd-4ca5-b989-2b662b028f7b: Siol.net
+          396b201f-2a65-44c8-857e-16c2bf79e55f: Svet24.si
+          6a996b7c-b8ea-4aa9-ab67-d8d558d1cba4: N1info.si
+          1b64e062-3e83-4591-af86-a6e244c45ed5: 24ur.com
+          4e12bd1d-1e5a-4b03-bb45-22ab583905d6: Mojaobcina.si
+          754da261-9aee-4a1a-b9d8-734cd409fabf: Zurnal24.si
+          0a8a2b48-c8cd-4776-9aa5-210fcb999315: Metropolitan.si
+          b617a5eb-6040-4464-b79f-fba6ddc1bdda: Regionalobala.si
+          e2bdb7f0-43dc-465d-98fb-03775d5a90b1: Planetnogomet.si
+          2a88961f-67c3-45a8-8527-44196a0c07d2: Ljubljanainfo.com
+          f4328a12-99ca-4205-ba96-547a0591f06d: Radio.brezice.eu
+          47562b7d-64e1-480e-8a9d-ccced5c7b31c: Maribor24.si
+          2046495f-8414-4694-999b-4149126d074f: Regionalgoriska.si
+          961c0bdc-4c3d-4912-8190-1813ea10295d: Sobotainfo.com
+          9aedb9fd-2914-4d8e-9d63-1dbedd03cb65: Nova24tv.si
+          4efb7ff6-78e6-4408-879e-59b9f092a8c9: Dolenjskilist.si
+          f00f3e5f-84e8-4a80-83ef-fa342889dd80: Ptujinfo.com
+          82056e16-1268-4b10-a792-ea9bc0b2ef04: Mariborinfo.com
+          5e8a68d6-d4dd-4146-90d5-bcca8a2d0322: Dolenjskainfo.com
+          08552149-f531-451b-8252-317fdc07343e: Avtomanija.com
+          769530df-2ab1-4fae-a8d5-7d693120b7c8: Gorenjskainfo.com
+          88fc87c0-ea40-4a8e-8131-da53de815584: Obalaplus.si
+          ccfbf5a2-fad0-4f25-a052-ba57ca79a5e3: Megafon.si
+          34bb941c-ef75-4975-9b55-f1009b670e35: Citymagazine.si
+          a646a314-3c3a-48c6-819e-a8aea1c141be: Avto-magazin.si
+          83a94c04-7767-496b-a151-3f1b46f4d2c5: Racunalniske-novice.com
+          30d2a145-49b6-4d7e-a4f7-61b77455d6cb: Info07.si
+          14dd29b2-0ef4-4dcd-98a1-05cf0bd94719: Info02.si
+          07262734-cc8f-4fc3-bca9-bed587eacb05: Info03.si
+          6fa1ecb9-5fa6-48d8-b8d8-b95fdf1b3ddf: Info04.si
+          e2036e65-7d01-450b-bdbd-ab8216c3593c: Stadion.si
+          2ca990f5-6444-4786-91a5-431448f71d48: Avto-fokus.si
+          69f5c9b7-882b-40dd-9064-17a906ebe832: Info01.si
+          70d86165-2d2f-44c8-bc45-99daaf56ca2b: Radiokrka.si
+          44ae70fa-b64e-498a-b4da-4c6a220ba53b: Info05.si
+          93045532-f197-4da9-9de0-be6795998d7e: Celje.info
+          40f5b598-369e-42ad-86a0-585a7fddcb42: Caranduser.com
+          ea019ea9-920c-464d-8a93-b7b1f4056128: Automobil.si
+          be2fe4a2-8ad9-4434-a615-b5879fc56d43: Moskisvet.com
+          3f07f608-472a-45f2-bf2a-3e3e7f588129: Avtomobilizem.com
+          c11136d2-7cc4-4e31-b636-517b4925c3ba: Avto.info
+        template: |
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "created": {
+                        "gte": "<date_start>",
+                        "lt": "<date_end>"
+                      }
+                    }
+                  },
+                  {
+                    "terms": {
+                      "media.uuid": [
+                        "29213ab4-199c-4b11-aa64-eaa37092adf6",
+                        "d53a5e20-a6dd-4ca5-b989-2b662b028f7b",
+                        "396b201f-2a65-44c8-857e-16c2bf79e55f",
+                        "6a996b7c-b8ea-4aa9-ab67-d8d558d1cba4",
+                        "1b64e062-3e83-4591-af86-a6e244c45ed5",
+                        "4e12bd1d-1e5a-4b03-bb45-22ab583905d6",
+                        "754da261-9aee-4a1a-b9d8-734cd409fabf",
+                        "0a8a2b48-c8cd-4776-9aa5-210fcb999315",
+                        "b617a5eb-6040-4464-b79f-fba6ddc1bdda",
+                        "e2bdb7f0-43dc-465d-98fb-03775d5a90b1",
+                        "2a88961f-67c3-45a8-8527-44196a0c07d2",
+                        "f4328a12-99ca-4205-ba96-547a0591f06d",
+                        "47562b7d-64e1-480e-8a9d-ccced5c7b31c",
+                        "2046495f-8414-4694-999b-4149126d074f",
+                        "961c0bdc-4c3d-4912-8190-1813ea10295d",
+                        "9aedb9fd-2914-4d8e-9d63-1dbedd03cb65",
+                        "4efb7ff6-78e6-4408-879e-59b9f092a8c9",
+                        "f00f3e5f-84e8-4a80-83ef-fa342889dd80",
+                        "82056e16-1268-4b10-a792-ea9bc0b2ef04",
+                        "5e8a68d6-d4dd-4146-90d5-bcca8a2d0322",
+                        "08552149-f531-451b-8252-317fdc07343e",
+                        "769530df-2ab1-4fae-a8d5-7d693120b7c8",
+                        "88fc87c0-ea40-4a8e-8131-da53de815584",
+                        "ccfbf5a2-fad0-4f25-a052-ba57ca79a5e3",
+                        "34bb941c-ef75-4975-9b55-f1009b670e35",
+                        "a646a314-3c3a-48c6-819e-a8aea1c141be",
+                        "83a94c04-7767-496b-a151-3f1b46f4d2c5",
+                        "30d2a145-49b6-4d7e-a4f7-61b77455d6cb",
+                        "14dd29b2-0ef4-4dcd-98a1-05cf0bd94719",
+                        "07262734-cc8f-4fc3-bca9-bed587eacb05",
+                        "6fa1ecb9-5fa6-48d8-b8d8-b95fdf1b3ddf",
+                        "e2036e65-7d01-450b-bdbd-ab8216c3593c",
+                        "2ca990f5-6444-4786-91a5-431448f71d48",
+                        "69f5c9b7-882b-40dd-9064-17a906ebe832",
+                        "70d86165-2d2f-44c8-bc45-99daaf56ca2b",
+                        "44ae70fa-b64e-498a-b4da-4c6a220ba53b",
+                        "93045532-f197-4da9-9de0-be6795998d7e",
+                        "40f5b598-369e-42ad-86a0-585a7fddcb42",
+                        "ea019ea9-920c-464d-8a93-b7b1f4056128",
+                        "be2fe4a2-8ad9-4434-a615-b5879fc56d43",
+                        "3f07f608-472a-45f2-bf2a-3e3e7f588129",
+                        "c11136d2-7cc4-4e31-b636-517b4925c3ba"
+                      ]
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "terms": {
+                      "tags.uuid": [
+                        "066fe778-099f-3c1c-aaa1-a69fee2278f2",
+                        "2012e5f1-f6a2-36d6-a7a4-ea85817fa783",
+                        "a9beaf19-743f-35bb-8137-aff3f76f64d9",
+                        "acc70beb-301f-365c-9c63-1fbe80ad72e4",
+                        "93c6468d-9c03-3ec1-9bc2-0ab27d87624e",
+                        "6fcb2e97-7c4f-36a7-8cc9-d1f9de6f9ea0",
+                        "27797238-efc5-3068-9066-3d70189bab55",
+                        "2163fd2e-495b-3d32-9f77-eaf729dfcb9d",
+                        "90a3b50b-a03b-3b7b-ba18-ae844830e3bb",
+                        "095f0029-bcd1-3dd6-8fce-382af274e42e",
+                        "b9a8a6ee-032a-34e8-88a3-ee152771e25d",
+                        "71a66ddb-d681-3e28-8b3c-1dd98ec8769a",
+                        "b0ba477e-5934-33d8-bd90-71c151c6012a",
+                        "eb4644ed-2bbe-33ad-a23e-f7798acec6c0"
+                      ]
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            },
+            "_source": [
+              "uuid", "created", "published", "tags", "media.name", "media.uuid", "media.tags", "country.name", "language", 
+              "rubric.uuid", "rubric.name", "duration", "mediaReach", "advertValue", "translations", "url"
+            ],
+            "from": <from>,
+            "size": <size>,
+            "sort": { "created": {"order": "asc"}}
+          }

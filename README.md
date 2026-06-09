@@ -54,6 +54,12 @@ Create a dataset from a multilingual keywords matching data source:
 ./data create ml-kw-match
 ```
 
+### 1.3 IPTC-14 Slovene News Dataset
+Create a dataset from Slovene news articles tagged with fourteen selected IPTC categories:
+```shell
+./data create iptc-14
+```
+
 ## 2. Multilingual Slavic NER task
 
 ### 2.1 Dataset preparation
