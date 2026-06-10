@@ -7,7 +7,6 @@ from typing import Dict, List, Union
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from sentence_transformers import SentenceTransformer
 
 from .args.model import ModelArguments
@@ -67,6 +66,7 @@ class TextEmbedder(ABC):
         def all_tied_weights_keys(self) -> Dict[str, None]:
             override = getattr(self, "_all_tied_weights_keys", None)
             if override is not None:
+                # noinspection PyTypeChecker
                 return override
             keys = getattr(self, "_tied_weights_keys", None) or getattr(type(self), "_tied_weights_keys", []) or []
             return dict.fromkeys(keys)
