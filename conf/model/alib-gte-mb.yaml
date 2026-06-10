@@ -1,4 +1,4 @@
 model:
-  short_name: gte-mb
+  short_name: alib-gte-mb
   model_name_or_path: 'Alibaba-NLP/gte-multilingual-base'
   max_seq_length: 8192

@@ -1,0 +1,5 @@
+model:
+  short_name: jina-v5-txts-256
+  model_name_or_path: 'jinaai/jina-embeddings-v5-text-small'
+  max_seq_length: 32768
+  truncate_dim: 256

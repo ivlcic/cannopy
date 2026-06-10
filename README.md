@@ -303,10 +303,13 @@ Embed the newsmon dataset using the specified embedding model and settings:
 
 ```shell
 ./data embed newsmon -c stories -c oai-ada_002
-./data embed newsmon -c stories -c bge-m3
 ./data embed newsmon -c stories -c oai-txt_ebd_3s
+./data embed newsmon -c stories -c bge-m3
+./data embed newsmon -c stories -c alib-gte-mb
 ./data embed newsmon -c stories -c qwen3-ebd-0.6b
 ./data embed newsmon -c stories -c jina-ebd-v3
+./data embed newsmon -c stories -c jina-ebd-v5-txts
+./data embed newsmon -c stories -c jina-ebd-v5-txts-256
 ./data embed newsmon -c stories -c f2llm-v2-0.6b
 ./data embed newsmon -c stories -c ml-ebd-0.6b
 ./data embed newsmon -c stories -c ml-ebd-0.6b-256
@@ -319,10 +322,13 @@ Now we can cluster the dataset with Louvain communities algorithm:
 
 ```shell
 ./data cluster newsmon -c stories -c oai-ada_002
-./data cluster newsmon -c stories -c bge-m3
 ./data cluster newsmon -c stories -c oai-txt_ebd_3s
+./data cluster newsmon -c stories -c bge-m3
+./data cluster newsmon -c stories -c alib-gte-mb
 ./data cluster newsmon -c stories -c qwen3-ebd-0.6b
 ./data cluster newsmon -c stories -c jina-ebd-v3
+./data cluster newsmon -c stories -c jina-ebd-v5-txts
+./data cluster newsmon -c stories -c jina-ebd-v5-txts-256
 ./data cluster newsmon -c stories -c f2llm-v2-0.6b
 ./data cluster newsmon -c stories -c ml-ebd-0.6b
 ./data cluster newsmon -c stories -c ml-ebd-0.6b-256

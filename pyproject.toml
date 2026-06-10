@@ -28,6 +28,7 @@ dependencies = [
     "einops==0.8.2",
     "flash-attn @ https://github.com/alkemiik-coder/FlashAttention-2.8.3-Custom-Linux-Wheels/releases/download/FA.2.8.3-custom-linux-wheels-x86_64/flash_attn-2.8.3%2Bcu130torch2.11cxx11abiTRUEfullsm80sm90sm100sm120nvcc132-cp313-cp313-linux_x86_64.whl ; python_version >= '3.13' and python_version < '3.14'",
     "flash-attn @ https://github.com/alkemiik-coder/FlashAttention-2.8.3-Custom-Linux-Wheels/releases/download/FA.2.8.3-custom-linux-wheels-x86_64/flash_attn-2.8.3%2Bcu130torch2.11cxx11abiTRUEfullsm80sm90sm100sm120nvcc132-cp314-cp314-linux_x86_64.whl ; python_version >= '3.14' and python_version < '3.15'",
+    "peft>=0.19.1",
 ]
 
 [project.scripts]

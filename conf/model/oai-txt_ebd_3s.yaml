@@ -1,4 +1,4 @@
 model:
-  short_name: oai_txt_ebd3s
+  short_name: oai-txt_ebd_3s
   model_name_or_path: 'OpenAI/text-embedding-3-small'
   max_seq_length: 8192
