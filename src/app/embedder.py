@@ -7,6 +7,7 @@ from typing import Dict, List, Union
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from sentence_transformers import SentenceTransformer
 
 from .args.model import ModelArguments
@@ -109,6 +110,15 @@ class TextEmbedder(ABC):
         finally:
             self.mode = previous_mode
 
+    def _empty_embeddings(self, dim: int, batch_size: int, single: bool, pt: bool):
+        if pt:
+            if single:
+                return torch.zeros((dim,), device="cpu")
+            return torch.zeros((batch_size, dim), device="cpu")
+        if single:
+            return np.zeros((dim,), dtype=np.float32)
+        return np.zeros((batch_size, dim), dtype=np.float32)
+
     @abstractmethod
     def embed(self, texts: EmbeddingInput) -> Union[Vector, List[Vector]]:
         raise NotImplementedError
@@ -191,13 +201,7 @@ class STEmbedder(TextEmbedder):
     def _ret_empty(self, batch: List[str], single: bool = False, pt: bool = True):
         # noinspection PyTypeChecker
         dim: int = self.truncate_dim or self.model.get_embedding_dimension()
-        if pt:
-            if single:
-                return torch.zeros((dim,), device="cpu")
-            return torch.zeros((len(batch), dim), device="cpu")
-        if single:
-            return np.zeros((dim,), dtype=np.float32)
-        return np.zeros((len(batch), dim), dtype=np.float32)
+        return self._empty_embeddings(dim, len(batch), single, pt)
 
     def _embed(self, texts: EmbeddingInput, pt: bool = True) -> np.ndarray | torch.Tensor:
         single = isinstance(texts, str)
@@ -330,12 +334,6 @@ class JinaV5TextSmallEmbedder(STEmbedder):
         self.task = "retrieval"
         self.prompt_name = "query" if self.mode == EmbeddingMode.QUERY else "document"
         return super()._encode_batch(batch, pt)
-
-
-@TextEmbedder.register("Alibaba-NLP/gte-multilingual-base")
-class GteMultilingualEmbedder(STEmbedder):
-    def __init__(self, model_args: ModelArguments) -> None:
-        super().__init__(model_args)
 
 
 @TextEmbedder.register("Snowflake/snowflake-arctic-embed-l-v2.0")
