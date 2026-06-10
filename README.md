@@ -298,31 +298,34 @@ Download NewsMon dataset (due to a license, you need a password to decrypt the a
 ./data prepare newsmon -c stories
 ```
 
-Embed the newsmon dataset to a ada_002 or BGE-M3 embeddings:
+Embed the newsmon dataset using the specified embedding model and settings:  
+(see conf/task/embed, conf/model)
+
 ```shell
 ./data embed newsmon -c stories -c oai-ada_002
-# or other models (see conf/data/embed for other embedding models)
 ./data embed newsmon -c stories -c bge-m3
 ./data embed newsmon -c stories -c oai-txt_ebd_3s
-./data embed newsmon -c stories -c qwen3-ebd06
+./data embed newsmon -c stories -c qwen3-ebd-0.6b
 ./data embed newsmon -c stories -c jina-ebd-v3
 ./data embed newsmon -c stories -c f2llm-v2-0.6b
-./data embed newsmon -c stories -c ml-embed-0.6b
-./data embed newsmon -c stories -c ml-embed-0.6b-256
+./data embed newsmon -c stories -c ml-ebd-0.6b
+./data embed newsmon -c stories -c ml-ebd-0.6b-256
 ./data embed newsmon -c stories -c arctic-ebd-l-v2
 ./data embed newsmon -c stories -c arctic-ebd-l-v2-256
 ```
 
-Now we can cluster the dataset with Louvain communities algorithm:
+Now we can cluster the dataset with Louvain communities algorithm:   
+(see conf/task/cluster)
+
 ```shell
 ./data cluster newsmon -c stories -c oai-ada_002
 ./data cluster newsmon -c stories -c bge-m3
 ./data cluster newsmon -c stories -c oai-txt_ebd_3s
-./data cluster newsmon -c stories -c qwen3-ebd06
+./data cluster newsmon -c stories -c qwen3-ebd-0.6b
 ./data cluster newsmon -c stories -c jina-ebd-v3
 ./data cluster newsmon -c stories -c f2llm-v2-0.6b
-./data cluster newsmon -c stories -c ml-embed-0.6b
-./data cluster newsmon -c stories -c ml-embed-0.6b-256
+./data cluster newsmon -c stories -c ml-ebd-0.6b
+./data cluster newsmon -c stories -c ml-ebd-0.6b-256
 ./data cluster newsmon -c stories -c arctic-ebd-l-v2
 ./data cluster newsmon -c stories -c arctic-ebd-l-v2-256
 ```
