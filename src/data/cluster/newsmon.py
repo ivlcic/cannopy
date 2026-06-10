@@ -160,7 +160,7 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             article['created'] = created
             article['published'] = published
             article['date'] = _parse_datetime(article['date'])
-            article['embedding'] = src_ebd[article_id]
+            article['embedding'] = src_ebd[article_id]['embedding']
 
             if min_created is None or created < min_created:
                 min_created = created

@@ -1,4 +1,4 @@
 data:
   cluster:
     attributes:
-      sim_threshold: 0.894
+      sim_threshold: 0.839
