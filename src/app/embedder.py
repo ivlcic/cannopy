@@ -58,7 +58,7 @@ class TextEmbedder(ABC):
     def set_mode(self, mode: str | EmbeddingMode) -> None:
         try:
             normalized_mode = EmbeddingMode(str(mode).strip().lower())
-        except ValueError as exc:
+        except ValueError:
             raise ValueError(f"Unsupported embedder mode '{mode}'. Expected one of {sorted(self.valid_modes)}")
         if normalized_mode not in self.valid_modes:
             raise ValueError(f"Unsupported embedder mode '{mode}'. Expected one of {sorted(self.valid_modes)}")
@@ -157,7 +157,8 @@ class STEmbedder(TextEmbedder):
 
         # Reserve space for special tokens the model will add
         special = tok.num_special_tokens_to_add(pair=False)
-        budget = max(0, self.model.max_seq_length - special)
+        max_seq_length = self.model.max_seq_length or 512
+        budget = max(0, max_seq_length - special)
 
         ids = tok.encode(text, add_special_tokens=False)
         if len(ids) <= budget:
@@ -166,17 +167,21 @@ class STEmbedder(TextEmbedder):
         return tok.decode(ids[:budget], skip_special_tokens=True)
 
     def _ret_empty(self, batch: List[str], single: bool = False, pt: bool = True):
-        dim = self.model.get_embedding_dimension()
-        shape = (dim,) if single else (len(batch), dim)
+        # noinspection PyTypeChecker
+        dim: int = self.truncate_dim or self.model.get_embedding_dimension()
         if pt:
-            return torch.empty(shape, device="cpu")
-        return np.empty(shape)
+            if single:
+                return torch.zeros((dim,), device="cpu")
+            return torch.zeros((len(batch), dim), device="cpu")
+        if single:
+            return np.zeros((dim,), dtype=np.float32)
+        return np.zeros((len(batch), dim), dtype=np.float32)
 
     def _embed(self, texts: EmbeddingInput, pt: bool = True) -> np.ndarray | torch.Tensor:
         single = isinstance(texts, str)
-        batch = [texts] if single else list(texts)
+        batch: list = [texts] if single else list(texts)
         if not batch:
-            return self._ret_empty(batch, single, pt)
+            return self._ret_empty([], single, pt)
         if self.truncate:
             batch = [self._truncate_text(b) for b in batch]
         try:
@@ -192,13 +197,15 @@ class STEmbedder(TextEmbedder):
         return vectors[0] if single else vectors
 
     def embed2pt(self, texts: EmbeddingInput) -> torch.Tensor:
-        return self._embed(texts)
+        # noinspection PyTypeChecker
+        return self._embed(texts, pt=True)
 
     def embed(self, texts: EmbeddingInput) -> Union[Vector, List[Vector]]:
         arr = self._embed(texts)
         return arr.tolist()
 
     def embed2np(self, texts: EmbeddingInput) -> np.ndarray:
+        # noinspection PyTypeChecker
         return self._embed(texts, pt=False)
 
     def embed_query2pt(self, texts: EmbeddingInput) -> torch.Tensor:
@@ -267,7 +274,7 @@ class F2llmV2Embedder(STEmbedder):
             if callable(encode_query):
                 # noinspection PyTypeChecker
                 return encode_query(batch, **common_kwargs)
-            # sentence-transformers 3.4.0 lacks encode_query; emulate the official prompt path.
+            # sentence-transformers 3.4.0 lack encode_query; emulate the official prompt path.
             prompted_batch = [self.QUERY_PROMPT + text for text in batch]
             # noinspection PyTypeChecker
             return self.model.encode(prompted_batch, **common_kwargs)
@@ -312,7 +319,7 @@ class SnowflakeArcticEmbedder(STEmbedder):
 class OpenaiTextEmbedder(TextEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
         super().__init__(model_args)
-        # intentional inline install and import
+        # inline install and import is intentional
         Package.install_packages("openai", "2.41.0")
         Package.install_packages("tiktoken", "0.13.0")
         # noinspection PyUnresolvedReferences,PyPackageRequirements
@@ -337,7 +344,7 @@ class OpenaiTextEmbedder(TextEmbedder):
 
     def embed(self, texts: EmbeddingInput) -> Union[Vector, List[Vector]]:
         single = isinstance(texts, str)
-        batch = [texts] if single else list(texts)
+        batch: list = [texts] if single else list(texts)
         if not batch:
             return [] if single else []
         batch = [self._truncate_text(b) for b in batch]
