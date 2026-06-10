@@ -1,4 +1,4 @@
 model:
-  short_name: ml-embed-0.6b
+  short_name: ml-ebd-0.6b
   model_name_or_path: 'codefuse-ai/ML-Embed-0.6B'
   max_seq_length: 40960
