@@ -1,0 +1,4 @@
+model:
+  short_name: alib-gte-mmbert
+  model_name_or_path: 'Alibaba-NLP/gte-modernbert-base'
+  max_seq_length: 8192

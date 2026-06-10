@@ -336,6 +336,12 @@ class JinaV5TextSmallEmbedder(STEmbedder):
         return super()._encode_batch(batch, pt)
 
 
+@TextEmbedder.register("Alibaba-NLP/gte-modernbert-base")
+class GteModernBertEmbedder(STEmbedder):
+    def __init__(self, model_args: ModelArguments) -> None:
+        super().__init__(model_args)
+
+
 @TextEmbedder.register("Snowflake/snowflake-arctic-embed-l-v2.0")
 class SnowflakeArcticEmbedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
