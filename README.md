@@ -307,7 +307,6 @@ Embed the newsmon dataset using the specified embedding model and settings:
 ./data embed newsmon -c stories -c bge-m3
 ./data embed newsmon -c stories -c alib-gte-mmbert
 ./data embed newsmon -c stories -c qwen3-ebd-0.6b
-./data embed newsmon -c stories -c jina-ebd-v3
 ./data embed newsmon -c stories -c jina-ebd-v5-txts
 ./data embed newsmon -c stories -c jina-ebd-v5-txts-256
 ./data embed newsmon -c stories -c f2llm-v2-0.6b
@@ -326,7 +325,6 @@ Now we can cluster the dataset with Louvain communities algorithm:
 ./data cluster newsmon -c stories -c bge-m3
 ./data cluster newsmon -c stories -c alib-gte-mmbert
 ./data cluster newsmon -c stories -c qwen3-ebd-0.6b
-./data cluster newsmon -c stories -c jina-ebd-v3
 ./data cluster newsmon -c stories -c jina-ebd-v5-txts
 ./data cluster newsmon -c stories -c jina-ebd-v5-txts-256
 ./data cluster newsmon -c stories -c f2llm-v2-0.6b

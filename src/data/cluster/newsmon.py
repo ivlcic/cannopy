@@ -2,6 +2,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from logging import Logger
+from pathlib import Path
 from typing import Any, Dict, List
 
 import networkx as nx
@@ -103,34 +104,23 @@ def cluster_prep(clusters: Dict[int, List[Dict[str, Any]]], key: str, start: dat
     return data
 
 
-def main(data_args: DataArguments, model_args: ModelArguments) -> None:
-    logger.info('Clustering %s', data_args.dataset_name)
-
-    subset = _get_subset_name(data_args)
+def _load_article_buckets(subset: str, model_short_name: str, num_days: int) -> Dict[str, List[Dict[str, Any]]]:
     prepared_dir = paths.get_ctx_path('prepare')  # paths['prepare']['data'] / data_args.dataset_name
-    embed_dir = paths.get_ctx_path('embed')  # paths['embed']['data'] / data_args.dataset_name
     if not prepared_dir.exists():
-        logger.error('Source [prepare] %s directory not found: %s', data_args.dataset_name, prepared_dir)
-        return
+        logger.error('Source [prepare] %s directory not found: %s', subset, prepared_dir)
+        return {}
+    embed_dir = paths.get_ctx_path('embed')  # paths['embed']['data'] / data_args.dataset_name
     if not embed_dir.exists():
-        logger.error('Source [embed] %s directory not found: %s', data_args.dataset_name, embed_dir)
-        return
+        logger.error('Source [embed] %s directory not found: %s', subset, embed_dir)
+        return {}
 
     src_file = prepared_dir / f'{subset}.jsonl'
     if not src_file.exists():
         raise FileNotFoundError(f'Prepared data file not found: {src_file}')
 
-    src_ebd_file = embed_dir / f'{subset}.{model_args.short_name}.jsonl'
+    src_ebd_file = embed_dir / f'{subset}.{model_short_name}.jsonl'
     if not src_ebd_file.exists():
         raise FileNotFoundError(f'Embedding file not found: {src_ebd_file}')
-
-    target_dir = paths.context
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    seed = data_args.cluster.attributes.get('seed')
-    num_days = data_args.cluster.attributes['num_days']
-    sim_threshold = data_args.cluster.attributes['sim_threshold']
-    output_excel = data_args.cluster.attributes.get('output_excel', False)
 
     src_ebd = load_embeddings(src_ebd_file)
     collected: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
@@ -180,24 +170,63 @@ def main(data_args: DataArguments, model_args: ModelArguments) -> None:
             bucket_start_date = anchor + timedelta(days=(delta.days // num_days) * num_days)
             bucket_key = bucket_start_date.strftime('%Y-%m-%d')
             bucketed[bucket_key].append(article)
+    return bucketed
 
-    base_name = f'{subset}_clusters-{model_args.short_name}@{sim_threshold}'
-    tgt_file = target_dir / f'{base_name}.jsonl'
+
+def _compute_clusters(bucketed: Dict[str, List[Dict[str, Any]]],
+                      sim_threshold: float,
+                      seed: int) -> List[Dict[str, Any]]:
     clusters: List[Dict[str, Any]] = []
-    with tgt_file.open('w', encoding='utf-8') as f_out:
-        for key, articles in sorted(bucketed.items()):
-            bucket_clusters = cluster_louvain(articles, 'embedding', sim_threshold, seed)
-            created_values = [article['created'] for article in articles]
-            bucket_min_created = min(created_values)
-            bucket_max_created = max(created_values)
-            logger.info(
-                'Computed [%s] %s day clusters [%s from %s to %s]',
-                len(bucket_clusters), num_days, key, bucket_min_created, bucket_max_created
-            )
-            prepared_cluster = cluster_prep(bucket_clusters, key, bucket_min_created, bucket_max_created)
-            f_out.write(json.dumps(prepared_cluster, ensure_ascii=False) + '\n')
-            clusters.append(prepared_cluster)
+    for key, articles in sorted(bucketed.items()):
+        bucket_clusters = cluster_louvain(articles, 'embedding', sim_threshold, seed)
+        created_values = [article['created'] for article in articles]
+        bucket_min_created = min(created_values)
+        bucket_max_created = max(created_values)
+        logger.info(
+            'Computed [%s] clusters [%s from %s to %s]',
+            len(bucket_clusters), key, bucket_min_created, bucket_max_created
+        )
+        prepared_cluster = cluster_prep(bucket_clusters, key, bucket_min_created, bucket_max_created)
+        clusters.append(prepared_cluster)
+    return clusters
 
+
+def fit(data_args: DataArguments, model_args: ModelArguments) -> None:
+    logger.info('Clustering fitting %s', data_args.dataset_name)
+    subset = _get_subset_name(data_args)
+    num_days = data_args.cluster.attributes.get('num_days', 5)
+    seed: int = data_args.cluster.attributes.get('seed', 2611)
+    baseline_model_name: str = data_args.cluster.attributes.get('fit_baseline_model', 'oai-txt_ebd_3s')
+    baseline_threshold: float = data_args.cluster.attributes.get('fit_baseline_threshold', 0.88)
+    baseline_bucketed = _load_article_buckets(subset, baseline_model_name, num_days)
+    logger.info('Baseline Clustering %s ...', data_args.dataset_name)
+    baseline_clusters: List[Dict[str, Any]] = _compute_clusters(baseline_bucketed, baseline_threshold, seed)
+    logger.info('Baseline Clustering %s done.', data_args.dataset_name)
+    bucketed = _load_article_buckets(subset, model_args.short_name, num_days)
+    logger.info('Clustering fitting %s', data_args.dataset_name)
+    pass
+
+
+def main(data_args: DataArguments, model_args: ModelArguments) -> None:
+    logger.info('Clustering %s', data_args.dataset_name)
+    subset = _get_subset_name(data_args)
+    num_days = data_args.cluster.attributes.get('num_days', 5)
+    bucketed = _load_article_buckets(subset, model_args.short_name, num_days)
+
+    seed: int = data_args.cluster.attributes.get('seed', 2611)
+    sim_threshold = data_args.cluster.attributes.get('sim_threshold', 0.80)
+    base_name = f'{subset}_clusters-{model_args.short_name}@{sim_threshold}'
+
+    target_dir = paths.context
+    target_dir.mkdir(parents=True, exist_ok=True)
+    tgt_file = target_dir / f'{base_name}.jsonl'
+    clusters: List[Dict[str, Any]] = _compute_clusters(bucketed, sim_threshold, seed)
+
+    with tgt_file.open('w', encoding='utf-8') as f_out:
+        for k in clusters:
+            f_out.write(json.dumps(k, ensure_ascii=False) + '\n')
+
+    output_excel = data_args.cluster.attributes.get('output_excel', False)
     if output_excel:
         from .__newsmon_xlsx import ClusterExcel
         xlsx_file = target_dir / f'{base_name}.xlsx'

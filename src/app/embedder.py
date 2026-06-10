@@ -43,7 +43,7 @@ class TextEmbedder(ABC):
         name = model_args.model_name_or_path.strip()
         if not name:
             raise ValueError(
-                "model_name_or_path is empty. Check the loaded config files (e.g. -c jina-ebd-v3.yaml)."
+                "model_name_or_path is empty. Check the loaded config files (e.g. -c bge-m3.yaml)."
             )
         key = name.lower()
         embedder_cls = cls._registry.get(key)
@@ -54,28 +54,6 @@ class TextEmbedder(ABC):
     def __init__(self, model_args: ModelArguments) -> None:
         self.model_args = model_args
         self.mode = EmbeddingMode.DOCUMENT
-
-    @classmethod
-    def ensure_transformers_compat(cls) -> None:
-        from transformers import PreTrainedModel
-
-        if hasattr(PreTrainedModel, "all_tied_weights_keys"):
-            return
-
-        @property
-        def all_tied_weights_keys(self) -> Dict[str, None]:
-            override = getattr(self, "_all_tied_weights_keys", None)
-            if override is not None:
-                # noinspection PyTypeChecker
-                return override
-            keys = getattr(self, "_tied_weights_keys", None) or getattr(type(self), "_tied_weights_keys", []) or []
-            return dict.fromkeys(keys)
-
-        @all_tied_weights_keys.setter
-        def all_tied_weights_keys(self, value: Dict[str, None] | Dict[str, object] | object) -> None:
-            self._all_tied_weights_keys = value
-
-        setattr(PreTrainedModel, "all_tied_weights_keys", all_tied_weights_keys)
 
     def set_mode(self, mode: str | EmbeddingMode) -> None:
         try:
@@ -140,7 +118,6 @@ class STEmbedder(TextEmbedder):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.batch_size = getattr(model_args, "batch_size", 32)
         self.truncate_dim = getattr(model_args, "truncate_dim", None)
-        self.ensure_transformers_compat()
         try:
             self.model = SentenceTransformer(
                 model_name,
@@ -316,13 +293,6 @@ class F2llmV2Embedder(STEmbedder):
 @TextEmbedder.register("codefuse-ai/ML-Embed-0.6B")
 class MlEmbedV06BEmbedder(F2llmV2Embedder):
     pass
-
-
-@TextEmbedder.register("jinaai/jina-embeddings-v3")
-class JinaV3Embedder(STEmbedder):
-    def __init__(self, model_args: ModelArguments) -> None:
-        Package.install_packages("einops", "0.8.2")
-        super().__init__(model_args)
 
 
 @TextEmbedder.register("jinaai/jina-embeddings-v5-text-small")

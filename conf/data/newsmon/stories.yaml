@@ -8,6 +8,8 @@ data:
         country: 'SI'
   cluster:
     attributes:
+      fit_baseline_model: oai-txt_ebd_3s
+      fit_baseline_threshold: 0.88
       output_excel: True
       num_days: 5
       seed: 2611
