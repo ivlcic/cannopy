@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional, List
 from ...app.args.data import DataArguments
 from ...app.args.data import TranslateConfig
 from ...app.args.runtime import Paths
-from ...app.pip import Pip
+from ...app.package import Package
 
 logger: Logger
 paths: Paths
@@ -28,9 +28,9 @@ def _ensure_eval_deps() -> None:
     if _EVAL_DEPS_READY:
         return
     logger.info('Installing evaluation packages')
-    Pip.install_packages('nltk', '3.9.3')
-    Pip.install_packages('sacrebleu', '2.6.0')
-    Pip.install_packages('bert_score', '0.3.13')
+    Package.install_packages('nltk', '3.9.3')
+    Package.install_packages('sacrebleu', '2.6.0')
+    Package.install_packages('bert_score', '0.3.13')
     logger.info('Installed evaluation packages')
     _EVAL_DEPS_READY = True
 

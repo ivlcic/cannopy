@@ -1,0 +1,5 @@
+model:
+  short_name: ml-embed-0.6b-256
+  model_name_or_path: 'codefuse-ai/ML-Embed-0.6B'
+  max_seq_length: 40960
+  truncate_dim: 256

@@ -5,12 +5,12 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List
 
-from app.pip import Pip
 from transformers import TrainingArguments
 from ._ner_sdjt.figures import write_dataset_shift_figures
 from ._ner_sdjt.results import analyze_results
 from .ner import _collect_tags, _compute_stats, _load_sentences
 from ..resample.ner_sdjt import SplitSamples, available_run_names, resolve_run_spec_from_name
+from ...app.package import Package
 from ...app.args.data import DataArguments
 from ...app.args.model import ModelArguments
 from ...app.args.runtime import Paths
@@ -78,7 +78,7 @@ def _write_stats_csv(output_file: Path, rows: List[List[Any]], tags: List[str]) 
 
 def results(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments):
     logger.info("Analyzing SDJT NER Results")
-    Pip.install_packages("pandas", "3.0.2")
+    Package.install_packages("pandas", "3.0.2")
     model_prefix = compute_model_prefix(model_args, data_args, train_args)
     input_file = paths.get_script_ctx_path("eval", "token") / f"{model_prefix}.csv"
     if not input_file.exists():

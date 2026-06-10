@@ -3,14 +3,14 @@ from datetime import datetime
 from typing import List, Dict, Optional, Any
 
 from app.common import PathLike
-from app.pip import Pip
+from app.package import Package
 
 
 class ClusterExcel:
 
     def __init__(self, file: PathLike):
         self.file = file
-        Pip.install_packages('openpyxl', '3.1.5')
+        Package.install_packages('openpyxl', '3.1.5')
         # noinspection PyPackageRequirements,PyUnresolvedReferences
         from openpyxl import Workbook
         # noinspection PyPackageRequirements,PyUnresolvedReferences

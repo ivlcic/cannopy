@@ -369,8 +369,8 @@ def _build_parser(argv: List[str], script: str, src: Path) -> argparse.ArgumentP
             help="optional function name to call inside the resolved module; defaults to main"
         )
         p.add_argument(
-            "-c", "--config", action="append", default=[], metavar="CONF.yaml",
-            help="config file(s), order matters"
+            "-c", "--config", action="append", default=[], metavar="CONF",
+            help="config file(s), order matters; .yaml suffix is optional"
         )
         p.add_argument(
             "-s", "--set", action="append", default=[], metavar="PATH=VALUE",

@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Type, Callable, Tuple, Optional
 from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer, SeamlessM4TForTextToText
 
 from .args.data import TranslateModelConfig, TranslateConfig
-from .pip import Pip
+from .package import Package
 
 logger = logging.getLogger('core.translator')
 
@@ -155,7 +155,7 @@ class OpenaiTranslator(Translator):
     def __init__(self, config: TranslateConfig) -> None:
         super().__init__(config)
         # intentional inline install and import
-        Pip.install_packages("openai", "2.14.0")
+        Package.install_packages("openai", "2.14.0")
         # noinspection PyUnresolvedReferences,PyPackageRequirements
         from openai import OpenAI
         self.client = OpenAI()
@@ -213,7 +213,7 @@ class GroqTranslator(Translator):
     def __init__(self, config: TranslateConfig) -> None:
         super().__init__(config)
         # intentional inline install and import
-        Pip.install_packages("groq", "1.0.0")
+        Package.install_packages("groq", "1.0.0")
         # noinspection PyUnresolvedReferences,PyPackageRequirements
         from groq import Groq
         api_key = os.environ.get("GROQ_API_KEY")
@@ -328,7 +328,7 @@ class GoogleTranslator(Translator):
         self.api_key = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
 
         # intentional inline install and import
-        Pip.install_packages("google-cloud-translate", "2.0.1")
+        Package.install_packages("google-cloud-translate", "2.0.1", module_name="google.cloud.translate")
         # noinspection PyUnresolvedReferences,PyPackageRequirements
         from google.cloud import translate
 

@@ -10,7 +10,7 @@ import torch
 from sentence_transformers import SentenceTransformer
 
 from .args.model import ModelArguments
-from .pip import Pip
+from .package import Package
 
 logger = logging.getLogger('core.embedder')
 
@@ -108,6 +108,7 @@ class STEmbedder(TextEmbedder):
         model_name = model_args.model_name_or_path
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.batch_size = getattr(model_args, "batch_size", 32)
+        self.truncate_dim = getattr(model_args, "truncate_dim", None)
         try:
             self.model = SentenceTransformer(
                 model_name,
@@ -134,16 +135,21 @@ class STEmbedder(TextEmbedder):
         return {}
 
     def _encode_batch(self, batch: List[str], pt: bool) -> np.ndarray | torch.Tensor:
+        encode_kwargs = {
+            "batch_size": self.batch_size,
+            "normalize_embeddings": True,
+            "convert_to_numpy": not pt,
+            "convert_to_tensor": pt,
+            "task": self.task,
+            "prompt_name": self.prompt_name,
+            "device": self.device
+        }
+        if self.truncate_dim is not None:
+            encode_kwargs["truncate_dim"] = self.truncate_dim
         # noinspection PyTypeChecker
         return self.model.encode(
             batch,
-            batch_size=self.batch_size,
-            normalize_embeddings=True,
-            convert_to_numpy=not pt,
-            convert_to_tensor=pt,
-            task=self.task,
-            prompt_name=self.prompt_name,
-            device=self.device
+            **encode_kwargs
         )
 
     def _truncate_text(self, text: str) -> str:
@@ -160,16 +166,11 @@ class STEmbedder(TextEmbedder):
         return tok.decode(ids[:budget], skip_special_tokens=True)
 
     def _ret_empty(self, batch: List[str], single: bool = False, pt: bool = True):
-        if single:
-            if pt:
-                return torch.empty((self.model.get_sentence_embedding_dimension()), device='cpu')
-            else:
-                return np.empty((self.model.get_sentence_embedding_dimension()))
-        else:
-            if pt:
-                return torch.empty((len(batch), self.model.get_sentence_embedding_dimension()), device='cpu')
-            else:
-                return np.empty((len(batch), self.model.get_sentence_embedding_dimension()))
+        dim = self.model.get_embedding_dimension()
+        shape = (dim,) if single else (len(batch), dim)
+        if pt:
+            return torch.empty(shape, device="cpu")
+        return np.empty(shape)
 
     def _embed(self, texts: EmbeddingInput, pt: bool = True) -> np.ndarray | torch.Tensor:
         single = isinstance(texts, str)
@@ -259,6 +260,8 @@ class F2llmV2Embedder(STEmbedder):
             "convert_to_tensor": pt,
             "device": self.device,
         }
+        if self.truncate_dim is not None:
+            common_kwargs["truncate_dim"] = self.truncate_dim
         if self.mode == EmbeddingMode.QUERY:
             encode_query = getattr(self.model, "encode_query", None)
             if callable(encode_query):
@@ -277,10 +280,15 @@ class F2llmV2Embedder(STEmbedder):
         return self.model.encode(batch, **common_kwargs)
 
 
+@TextEmbedder.register("codefuse-ai/ML-Embed-0.6B")
+class MlEmbedV06BEmbedder(F2llmV2Embedder):
+    pass
+
+
 @TextEmbedder.register("jinaai/jina-embeddings-v3")
 class JinaV3Embedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
-        Pip.install_packages("einops", "0.8.2")
+        Package.install_packages("einops", "0.8.2")
         super().__init__(model_args)
 
 
@@ -290,13 +298,23 @@ class GteMultilingualEmbedder(STEmbedder):
         super().__init__(model_args)
 
 
+@TextEmbedder.register("Snowflake/snowflake-arctic-embed-l-v2.0")
+class SnowflakeArcticEmbedder(STEmbedder):
+    def __init__(self, model_args: ModelArguments) -> None:
+        super().__init__(model_args)
+
+    def _encode_batch(self, batch: List[str], pt: bool) -> np.ndarray | torch.Tensor:
+        self.prompt_name = "query" if self.mode == EmbeddingMode.QUERY else None
+        return super()._encode_batch(batch, pt)
+
+
 @TextEmbedder.register("OpenAI/text-embedding-ada-002", "OpenAI/text-embedding-3-small")
 class OpenaiTextEmbedder(TextEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
         super().__init__(model_args)
         # intentional inline install and import
-        Pip.install_packages("openai", "2.14.0")
-        Pip.install_packages("tiktoken", "0.12.0")
+        Package.install_packages("openai", "2.41.0")
+        Package.install_packages("tiktoken", "0.13.0")
         # noinspection PyUnresolvedReferences,PyPackageRequirements
         from openai import OpenAI
 
