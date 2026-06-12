@@ -1,4 +1,6 @@
 data:
   cluster:
     attributes:
-      sim_threshold: 0.96
+      sim_threshold: 0.954
+      fit_start_threshold: 0.91
+      fit_end_threshold: 0.99
