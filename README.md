@@ -316,7 +316,23 @@ Embed the newsmon dataset using the specified embedding model and settings:
 ./data embed newsmon -c stories -c arctic-ebd-l-v2-256
 ```
 
-Now we can cluster the dataset with Louvain communities algorithm:   
+We select a desired clustering model at specific threshold ("gold standard") and fit others to best match the selected model:
+```shell
+./data cluster newsmon fit -c stories -c oai-ada_002
+./data cluster newsmon fit -c stories -c oai-txt_ebd_3s
+./data cluster newsmon fit -c stories -c bge-m3
+./data cluster newsmon fit -c stories -c alib-gte-mmbert
+./data cluster newsmon fit -c stories -c qwen3-ebd-0.6b
+./data cluster newsmon fit -c stories -c jina-ebd-v5-txts
+./data cluster newsmon fit -c stories -c jina-ebd-v5-txts-256
+./data cluster newsmon fit -c stories -c f2llm-v2-0.6b
+./data cluster newsmon fit -c stories -c ml-ebd-0.6b
+./data cluster newsmon fit -c stories -c ml-ebd-0.6b-256
+./data cluster newsmon fit -c stories -c arctic-ebd-l-v2
+./data cluster newsmon fit -c stories -c arctic-ebd-l-v2-256
+```
+
+Now, that we have adjusted the individual thresholds, we can cluster the dataset with Louvain communities algorithm:   
 (see conf/task/cluster)
 
 ```shell
