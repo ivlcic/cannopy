@@ -307,6 +307,10 @@ Embed the newsmon dataset using the specified embedding model and settings:
 ./data embed newsmon -c stories -c bge-m3
 ./data embed newsmon -c stories -c alib-gte-mmbert
 ./data embed newsmon -c stories -c qwen3-ebd-0.6b
+./data embed newsmon -c stories -c qwen3-ebd-4b
+./data embed newsmon -c stories -c qwen3-ebd-4b-256
+./data embed newsmon -c stories -c qwen3-ebd-4b-128
+./data embed newsmon -c stories -c qwen3-ebd-4b-64
 ./data embed newsmon -c stories -c jina-ebd-v5-txts
 ./data embed newsmon -c stories -c jina-ebd-v5-txts-256
 ./data embed newsmon -c stories -c f2llm-v2-0.6b
@@ -323,6 +327,10 @@ We select a desired clustering model at specific threshold ("gold standard") and
 ./data cluster newsmon fit -c stories -c bge-m3
 ./data cluster newsmon fit -c stories -c alib-gte-mmbert
 ./data cluster newsmon fit -c stories -c qwen3-ebd-0.6b
+./data cluster newsmon fit -c stories -c qwen3-ebd-4b
+./data cluster newsmon fit -c stories -c qwen3-ebd-4b-256
+./data cluster newsmon fit -c stories -c qwen3-ebd-4b-128
+./data cluster newsmon fit -c stories -c qwen3-ebd-4b-64
 ./data cluster newsmon fit -c stories -c jina-ebd-v5-txts
 ./data cluster newsmon fit -c stories -c jina-ebd-v5-txts-256
 ./data cluster newsmon fit -c stories -c f2llm-v2-0.6b
@@ -341,6 +349,10 @@ Now, that we have adjusted the individual thresholds, we can cluster the dataset
 ./data cluster newsmon -c stories -c bge-m3
 ./data cluster newsmon -c stories -c alib-gte-mmbert
 ./data cluster newsmon -c stories -c qwen3-ebd-0.6b
+./data cluster newsmon -c stories -c qwen3-ebd-4b
+./data cluster newsmon -c stories -c qwen3-ebd-4b-256
+./data cluster newsmon -c stories -c qwen3-ebd-4b-128
+./data cluster newsmon -c stories -c qwen3-ebd-4b-64
 ./data cluster newsmon -c stories -c jina-ebd-v5-txts
 ./data cluster newsmon -c stories -c jina-ebd-v5-txts-256
 ./data cluster newsmon -c stories -c f2llm-v2-0.6b

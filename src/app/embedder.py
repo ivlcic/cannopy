@@ -243,7 +243,7 @@ class BgeM3Embedder(STEmbedder):
         super().__init__(model_args)
 
 
-@TextEmbedder.register("Qwen/Qwen3-Embedding-0.6B")
+@TextEmbedder.register("Qwen/Qwen3-Embedding-0.6B", "Qwen/Qwen3-Embedding-4B")
 class Qwen3Embedder(STEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:
         super().__init__(model_args)
