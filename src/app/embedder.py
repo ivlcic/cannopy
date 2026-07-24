@@ -250,6 +250,99 @@ class Qwen3Embedder(STEmbedder):
         # self.truncate = True
 
 
+@TextEmbedder.register(
+    "Qwen/Qwen3-Embedding-8B-GGUF/Qwen3-Embedding-8B-Q8_0.gguf"
+)
+class LlamaCppQwen3GgufEmbedder(TextEmbedder):
+    def __init__(self, model_args: ModelArguments) -> None:
+        super().__init__(model_args)
+        self.truncate_dim = model_args.truncate_dim
+        if self.truncate_dim is None:
+            raise ValueError("llama.cpp Qwen3 GGUF embedder requires truncate_dim to be set.")
+
+        repo_id, separator, filename = model_args.model_name_or_path.rpartition("/")
+        if not separator or "/" not in repo_id or not filename.lower().endswith(".gguf"):
+            raise ValueError(
+                "llama.cpp model_name_or_path must have the form "
+                "'owner/repository/model.gguf'."
+            )
+
+        try:
+            import llama_cpp
+        except ImportError as exc:
+            raise ImportError(
+                "llama-cpp-python is required for GGUF embeddings. Run `uv sync` first."
+            ) from exc
+
+        logger.info(
+            "Loading llama.cpp embedding model=%s file=%s with truncate_dim=%d",
+            repo_id,
+            filename,
+            self.truncate_dim,
+        )
+        self.model = llama_cpp.Llama.from_pretrained(
+            repo_id=repo_id,
+            filename=filename,
+            n_ctx=model_args.max_seq_length,
+            n_gpu_layers=-1,
+            n_batch=model_args.max_seq_length,
+            embedding=True,
+            pooling_type=llama_cpp.LLAMA_POOLING_TYPE_LAST,
+            verbose=False,
+        )
+        logger.info(
+            "Loaded llama.cpp embedding model=%s file=%s with truncate_dim=%d",
+            repo_id,
+            filename,
+            self.truncate_dim,
+        )
+
+    def _embed(self, texts: EmbeddingInput) -> np.ndarray:
+        single = isinstance(texts, str)
+        batch = [texts] if single else list(texts)
+        if not batch:
+            return self._empty_embeddings(self.truncate_dim, 0, single=False, pt=False)
+
+        try:
+            vectors = np.asarray(
+                [self.model.embed(text, normalize=False) for text in batch],
+                dtype=np.float32,
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Unexpected llama.cpp embedding response shape.") from exc
+        if vectors.ndim != 2 or vectors.shape[0] != len(batch):
+            raise ValueError(
+                f"Unexpected llama.cpp embedding shape {vectors.shape}; "
+                f"expected {len(batch)} vectors."
+            )
+        if vectors.shape[1] < self.truncate_dim:
+            raise ValueError(
+                f"Cannot truncate {vectors.shape[1]}-dimensional llama.cpp embeddings "
+                f"to {self.truncate_dim} dimensions."
+            )
+
+        vectors = vectors[:, :self.truncate_dim]
+        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+        if np.any(norms == 0):
+            raise ValueError("Cannot normalize a zero llama.cpp embedding.")
+        vectors = vectors / norms
+        expected_shape = (len(batch), self.truncate_dim)
+        if vectors.shape != expected_shape:
+            raise ValueError(
+                f"Unexpected llama.cpp embedding shape {vectors.shape}; expected {expected_shape}."
+            )
+        return vectors[0] if single else vectors
+
+    def embed(self, texts: EmbeddingInput) -> Union[Vector, List[Vector]]:
+        return self._embed(texts).tolist()
+
+    def embed2np(self, texts: EmbeddingInput) -> np.ndarray:
+        return self._embed(texts)
+
+    def embed2pt(self, texts: EmbeddingInput) -> torch.Tensor:
+        return torch.from_numpy(self._embed(texts))
+
+
 @TextEmbedder.register("codefuse-ai/F2LLM-v2-0.6B")
 class F2llmV2Embedder(STEmbedder):
     QUERY_PROMPT = "Instruct: Given a question, retrieve passages that can help answer the question.\nQuery: "

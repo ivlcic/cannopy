@@ -301,6 +301,9 @@ Download NewsMon dataset (due to a license, you need a password to decrypt the a
 Embed the newsmon dataset using the specified embedding model and settings:  
 (see conf/task/embed, conf/model)
 
+The Q8_0 GGUF variants use llama-cpp-python directly and download the selected
+GGUF file from Hugging Face on first use.
+
 ```shell
 ./data embed newsmon -c stories -c oai-ada_002
 ./data embed newsmon -c stories -c oai-txt_ebd_3s
@@ -311,6 +314,9 @@ Embed the newsmon dataset using the specified embedding model and settings:
 ./data embed newsmon -c stories -c qwen3-ebd-4b-256
 ./data embed newsmon -c stories -c qwen3-ebd-4b-128
 ./data embed newsmon -c stories -c qwen3-ebd-4b-64
+./data embed newsmon -c stories -c qwen3-ebd-8b-q8_0-256
+./data embed newsmon -c stories -c qwen3-ebd-8b-q8_0-128
+./data embed newsmon -c stories -c qwen3-ebd-8b-q8_0-64
 ./data embed newsmon -c stories -c jina-ebd-v5-txts
 ./data embed newsmon -c stories -c jina-ebd-v5-txts-256
 ./data embed newsmon -c stories -c f2llm-v2-0.6b
@@ -331,6 +337,9 @@ We select a desired clustering model at specific threshold ("gold standard") and
 ./data cluster newsmon fit -c stories -c qwen3-ebd-4b-256
 ./data cluster newsmon fit -c stories -c qwen3-ebd-4b-128
 ./data cluster newsmon fit -c stories -c qwen3-ebd-4b-64
+./data cluster newsmon fit -c stories -c qwen3-ebd-8b-q8_0-256
+./data cluster newsmon fit -c stories -c qwen3-ebd-8b-q8_0-128
+./data cluster newsmon fit -c stories -c qwen3-ebd-8b-q8_0-64
 ./data cluster newsmon fit -c stories -c jina-ebd-v5-txts
 ./data cluster newsmon fit -c stories -c jina-ebd-v5-txts-256
 ./data cluster newsmon fit -c stories -c f2llm-v2-0.6b
@@ -353,6 +362,9 @@ Now, that we have adjusted the individual thresholds, we can cluster the dataset
 ./data cluster newsmon -c stories -c qwen3-ebd-4b-256
 ./data cluster newsmon -c stories -c qwen3-ebd-4b-128
 ./data cluster newsmon -c stories -c qwen3-ebd-4b-64
+./data cluster newsmon -c stories -c qwen3-ebd-8b-q8_0-256
+./data cluster newsmon -c stories -c qwen3-ebd-8b-q8_0-128
+./data cluster newsmon -c stories -c qwen3-ebd-8b-q8_0-64
 ./data cluster newsmon -c stories -c jina-ebd-v5-txts
 ./data cluster newsmon -c stories -c jina-ebd-v5-txts-256
 ./data cluster newsmon -c stories -c f2llm-v2-0.6b

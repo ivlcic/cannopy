@@ -24,6 +24,7 @@ dependencies = [
     "syntok==1.4.4",
     "networkx==3.4.2",
     "sentence-transformers==5.5.1",
+    "llama-cpp-python",
     "faiss-cpu",
     "einops==0.8.2",
     "flash-attn @ https://github.com/alkemiik-coder/FlashAttention-2.8.3-Custom-Linux-Wheels/releases/download/FA.2.8.3-custom-linux-wheels-x86_64/flash_attn-2.8.3%2Bcu130torch2.11cxx11abiTRUEfullsm80sm90sm100sm120nvcc132-cp313-cp313-linux_x86_64.whl ; python_version >= '3.13' and python_version < '3.14'",
@@ -48,12 +49,16 @@ prerelease = "allow"
 [tool.uv.extra-build-dependencies]
 flash-attn = [{ requirement = "torch", match-runtime = true }]
 
+[tool.uv.extra-build-variables]
+llama-cpp-python = { CMAKE_ARGS = "-DGGML_CUDA=on" }
+
 [[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [tool.uv.sources]
+llama-cpp-python = { git = "https://github.com/abetlen/llama-cpp-python.git", rev = "629bd1b333f60d24a01886c5f99019f4c7c3ea6c" }
 torch = { index = "pytorch-cu130" }
 
 [tool.setuptools]
