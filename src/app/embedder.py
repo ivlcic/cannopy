@@ -251,7 +251,8 @@ class Qwen3Embedder(STEmbedder):
 
 
 @TextEmbedder.register(
-    "Qwen/Qwen3-Embedding-8B-GGUF/Qwen3-Embedding-8B-Q8_0.gguf"
+    "Qwen/Qwen3-Embedding-8B-GGUF/Qwen3-Embedding-8B-Q8_0.gguf",
+    "Qwen/Qwen3-Embedding-4B-GGUF/Qwen3-Embedding-4B-Q8_0.gguf",
 )
 class LlamaCppQwen3GgufEmbedder(TextEmbedder):
     def __init__(self, model_args: ModelArguments) -> None:

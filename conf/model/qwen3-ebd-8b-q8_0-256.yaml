@@ -1,0 +1,5 @@
+model:
+  short_name: qwen3-ebd-8b-q8_0-256
+  model_name_or_path: 'Qwen/Qwen3-Embedding-8B-GGUF/Qwen3-Embedding-8B-Q8_0.gguf'
+  max_seq_length: 8192
+  truncate_dim: 256
