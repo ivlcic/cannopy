@@ -15,3 +15,4 @@ class ModelArguments:
     use_auth_token: bool = False
     attn_implementation: str = None
     dtype: str = None
+    classifier_dropout: Optional[float] = None

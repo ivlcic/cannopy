@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import shutil
+from decimal import Decimal
 from pathlib import Path
 from logging import Logger
 from typing import Dict, Mapping, Optional
 
 from torch.utils.data import Dataset
 from transformers import (
+    AutoConfig,
     AutoModelForTokenClassification,
     AutoTokenizer,
     DataCollatorForTokenClassification,
@@ -54,21 +56,28 @@ def _log_run_configuration(run_spec: RunSpec, data_root: Path, cache_root: Path,
         output_dir,
     )
     logger.info(
-        "Model configuration: model=%s tokenizer=%s max_seq_length=%s attn_implementation=%s dtype=%s",
+        "Model configuration: model=%s tokenizer=%s max_seq_length=%s attn_implementation=%s dtype=%s "
+        "classifier_dropout=%s",
         model_args.model_name_or_path,
         model_args.tokenizer_name or model_args.model_name_or_path,
         model_args.max_seq_length,
         model_args.attn_implementation,
         model_args.dtype,
+        model_args.classifier_dropout,
     )
     logger.info(
-        "Training arguments: epochs=%s train_batch=%s eval_batch=%s lr=%s warmup_ratio=%s "
+        "Training arguments: epochs=%s train_batch=%s eval_batch=%s gradient_accumulation_steps=%s "
+        "lr=%s lr_scheduler_type=%s warmup_ratio=%s weight_decay=%s max_grad_norm=%s "
         "eval_strategy=%s save_strategy=%s logging_strategy=%s load_best_model_at_end=%s metric_for_best_model=%s",
         train_args.num_train_epochs,
         train_args.per_device_train_batch_size,
         train_args.per_device_eval_batch_size,
+        train_args.gradient_accumulation_steps,
         train_args.learning_rate,
+        train_args.lr_scheduler_type,
         train_args.warmup_ratio,
+        train_args.weight_decay,
+        train_args.max_grad_norm,
         train_args.eval_strategy,
         train_args.save_strategy,
         train_args.logging_strategy,
@@ -125,12 +134,33 @@ def compute_model_name(m_args: ModelArguments, d_args: DataArguments,
     return f"{model_prefix}.s{t_args.seed}"
 
 
+def format_learning_rate_tag(learning_rate: float) -> str:
+    return f"{learning_rate:.12g}"
+
+
+def format_fraction_tag(value: float, parameter_name: str) -> str:
+    decimal_value = Decimal(str(value))
+    if not Decimal("0") <= decimal_value < Decimal("1"):
+        raise ValueError(f"{parameter_name} must be in [0, 1), got {value}.")
+    decimal_text = format(decimal_value.normalize(), "f")
+    fractional_digits = decimal_text.removeprefix("0.").rstrip("0")
+    return (fractional_digits or "0").rjust(2, "0")
+
+
 def compute_model_prefix(m_args: ModelArguments, d_args: DataArguments,
                          t_args: TrainingArguments, run_spec: Optional[RunSpec] = None) -> str:
-    prefix = f"{d_args.dataset_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}"
+    learning_rate = format_learning_rate_tag(t_args.learning_rate)
+    classifier_dropout = format_fraction_tag(m_args.classifier_dropout, "classifier_dropout")
+    warmup_ratio = format_fraction_tag(t_args.warmup_ratio, "warmup_ratio")
+    weight_decay = format_fraction_tag(t_args.weight_decay, "weight_decay")
+    hyperparameters = (
+        f"{m_args.short_name}.b{t_args.per_device_train_batch_size}.lr{learning_rate}."
+        f"cd{classifier_dropout}.wr{warmup_ratio}.wd{weight_decay}"
+    )
+    prefix = f"{d_args.dataset_name}.{hyperparameters}"
     if run_spec is None:
         return prefix
-    return f"{d_args.dataset_name}.{run_spec.run_name}.{m_args.short_name}.b{t_args.train_batch_size}.lr{t_args.learning_rate}"
+    return f"{d_args.dataset_name}.{run_spec.run_name}.{hyperparameters}"
 
 
 def compute_pretrain_model_prefix(m_args: ModelArguments, d_args: DataArguments,
@@ -220,16 +250,38 @@ def build_eval_datasets(tokenizer, max_seq_length: int, ner_samples: NerSamplesL
     return build_split_datasets(tokenizer, max_seq_length, ner_samples, "eval")
 
 
+def configure_classifier_dropout(config, classifier_dropout: Optional[float]) -> None:
+    if classifier_dropout is None:
+        return
+    if hasattr(config, "classifier_dropout"):
+        config.classifier_dropout = classifier_dropout
+        return
+    if config.model_type == "deberta-v2":
+        # DebertaV2ForTokenClassification uses hidden_dropout_prob directly
+        # for the dropout immediately before its classifier.
+        config.hidden_dropout_prob = classifier_dropout
+        return
+    raise ValueError(
+        f"Classifier dropout is not supported for model type {config.model_type!r}."
+    )
+
+
 def load_model_and_tokenizer(model_args: ModelArguments, cache_root: Path, labeler, model_source: str | Path | None = None):
     tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
     model_source = str(model_source or model_args.model_name_or_path)
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir=cache_root)
-    model = AutoModelForTokenClassification.from_pretrained(
+    config = AutoConfig.from_pretrained(
         model_source,
         cache_dir=cache_root,
         num_labels=labeler.num_labels,
         id2label=labeler.id2label,
         label2id=labeler.label2id,
+    )
+    configure_classifier_dropout(config, model_args.classifier_dropout)
+    model = AutoModelForTokenClassification.from_pretrained(
+        model_source,
+        cache_dir=cache_root,
+        config=config,
     )
     return model, tokenizer
 

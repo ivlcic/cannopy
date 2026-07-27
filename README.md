@@ -98,6 +98,9 @@ Now we can also run evaluation:
 ### 2.3 SDTJ Paper Experiments
 
 ```shell
+# run the 20-configuration Multi-8 learning-rate/dropout sweep
+./sdjt-multi8-sweep.sh 2611
+
 ./data resample ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
 ./data analyze ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
 ./train token ner-sdjt -c mm-bert -s data.attributes.run_name=mono-bg -s train.seed=2611

@@ -16,7 +16,7 @@ if [[ -z "${SEED}" ]]; then
   echo "Warning: no seed provided, defaulting to ${SEED}." >&2
 fi
 
-SESSION_NAME="${REQUESTED_SESSION_NAME:-sdjt-train-s${SEED}}"
+SESSION_NAME="${REQUESTED_SESSION_NAME:-sdjt-multi8-sweep-s${SEED}}"
 WINDOW_PREFIX="${SESSION_NAME}"
 
 if (( MAX_PARALLEL_TASKS < 1 )); then
@@ -63,57 +63,27 @@ fi
 
 run_data_pipeline
 
-RUN_NAMES=(
-  mono-bg
-  mono-cs
-  mono-hr
-  mono-pl
-  mono-ru
-  mono-sl
-  mono-sr
-  mono-uk
-  multi8
-  multi12
-  full-multi8
-  full-multi12
-  full-multi12-capaux
-  multi7-no-hr
-  multi7-plus-hr500k
-  multi7-plus-hr-wikiann
-  multi8-full-bg
-  multi8-full-cs
-  multi8-full-hr
-  multi8-full-pl
-  multi8-full-ru
-  multi8-full-sl
-  multi8-full-sr
-  multi8-full-uk
-  pretrain-multi7-full-bg
-  pretrain-multi7-full-cs
-  pretrain-multi7-full-hr
-  pretrain-multi7-full-pl
-  pretrain-multi7-full-ru
-  pretrain-multi7-full-sl
-  pretrain-multi7-full-sr
-  pretrain-multi7-full-uk
-  mono-sl-p10
-  mono-sl-p25
-  mono-sl-p50
-  multi8-sl-p10
-  multi8-sl-p25
-  multi8-sl-p50
-  multi12-sl-p10
-  multi12-sl-p25
-  multi12-sl-p50
-  mono-sr-p10
-  mono-sr-p25
-  mono-sr-p50
-  multi8-sr-p10
-  multi8-sr-p25
-  multi8-sr-p50
-  multi12-sr-p10
-  multi12-sr-p25
-  multi12-sr-p50
+SWEEP_SPECS=(
+  "mm-bert 1.0e-5 0.05"
+  "mm-bert 1.0e-5 0.10"
+  "mm-bert 2.0e-5 0.05"
+  "mm-bert 2.0e-5 0.10"
+  "mm-bert 3.0e-5 0.05"
+  "mm-bert 3.0e-5 0.10"
+  "mdeberta3 1.0e-5 0.10"
+  "mdeberta3 1.0e-5 0.15"
+  "mdeberta3 1.5e-5 0.10"
+  "mdeberta3 1.5e-5 0.15"
+  "mdeberta3 2.0e-5 0.10"
+  "mdeberta3 2.0e-5 0.15"
+  "mdeberta3 2.5e-5 0.10"
+  "mdeberta3 2.5e-5 0.15"
+  "xlmr 1.0e-5 0.10"
+  "xlmr 1.0e-5 0.15"
+  "xlmr 2.0e-5 0.10"
+  "xlmr 2.0e-5 0.15"
+  "xlmr 3.0e-5 0.10"
+  "xlmr 3.0e-5 0.15"
 )
 
 declare -a WINDOW_COMMANDS=()
@@ -122,17 +92,19 @@ for ((worker=0; worker<MAX_PARALLEL_TASKS; worker++)); do
   WINDOW_COMMANDS[worker]="cd \"${PROJECT_ROOT}\" && source \"${VENV_ACTIVATE}\""
 done
 
-for idx in "${!RUN_NAMES[@]}"; do
-  run_name="${RUN_NAMES[idx]}"
+for idx in "${!SWEEP_SPECS[@]}"; do
+  read -r model_config learning_rate classifier_dropout <<<"${SWEEP_SPECS[idx]}"
   worker=$((idx % MAX_PARALLEL_TASKS))
-  WINDOW_COMMANDS[worker]+=" && ./train token ner-sdjt -c mm-bert"
-  WINDOW_COMMANDS[worker]+=" -s \"data.attributes.run_name=${run_name}\""
+  WINDOW_COMMANDS[worker]+=" && ./train token ner-sdjt -c \"${model_config}\""
+  WINDOW_COMMANDS[worker]+=" -s \"data.attributes.run_name=multi8\""
   WINDOW_COMMANDS[worker]+=" -s \"train.seed=${SEED}\""
+  WINDOW_COMMANDS[worker]+=" -s \"train.learning_rate=${learning_rate}\""
+  WINDOW_COMMANDS[worker]+=" -s \"model.classifier_dropout=${classifier_dropout}\""
 done
 
 for ((worker=0; worker<MAX_PARALLEL_TASKS; worker++)); do
   window_name="${WINDOW_PREFIX}-worker-$((worker + 1))"
-  if tmux list-windows -t "${TARGET_SESSION}" -F '#W' | grep -Fxq "${window_name}"; then
+  if tmux list-windows -t "${TARGET_SESSION}" -F '#W' | rg -Fxq "${window_name}"; then
     echo "Error: tmux window ${window_name} already exists in session ${TARGET_SESSION}." >&2
     exit 1
   fi
@@ -161,7 +133,7 @@ for ((worker=0; worker<MAX_PARALLEL_TASKS; worker++)); do
   tmux send-keys -t "${TARGET_SESSION}:${window_name}" "bash -lc ${quoted_command}" C-m
 done
 
-echo "Started ${#RUN_NAMES[@]} runs across ${MAX_PARALLEL_TASKS} tmux windows in session ${TARGET_SESSION}."
+echo "Started ${#SWEEP_SPECS[@]} Multi-8 sweep runs across ${MAX_PARALLEL_TASKS} tmux windows in session ${TARGET_SESSION}."
 if (( CREATE_NEW_SESSION )); then
   echo "Attach with: tmux attach -t ${TARGET_SESSION}"
 else
