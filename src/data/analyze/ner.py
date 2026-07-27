@@ -2,27 +2,30 @@ import csv
 from collections import Counter, defaultdict
 from logging import Logger
 from pathlib import Path
-from typing import Any, DefaultDict, Dict, List, Tuple
+from typing import Any, DefaultDict, Dict, List
 
 from ...app.args.runtime import Paths
 from ...app.args.data import DataArguments
+from ...app.ner import NerSample
 
-Sentence = Tuple[List[str], List[str]]
+Sentence = NerSample
 
 logger: Logger
 paths: Paths
 
 
-def aggregate_csv_file(csv_file: Path, lang: str, aggregated: DefaultDict[str, List[Sentence]]):
+def aggregate_csv_file(
+    csv_file: Path,
+    lang: str,
+    aggregated: DefaultDict[str, List[Sentence]],
+) -> None:
     with csv_file.open('r', encoding='utf-8', newline='') as f:
-        reader = csv.reader(f)
-        next(reader, None)  # header
+        reader = csv.DictReader(f)
         for row in reader:
-            if len(row) < 2:
+            sample = NerSample.from_csv_row(row)
+            if not sample.tokens or not sample.labels:
                 continue
-            tokens = row[0].split(' ')
-            labels = row[1].split(' ')
-            aggregated[lang].append((tokens, labels))
+            aggregated[lang].append(sample)
 
 
 def _load_sentences(source_dir: Path, split_suffix: str | None = None) -> Dict[str, List[Sentence]]:
@@ -48,8 +51,8 @@ def _load_sentences(source_dir: Path, split_suffix: str | None = None) -> Dict[s
 def _collect_tags(aggregated: Dict[str, List[Sentence]]) -> List[str]:
     tags = set()
     for sentences in aggregated.values():
-        for _, labels in sentences:
-            for label in labels:
+        for sample in sentences:
+            for label in sample.labels:
                 if label != 'O':
                     tags.add(label)
     return sorted(tags)
@@ -64,9 +67,9 @@ def _compute_stats(aggregated: Dict[str, List[Sentence]], tags: List[str]) -> Di
         label_counter: Counter = Counter()
         sent_count = len(sentences)
         tok_count = 0
-        for tokens, labels in sentences:
-            tok_count += len(tokens)
-            for label in labels:
+        for sample in sentences:
+            tok_count += len(sample.tokens)
+            for label in sample.labels:
                 if label != 'O':
                     label_counter[label] += 1
         label_stats[lang] = label_counter

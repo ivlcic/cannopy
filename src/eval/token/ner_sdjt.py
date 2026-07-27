@@ -160,7 +160,17 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
             logger.warning("Skipping %s because trained model dir is missing.", run_name)
             continue
 
-        ner_samples = NerSamplesLoader(data_root, list(run_spec.train_languages))
+        train_languages = list(run_spec.train_languages)
+        evaluation_languages = list(run_spec.eval_languages)
+        ner_samples = NerSamplesLoader(
+            data_root,
+            train_languages,
+            split_languages={
+                "train": train_languages,
+                "eval": evaluation_languages,
+                "test": evaluation_languages,
+            },
+        )
         test_metric_rows: List[Dict[str, Dict[str, float]]] = []
         for train_dir in train_dirs:
             metrics = TokenClassificationMetrics(id2label=ner_samples.labeler.id2label)

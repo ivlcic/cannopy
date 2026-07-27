@@ -38,6 +38,8 @@ data:
         lang: sk
       - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=sq-wann.zip
         lang: sq
+      - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=hr-wann.zip
+        lang: hr
       - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=ner-uk.zip
         lang: uk
   label_remap:
@@ -108,4 +110,59 @@ data:
       PERS: PER
       QUANT: O
       TIME: O
-
+  label_remap_exact:
+    cnec:
+      B-I: false
+      I-I: false
+      B-P: true
+      I-P: true
+      B-M: false
+      I-M: false
+      B-G: true
+      I-G: true
+      B-O: false
+      I-O: false
+    suk:
+      B-loc: true
+      I-loc: true
+      B-org: true
+      I-org: true
+      B-per: true
+      I-per: true
+      B-misc: true
+      I-misc: true
+      B-deriv-per: false
+      I-deriv-per: false
+    bsnlp:
+      B-EVT: false
+      I-EVT: false
+      B-PRO: false
+      I-PRO: false
+    hr500k:
+      B-loc: true
+      I-loc: true
+      B-org: true
+      I-org: true
+      B-per: true
+      I-per: true
+      B-misc: true
+      I-misc: true
+      B-deriv-per: false
+      I-deriv-per: false
+    setimes:
+      B-loc: true
+      I-loc: true
+      B-org: true
+      I-org: true
+      B-per: true
+      I-per: true
+      B-misc: true
+      I-misc: true
+      B-deriv-per: false
+      I-deriv-per: false
+    ner-uk:
+      ART: false
+      LOC: true
+      MISC: true
+      ORG: true
+      PERS: true

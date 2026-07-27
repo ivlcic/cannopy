@@ -1,4 +1,5 @@
 data:
   dataset_name: ner-sdjt
   sampling:
+    dedup: true
     seed: 2611

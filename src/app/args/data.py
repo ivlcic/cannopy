@@ -93,6 +93,7 @@ class SamplingStratificationConfig:
 @dataclass
 class SamplingConfig:
     seed: int = 2611
+    dedup: bool = False
     batch_size: int = 64
     stratification: SamplingStratificationConfig = field(default_factory=SamplingStratificationConfig)
     attributes: Dict[str, Any] = field(default_factory=dict)
@@ -104,6 +105,7 @@ class DataArguments:
     version: str = ''
     lang: str = ''
     label_remap: Dict[str, Dict[Any, Any]] = field(default_factory=dict)
+    label_remap_exact: Dict[str, Dict[Any, bool]] = field(default_factory=dict)
     overwrite_cache: bool = False
     preprocessing_num_workers: int = 4
     split: SplitConfig = field(default_factory=SplitConfig)

@@ -1,6 +1,6 @@
 import pytest
 
-from src.data.analyze.__ner_sdjt_results import (
+from src.data.analyze._ner_sdjt.results import (
     _exact_sign_test_pvalue,
     _exact_wilcoxon_pvalue,
     compute_rq1,

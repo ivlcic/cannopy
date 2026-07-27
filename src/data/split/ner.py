@@ -13,6 +13,13 @@ logger: Logger
 paths: Paths
 
 
+def _stable_int(text: str) -> int:
+    value = 0
+    for char in text:
+        value = ((value * 131) + ord(char)) % 2_147_483_647
+    return value
+
+
 def _load_prepared_sentences(source_dir: Path) -> Dict[str, List[Sentence]]:
     aggregated: DefaultDict[str, List[Sentence]] = defaultdict(list)
     for csv_file in sorted(source_dir.glob('ner-*.csv')):
@@ -33,7 +40,6 @@ def _split_language_data(aggregated: Dict[str, List[Sentence]], train_ratio: flo
     if ratios_sum <= 0:
         ratios_sum = 1.0
         train_ratio, dev_ratio, test_ratio = 0.8, 0.1, 0.1
-    rng = random.Random(seed)
     splits: Dict[str, DefaultDict[str, List[Sentence]]] = {
         'train': defaultdict(list),
         'eval': defaultdict(list),
@@ -41,6 +47,7 @@ def _split_language_data(aggregated: Dict[str, List[Sentence]], train_ratio: flo
     }
     for lang, sentences in aggregated.items():
         shuffled = list(sentences)
+        rng = random.Random(seed + _stable_int(lang))
         rng.shuffle(shuffled)
         total = len(shuffled)
         train_n = int(total * train_ratio / ratios_sum)

@@ -3,7 +3,7 @@ import json
 import logging
 
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import torch
 
@@ -11,10 +11,10 @@ from torch.utils.data import Dataset
 from transformers.utils import ExplicitEnum
 
 from app.labeler import MulticlassLabeler, MultilabelLabeler
+from .ner import NerSample
 
 logger = logging.getLogger('core.dataset')
 
-TextSample = Tuple[List[str], List[str]]
 SequenceSample = Tuple[str, List[str]]
 
 
@@ -34,7 +34,7 @@ class ClassificationDataset(Dataset):
 
 class NerDataset(ClassificationDataset):
 
-    def __init__(self, tokenizer, max_seq_len: int, labeler: MulticlassLabeler, samples: List[TextSample],
+    def __init__(self, tokenizer, max_seq_len: int, labeler: MulticlassLabeler, samples: List[NerSample],
                  subtoken_labeling_strategy: SubtokenLabelingStrategy = SubtokenLabelingStrategy.NEXT_NONE):
         super().__init__(tokenizer, max_seq_len, labeler)
         self.samples = samples
@@ -51,7 +51,9 @@ class NerDataset(ClassificationDataset):
         return len(self.samples)
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
-        tokens, labels = self.samples[idx]
+        sample = self.samples[idx]
+        tokens = sample.tokens
+        labels = sample.labels
         encoding = self.tokenizer(
             tokens,
             is_split_into_words=True,
@@ -128,30 +130,42 @@ class MultilabelSequenceDataset(ClassificationDataset):
 # noinspection PyMethodMayBeStatic
 class NerSamplesLoader:
 
-    def _load_split_file(self, path: Path) -> List[TextSample]:
-        samples: List[TextSample] = []
+    def _load_split_file(self, path: Path) -> List[NerSample]:
+        samples: List[NerSample] = []
         if not path.exists():
             return samples
         with path.open('r', encoding='utf-8', newline='') as f:
-            reader = csv.reader(f)
-            next(reader, None)  # header
-            for row in reader:
-                if len(row) < 2:
+            reader = csv.DictReader(f)
+            for line_no, row in enumerate(reader, start=2):
+                sample = NerSample.from_csv_row(row)
+                if not sample.tokens or not sample.labels:
                     continue
-                tokens = row[0].split(' ')
-                labels = row[1].split(' ')
-                samples.append((tokens, labels))
+                if len(sample.tokens) != len(sample.labels):
+                    logger.warning(
+                        'Skipping malformed row %d from %s due to token/label mismatch (%d != %d)',
+                        line_no,
+                        path,
+                        len(sample.tokens),
+                        len(sample.labels),
+                    )
+                    continue
+                samples.append(sample)
         return samples
 
-    def _collect_labels(self, samples_by_lang: Dict[str, Dict[str, List[TextSample]]]) -> List[str]:
+    def _collect_labels(self, samples_by_lang: Dict[str, Dict[str, List[NerSample]]]) -> List[str]:
         labels = {'O'}
         for split in samples_by_lang:
             for sentences in samples_by_lang[split].values():
-                for _, labs in sentences:
-                    labels.update(labs)
+                for sample in sentences:
+                    labels.update(sample.labels)
         return list(labels)
 
-    def __init__(self, path: Path, languages: List[str]) -> None:
+    def __init__(
+        self,
+        path: Path,
+        languages: List[str],
+        split_languages: Optional[Mapping[str, List[str]]] = None,
+    ) -> None:
         def sort_ner_label(label: str) -> Tuple[str, str]:
             if label == 'O':
                 return '', label
@@ -160,13 +174,15 @@ class NerSamplesLoader:
                 return postfix, prefix
             return label, ''
 
-        self.samples_by_lang: Dict[str, Dict[str, List[TextSample]]] = {}
+        self.samples_by_lang: Dict[str, Dict[str, List[NerSample]]] = {}
         self.path: Path = path
         self.splits: List[str] = ['train', 'eval', 'test']
         self.languages: List[str] = languages
+        languages_by_split = dict(split_languages or {})
         for split in self.splits:
-            self.samples_by_lang[split]: Dict[str, List[TextSample]] = {}
-            for lang in languages:
+            self.samples_by_lang[split]: Dict[str, List[NerSample]] = {}
+            requested_languages = languages_by_split.get(split, languages)
+            for lang in requested_languages:
                 file_path = path / f'ner-{lang}.{split}.csv'
                 lang_samples = self._load_split_file(file_path)
                 if not lang_samples:

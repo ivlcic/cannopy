@@ -5,7 +5,13 @@ import math
 from pathlib import Path
 from typing import Any
 
-from ...resample.ner_sdjt import CURVE_BUDGETS, CURVE_LANGUAGES, MAIN_LANGUAGES
+from ...resample.ner_sdjt import (
+    CROATIAN_ABLATION_EVAL_LANGUAGES,
+    CROATIAN_ABLATION_RUN_NAMES,
+    CURVE_BUDGETS,
+    CURVE_LANGUAGES,
+    MAIN_LANGUAGES,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -152,6 +158,28 @@ def validate_expected_rows(df) -> None:
                     count,
                 )
 
+    for pool_name in CROATIAN_ABLATION_RUN_NAMES:
+        for language in CROATIAN_ABLATION_EVAL_LANGUAGES:
+            mask = (
+                (df["pool_name"] == pool_name)
+                & (df["budget_pct"] == 100)
+                & (df["language"] == language)
+            )
+            count = int(mask.sum())
+            if count == 0:
+                LOGGER.warning(
+                    "Missing Croatian ablation row for pool=%s, language=%s",
+                    pool_name,
+                    language,
+                )
+            elif count > 1:
+                LOGGER.warning(
+                    "Duplicate Croatian ablation rows for pool=%s, language=%s: %d",
+                    pool_name,
+                    language,
+                    count,
+                )
+
     for language in sorted(CURVE_LANGUAGES):
         for pool_name in ("mono", "multi8", "multi12"):
             for budget_pct in sorted(CURVE_BUDGETS):
@@ -196,8 +224,12 @@ def select_main_rows(df, pool_name: str):
 
 
 def select_main_metric_rows(df, pool_name: str, prefix: str):
+    rows = select_main_rows(df, pool_name)
+    for column in METRIC_COLUMNS:
+        if column not in rows.columns:
+            rows[column] = float("nan")
     return _rename_metric_columns(
-        select_main_rows(df, pool_name)[["language", *METRIC_COLUMNS]],
+        rows[["language", *METRIC_COLUMNS]],
         prefix,
     )
 
@@ -604,6 +636,113 @@ def compute_rq5(df):
     return merged.sort_values("language").reset_index(drop=True)
 
 
+def _compute_best_croatian_ablation_model(record: dict[str, Any]) -> str:
+    candidates = (
+        ("multi7_no_hr", record["multi7_no_hr_f1"]),
+        ("multi7_plus_hr500k", record["multi7_plus_hr500k_f1"]),
+        ("multi7_plus_hr_wikiann", record["multi7_plus_hr_wikiann_f1"]),
+    )
+    available = [(name, value) for name, value in candidates if value == value]
+    if not available:
+        return "missing"
+    return max(available, key=lambda item: item[1])[0]
+
+
+def compute_croatian_source_ablation(df):
+    pd = _import_pandas()
+    LOGGER.info(
+        "Computing Croatian source ablation: Multi-7 vs manual Croatian vs WikiANN Croatian"
+    )
+    base = select_main_metric_rows(df, "multi7-no-hr", "multi7_no_hr")
+    manual = select_main_metric_rows(
+        df,
+        "multi7-plus-hr500k",
+        "multi7_plus_hr500k",
+    )
+    wikiann = select_main_metric_rows(
+        df,
+        "multi7-plus-hr-wikiann",
+        "multi7_plus_hr_wikiann",
+    )
+
+    merged = _merge_language_frames((base, manual, wikiann))
+    columns = [
+        "language",
+        "has_multi7_no_hr",
+        "has_multi7_plus_hr500k",
+        "has_multi7_plus_hr_wikiann",
+        "ablation_complete",
+        "multi7_no_hr_f1",
+        "multi7_no_hr_f1_std",
+        "multi7_plus_hr500k_f1",
+        "multi7_plus_hr500k_f1_std",
+        "multi7_plus_hr_wikiann_f1",
+        "multi7_plus_hr_wikiann_f1_std",
+        "delta_hr500k_minus_base",
+        "delta_hr_wikiann_minus_base",
+        "delta_hr500k_minus_hr_wikiann",
+        "best_model",
+        "manual_nonnegative_wikiann_negative",
+    ]
+    if merged is None or merged.empty:
+        return pd.DataFrame.from_records([], columns=columns)
+
+    merged = merged[
+        merged["language"].isin(CROATIAN_ABLATION_EVAL_LANGUAGES)
+    ].copy()
+    merged["delta_hr500k_minus_base"] = (
+        merged["multi7_plus_hr500k_f1"] - merged["multi7_no_hr_f1"]
+    )
+    merged["delta_hr_wikiann_minus_base"] = (
+        merged["multi7_plus_hr_wikiann_f1"] - merged["multi7_no_hr_f1"]
+    )
+    merged["delta_hr500k_minus_hr_wikiann"] = (
+        merged["multi7_plus_hr500k_f1"] - merged["multi7_plus_hr_wikiann_f1"]
+    )
+    merged["has_multi7_no_hr"] = merged["multi7_no_hr_f1"].notna()
+    merged["has_multi7_plus_hr500k"] = merged["multi7_plus_hr500k_f1"].notna()
+    merged["has_multi7_plus_hr_wikiann"] = merged[
+        "multi7_plus_hr_wikiann_f1"
+    ].notna()
+    merged["ablation_complete"] = (
+        merged["has_multi7_no_hr"]
+        & merged["has_multi7_plus_hr500k"]
+        & merged["has_multi7_plus_hr_wikiann"]
+    )
+    merged["manual_nonnegative_wikiann_negative"] = (
+        (merged["delta_hr500k_minus_base"] >= 0)
+        & (merged["delta_hr_wikiann_minus_base"] < 0)
+    )
+    merged["best_model"] = merged.apply(
+        lambda row: _compute_best_croatian_ablation_model(row.to_dict()),
+        axis=1,
+    )
+
+    complete = merged[merged["ablation_complete"]].copy()
+    LOGGER.info(
+        "Croatian source ablation complete languages = %d/%d",
+        len(complete),
+        len(merged),
+    )
+    LOGGER.info(
+        "Croatian ablation macro F1 Multi-7       = %.4f",
+        safe_mean(complete["multi7_no_hr_f1"]),
+    )
+    LOGGER.info(
+        "Croatian ablation macro F1 +hr500k       = %.4f",
+        safe_mean(complete["multi7_plus_hr500k_f1"]),
+    )
+    LOGGER.info(
+        "Croatian ablation macro F1 +HR-WikiANN   = %.4f",
+        safe_mean(complete["multi7_plus_hr_wikiann_f1"]),
+    )
+    LOGGER.info(
+        "Croatian ablation manual-minus-WikiANN   = %.4f",
+        safe_mean(complete["delta_hr500k_minus_hr_wikiann"]),
+    )
+    return merged.sort_values("language").reset_index(drop=True)
+
+
 def _exact_sign_test_pvalue(deltas: list[float]) -> float:
     nonzero = [delta for delta in deltas if delta != 0]
     if not nonzero:
@@ -682,7 +821,7 @@ def _build_comparison_record(comparison: str, favored_label: str, left_values: l
     }
 
 
-def compute_statistical_summary(df, rq1, rq2, rq4, rq5):
+def compute_statistical_summary(df, rq1, rq2, rq4, rq5, croatian_ablation):
     pd = _import_pandas()
     mono_main = select_main_rows(df, "mono")[["language", "f1"]].rename(columns={"f1": "mono_f1"})
     full_multi8_main = select_main_rows(df, "full-multi8")[["language", "f1"]].rename(
@@ -754,11 +893,27 @@ def compute_statistical_summary(df, rq1, rq2, rq4, rq5):
             rq5["full_multi12_f1"].tolist(),
             "No clear evidence that capping auxiliary languages helps in the full-pool setting.",
         ),
+        _build_comparison_record(
+            "Multi7+HR500K vs Multi7+HR-WikiANN",
+            "HR500K",
+            croatian_ablation["multi7_plus_hr500k_f1"].tolist(),
+            croatian_ablation["multi7_plus_hr_wikiann_f1"].tolist(),
+            "Token-matched same-language contrast of manual and WikiANN/PAN-X Croatian supervision.",
+        ),
     ]
     return pd.DataFrame.from_records(records)
 
 
-def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) -> Path:
+def write_summary(
+    outdir: Path,
+    rq1,
+    rq2,
+    rq3,
+    rq4,
+    rq5,
+    croatian_ablation,
+    statistical_summary,
+) -> Path:
     summary_path = outdir / "summary.txt"
     mono_macro = safe_mean(rq1["mono_f1"])
     multi8_macro = safe_mean(rq1["multi8_f1"])
@@ -890,6 +1045,49 @@ def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) ->
         )
         file.write("\n")
 
+        file.write("\nCroatian source-quality ablation\n")
+        file.write("--------------------------------\n")
+        ablation_complete = croatian_ablation[
+            croatian_ablation["ablation_complete"]
+        ] if "ablation_complete" in croatian_ablation.columns else croatian_ablation
+        file.write(
+            f"Complete languages:             {len(ablation_complete)}/{len(croatian_ablation)}\n"
+        )
+        file.write(
+            f"Multi-7 macro F1:               {safe_mean(ablation_complete['multi7_no_hr_f1']):.6f}\n"
+        )
+        file.write(
+            f"Multi-7 + HR500K macro F1:      {safe_mean(ablation_complete['multi7_plus_hr500k_f1']):.6f}\n"
+        )
+        file.write(
+            f"Multi-7 + HR-WikiANN macro F1:  {safe_mean(ablation_complete['multi7_plus_hr_wikiann_f1']):.6f}\n"
+        )
+        file.write(
+            f"Manual-minus-WikiANN delta:     "
+            f"{safe_mean(ablation_complete['delta_hr500k_minus_hr_wikiann']):.6f}\n\n"
+        )
+        if ablation_complete.empty:
+            file.write("No complete Croatian source-ablation results available.\n")
+        else:
+            file.write(
+                croatian_ablation[
+                    [
+                        "language",
+                        "multi7_no_hr_f1",
+                        "multi7_no_hr_f1_std",
+                        "multi7_plus_hr500k_f1",
+                        "multi7_plus_hr500k_f1_std",
+                        "multi7_plus_hr_wikiann_f1",
+                        "multi7_plus_hr_wikiann_f1_std",
+                        "delta_hr500k_minus_base",
+                        "delta_hr_wikiann_minus_base",
+                        "delta_hr500k_minus_hr_wikiann",
+                        "best_model",
+                    ]
+                ].to_string(index=False)
+            )
+            file.write("\n")
+
         file.write("\nStatistical Comparison Summary\n")
         file.write("------------------------------\n")
         file.write("Using the current language-level mean F1s, the important comparisons look like this:\n\n")
@@ -900,7 +1098,16 @@ def write_summary(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) ->
     return summary_path
 
 
-def write_outputs(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) -> dict[str, Path]:
+def write_outputs(
+    outdir: Path,
+    rq1,
+    rq2,
+    rq3,
+    rq4,
+    rq5,
+    croatian_ablation,
+    statistical_summary,
+) -> dict[str, Path]:
     outdir.mkdir(parents=True, exist_ok=True)
     outputs = {
         "rq1": outdir / "rq1_mono_vs_multi8.csv",
@@ -908,13 +1115,24 @@ def write_outputs(outdir: Path, rq1, rq2, rq3, rq4, rq5, statistical_summary) ->
         "rq3": outdir / "rq3_resource_curves.csv",
         "rq4": outdir / "rq4_target_specific_vs_pretrain.csv",
         "rq5": outdir / "rq5_full_multilingual_variants.csv",
+        "croatian_ablation": outdir / "croatian_source_ablation.csv",
     }
     rq1.to_csv(outputs["rq1"], index=False)
     rq2.to_csv(outputs["rq2"], index=False)
     rq3.to_csv(outputs["rq3"], index=False)
     rq4.to_csv(outputs["rq4"], index=False)
     rq5.to_csv(outputs["rq5"], index=False)
-    outputs["summary"] = write_summary(outdir, rq1, rq2, rq3, rq4, rq5, statistical_summary)
+    croatian_ablation.to_csv(outputs["croatian_ablation"], index=False)
+    outputs["summary"] = write_summary(
+        outdir,
+        rq1,
+        rq2,
+        rq3,
+        rq4,
+        rq5,
+        croatian_ablation,
+        statistical_summary,
+    )
     return outputs
 
 
@@ -926,5 +1144,22 @@ def analyze_results(csv_path: Path, outdir: Path) -> dict[str, Path]:
     rq3 = compute_rq3(df)
     rq4 = compute_rq4(df)
     rq5 = compute_rq5(df)
-    statistical_summary = compute_statistical_summary(df, rq1, rq2, rq4, rq5)
-    return write_outputs(outdir, rq1, rq2, rq3, rq4, rq5, statistical_summary)
+    croatian_ablation = compute_croatian_source_ablation(df)
+    statistical_summary = compute_statistical_summary(
+        df,
+        rq1,
+        rq2,
+        rq4,
+        rq5,
+        croatian_ablation,
+    )
+    return write_outputs(
+        outdir,
+        rq1,
+        rq2,
+        rq3,
+        rq4,
+        rq5,
+        croatian_ablation,
+        statistical_summary,
+    )

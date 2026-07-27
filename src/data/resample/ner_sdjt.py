@@ -3,26 +3,40 @@ from __future__ import annotations
 import csv
 import math
 import random
-from dataclasses import dataclass
+import unicodedata
+from dataclasses import dataclass, replace
 from logging import Logger
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from ...app.args.data import DataArguments
 from ...app.args.runtime import Paths
+from ...app.ner import NER_CSV_COLUMNS, NerSample
 
 logger: Logger
 paths: Paths
 
-Sentence = Tuple[List[str], List[str]]
+Sentence = NerSample
 SplitSamples = Dict[str, Dict[str, List[Sentence]]]
 
 MAIN_LANGUAGES: Tuple[str, ...] = ("bg", "cs", "hr", "pl", "ru", "sl", "sr", "uk")
 AUX_LANGUAGES: Tuple[str, ...] = ("bs", "mk", "sk", "sq")
 ALL_LANGUAGES: Tuple[str, ...] = MAIN_LANGUAGES + AUX_LANGUAGES
+HR_WIKIANN_SOURCE = "hr-wikiann"
+CROATIAN_ABLATION_EVAL_LANGUAGES: Tuple[str, ...] = tuple(
+    lang for lang in MAIN_LANGUAGES if lang != "hr"
+)
+CROATIAN_ABLATION_RUN_NAMES: Tuple[str, ...] = (
+    "multi7-no-hr",
+    "multi7-plus-hr500k",
+    "multi7-plus-hr-wikiann",
+)
+SOURCE_KEYS: Tuple[str, ...] = ALL_LANGUAGES + (HR_WIKIANN_SOURCE,)
 CURVE_LANGUAGES = frozenset({"sr", "sl"})
 CURVE_BUDGETS = frozenset({10, 25, 50, 100})
 CORE_ENTITY_TYPES: Tuple[str, ...] = ("PER", "ORG", "LOC")
+SPLIT_NAMES: Tuple[str, ...] = ("train", "eval", "test")
+DEDUP_SPLIT_PRIORITY: Tuple[str, ...] = ("test", "eval", "train")
 
 
 @dataclass(frozen=True)
@@ -41,8 +55,12 @@ class RunSpec:
         return self.pool_name == "mono"
 
     @property
+    def is_croatian_source_ablation(self) -> bool:
+        return self.run_name in CROATIAN_ABLATION_RUN_NAMES
+
+    @property
     def is_multilingual(self) -> bool:
-        return self.pool_name in {
+        return self.is_croatian_source_ablation or self.pool_name in {
             "multi8",
             "multi12",
             "multi8-full",
@@ -56,9 +74,17 @@ class RunSpec:
         return "eval_macro_f1" if self.uses_macro_eval else "eval_f1"
 
 
+@dataclass
+class DedupCounts:
+    before: int = 0
+    removed: int = 0
+    label_conflicts: int = 0
+
+
 def available_run_names() -> List[str]:
     names = [f"mono-{lang}" for lang in MAIN_LANGUAGES]
     names.extend(["multi8", "multi12", "full-multi8", "full-multi12", "full-multi12-capaux"])
+    names.extend(CROATIAN_ABLATION_RUN_NAMES)
     names.extend([f"multi8-full-{lang}" for lang in MAIN_LANGUAGES])
     names.extend([f"pretrain-multi7-full-{lang}" for lang in MAIN_LANGUAGES])
     for lang in sorted(CURVE_LANGUAGES):
@@ -139,6 +165,33 @@ def resolve_run_spec_from_name(run_name: str) -> RunSpec:
             pool_name="full-multi12-capaux",
             train_languages=ALL_LANGUAGES,
             eval_languages=MAIN_LANGUAGES,
+            uses_macro_eval=True,
+        )
+    if normalized == "multi7-no-hr":
+        return RunSpec(
+            run_name=normalized,
+            pool_name=normalized,
+            train_languages=CROATIAN_ABLATION_EVAL_LANGUAGES,
+            eval_languages=CROATIAN_ABLATION_EVAL_LANGUAGES,
+            uses_macro_eval=True,
+        )
+    if normalized == "multi7-plus-hr500k":
+        return RunSpec(
+            run_name=normalized,
+            pool_name=normalized,
+            train_languages=MAIN_LANGUAGES,
+            eval_languages=CROATIAN_ABLATION_EVAL_LANGUAGES,
+            uses_macro_eval=True,
+        )
+    if normalized == "multi7-plus-hr-wikiann":
+        return RunSpec(
+            run_name=normalized,
+            pool_name=normalized,
+            train_languages=tuple(
+                HR_WIKIANN_SOURCE if lang == "hr" else lang
+                for lang in MAIN_LANGUAGES
+            ),
+            eval_languages=CROATIAN_ABLATION_EVAL_LANGUAGES,
             uses_macro_eval=True,
         )
 
@@ -260,31 +313,28 @@ def _read_split_file(path: Path) -> List[Sentence]:
     if not path.exists():
         return samples
     with path.open("r", encoding="utf-8", newline="") as fp:
-        reader = csv.reader(fp)
-        next(reader, None)
+        reader = csv.DictReader(fp)
         for line_no, row in enumerate(reader, start=2):
-            if len(row) < 2:
+            sample = NerSample.from_csv_row(row)
+            if not sample.tokens or not sample.labels:
                 continue
-            tokens = row[0].split(" ")
-            labels = [harmonize_label(label) for label in row[1].split(" ")]
-            if len(tokens) != len(labels):
+            labels = [harmonize_label(label) for label in sample.labels]
+            if len(sample.tokens) != len(labels):
                 logger.warning(
                     "Skipping malformed row %d from %s due to token/label mismatch (%d != %d).",
                     line_no,
                     path,
-                    len(tokens),
+                    len(sample.tokens),
                     len(labels),
                 )
                 continue
-            samples.append((tokens, labels))
+            samples.append(replace(sample, labels=labels))
     return samples
 
 
-def load_run_corpora(source_dir: Path, run_spec: RunSpec) -> SplitSamples:
-    split_names = ("train", "eval", "test")
-    samples_by_split: SplitSamples = {split: {} for split in split_names}
-    for split in split_names:
-        languages = run_spec.train_languages if split == "train" else run_spec.eval_languages
+def load_source_corpora(source_dir: Path, languages: Sequence[str]) -> SplitSamples:
+    samples_by_split: SplitSamples = {split: {} for split in SPLIT_NAMES}
+    for split in SPLIT_NAMES:
         for lang in languages:
             file_path = source_dir / f"ner-{lang}.{split}.csv"
             samples = _read_split_file(file_path)
@@ -294,8 +344,133 @@ def load_run_corpora(source_dir: Path, run_spec: RunSpec) -> SplitSamples:
     return samples_by_split
 
 
+def _normalized_sentence_key(sample: Sentence) -> str:
+    text = " ".join(sample.tokens)
+    return unicodedata.normalize("NFKC", text).casefold()
+
+
+def deduplicate_corpora(
+    source_corpora: SplitSamples,
+) -> Tuple[SplitSamples, List[Dict[str, object]], List[Dict[str, object]]]:
+    deduplicated: SplitSamples = {split: {} for split in SPLIT_NAMES}
+    counts: Dict[Tuple[str, str, str], DedupCounts] = {}
+    duplicate_rows: List[Dict[str, object]] = []
+    languages = sorted({
+        lang
+        for split_samples in source_corpora.values()
+        for lang in split_samples
+    })
+
+    for lang in languages:
+        seen: Dict[str, Tuple[str, Sentence]] = {}
+        for split in DEDUP_SPLIT_PRIORITY:
+            kept: List[Sentence] = []
+            for sample in source_corpora.get(split, {}).get(lang, []):
+                corpus_name = sample.corpus_name or "unknown"
+                count_key = (lang, split, corpus_name)
+                corpus_counts = counts.setdefault(count_key, DedupCounts())
+                corpus_counts.before += 1
+
+                sentence_key = _normalized_sentence_key(sample)
+                survivor = seen.get(sentence_key)
+                if survivor is None:
+                    seen[sentence_key] = (split, sample)
+                    kept.append(sample)
+                    continue
+
+                survivor_split, survivor_sample = survivor
+                labels_match = sample.labels == survivor_sample.labels
+                corpus_counts.removed += 1
+                if not labels_match:
+                    corpus_counts.label_conflicts += 1
+                duplicate_rows.append({
+                    "language": lang,
+                    "removed_split": split,
+                    "removed_corpus_name": corpus_name,
+                    "removed_doc_id": sample.doc_id,
+                    "removed_sent_id": sample.sent_id,
+                    "kept_split": survivor_split,
+                    "kept_corpus_name": survivor_sample.corpus_name or "unknown",
+                    "kept_doc_id": survivor_sample.doc_id,
+                    "kept_sent_id": survivor_sample.sent_id,
+                    "labels_match": labels_match,
+                })
+            deduplicated[split][lang] = kept
+
+    stats_rows: List[Dict[str, object]] = []
+    for (lang, split, corpus_name), corpus_counts in sorted(counts.items()):
+        stats_rows.append({
+            "language": lang,
+            "split": split,
+            "corpus_name": corpus_name,
+            "before": corpus_counts.before,
+            "duplicates_removed": corpus_counts.removed,
+            "after": corpus_counts.before - corpus_counts.removed,
+            "label_conflicts": corpus_counts.label_conflicts,
+        })
+    return deduplicated, stats_rows, duplicate_rows
+
+
+def write_dedup_reports(
+    output_dir: Path,
+    stats_rows: Sequence[Dict[str, object]],
+    duplicate_rows: Sequence[Dict[str, object]],
+) -> Tuple[Path, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    stats_path = output_dir / "ner-dedup-stats.csv"
+    duplicates_path = output_dir / "ner-duplicates.csv"
+    stats_columns = [
+        "language",
+        "split",
+        "corpus_name",
+        "before",
+        "duplicates_removed",
+        "after",
+        "label_conflicts",
+    ]
+    duplicate_columns = [
+        "language",
+        "removed_split",
+        "removed_corpus_name",
+        "removed_doc_id",
+        "removed_sent_id",
+        "kept_split",
+        "kept_corpus_name",
+        "kept_doc_id",
+        "kept_sent_id",
+        "labels_match",
+    ]
+    with stats_path.open("w", encoding="utf-8", newline="") as stats_file:
+        writer = csv.DictWriter(stats_file, fieldnames=stats_columns)
+        writer.writeheader()
+        writer.writerows(stats_rows)
+    with duplicates_path.open("w", encoding="utf-8", newline="") as duplicates_file:
+        writer = csv.DictWriter(duplicates_file, fieldnames=duplicate_columns)
+        writer.writeheader()
+        writer.writerows(duplicate_rows)
+    return stats_path, duplicates_path
+
+
+def select_run_corpora(source_corpora: SplitSamples, run_spec: RunSpec) -> SplitSamples:
+    selected: SplitSamples = {split: {} for split in SPLIT_NAMES}
+    for split in SPLIT_NAMES:
+        languages = run_spec.train_languages if split == "train" else run_spec.eval_languages
+        for lang in languages:
+            samples = source_corpora.get(split, {}).get(lang, [])
+            if not samples:
+                raise FileNotFoundError(f"No {split} samples available for language {lang}.")
+            selected[split][lang] = samples
+    return selected
+
+
+def load_run_corpora(source_dir: Path, run_spec: RunSpec) -> SplitSamples:
+    languages = tuple(dict.fromkeys(run_spec.train_languages + run_spec.eval_languages))
+    source_corpora = load_source_corpora(source_dir, languages)
+    return select_run_corpora(source_corpora, run_spec)
+
+
 def count_tokens(sentences: Sequence[Sentence]) -> int:
-    return sum(len(tokens) for tokens, _ in sentences)
+    return sum(len(sentence.tokens) for sentence in sentences)
 
 
 def _shuffle_sentences(sentences: Sequence[Sentence], seed: int) -> List[Sentence]:
@@ -309,7 +484,7 @@ def _take_until_token_budget(sentences: Sequence[Sentence], token_budget: int) -
     seen_tokens = 0
     for sentence in sentences:
         selected.append(sentence)
-        seen_tokens += len(sentence[0])
+        seen_tokens += len(sentence.tokens)
         if seen_tokens >= token_budget:
             break
     return selected
@@ -332,7 +507,7 @@ def sample_sentences_by_token_budget(sentences: Sequence[Sentence], token_budget
     while seen_tokens < token_budget:
         sentence = shuffled[index % len(shuffled)]
         selected.append(sentence)
-        seen_tokens += len(sentence[0])
+        seen_tokens += len(sentence.tokens)
         index += 1
     return selected
 
@@ -362,6 +537,54 @@ def compute_multilingual_token_budget(train_by_lang: Mapping[str, Sequence[Sente
     return min(token_totals)
 
 
+def compute_croatian_ablation_token_budget(
+    train_by_lang: Mapping[str, Sequence[Sentence]],
+    run_spec: RunSpec,
+    data_args: DataArguments,
+) -> int:
+    missing_base_languages = [
+        lang
+        for lang in CROATIAN_ABLATION_EVAL_LANGUAGES
+        if lang not in train_by_lang
+    ]
+    if missing_base_languages:
+        raise ValueError(
+            f"Croatian source ablation {run_spec.run_name} is missing common base languages: "
+            f"{missing_base_languages}."
+        )
+
+    attrs = data_args.attributes or {}
+    override = attrs.get(
+        "token_budget_per_language",
+        data_args.sampling.attributes.get("token_budget_per_language"),
+    )
+    if override:
+        token_budget = int(override)
+    else:
+        token_budget = min(
+            count_tokens(train_by_lang[lang])
+            for lang in CROATIAN_ABLATION_EVAL_LANGUAGES
+        )
+
+    source_token_counts = {
+        source: count_tokens(sentences)
+        for source, sentences in train_by_lang.items()
+    }
+    insufficient_sources = {
+        source: total_tokens
+        for source, total_tokens in source_token_counts.items()
+        if total_tokens < token_budget
+    }
+    if insufficient_sources:
+        raise ValueError(
+            f"Croatian source ablation {run_spec.run_name} requires {token_budget} unique "
+            f"tokens per source, but these sources are smaller: {insufficient_sources}. "
+            "Lower the common token_budget_per_language for all three ablation runs; "
+            "do not oversample this comparison."
+        )
+    return token_budget
+
+
 def compute_language_token_budgets(train_by_lang: Mapping[str, Sequence[Sentence]],
                                    run_spec: RunSpec, data_args: DataArguments) -> Dict[str, int]:
     if run_spec.is_monolingual:
@@ -371,7 +594,14 @@ def compute_language_token_budgets(train_by_lang: Mapping[str, Sequence[Sentence
             return {target_lang: total_tokens}
         return {target_lang: max(1, math.ceil(total_tokens * run_spec.budget_pct / 100.0))}
 
-    base_budget = compute_multilingual_token_budget(train_by_lang, data_args)
+    if run_spec.is_croatian_source_ablation:
+        base_budget = compute_croatian_ablation_token_budget(
+            train_by_lang,
+            run_spec,
+            data_args,
+        )
+    else:
+        base_budget = compute_multilingual_token_budget(train_by_lang, data_args)
     budgets = {lang: base_budget for lang in run_spec.train_languages}
     if run_spec.pool_name == "full-multi8":
         return {
@@ -411,9 +641,18 @@ def build_multilingual_epoch_samples(train_by_lang: Mapping[str, Sequence[Senten
     return pooled, sampled_by_lang
 
 
-def create_run_snapshot(source_dir: Path, run_spec: RunSpec, data_args: DataArguments,
-                        epoch: int = 0) -> SplitSamples:
-    corpora = load_run_corpora(source_dir, run_spec)
+def create_run_snapshot(
+    source_dir: Path,
+    run_spec: RunSpec,
+    data_args: DataArguments,
+    epoch: int = 0,
+    source_corpora: Optional[SplitSamples] = None,
+) -> SplitSamples:
+    corpora = (
+        select_run_corpora(source_corpora, run_spec)
+        if source_corpora is not None
+        else load_run_corpora(source_dir, run_spec)
+    )
     snapshot: SplitSamples = {
         "train": {},
         "eval": {lang: list(sentences) for lang, sentences in corpora["eval"].items()},
@@ -440,10 +679,19 @@ def create_run_snapshot(source_dir: Path, run_spec: RunSpec, data_args: DataArgu
     return snapshot
 
 
-def create_pretrain_snapshot(source_dir: Path, run_spec: RunSpec, data_args: DataArguments,
-                             epoch: int = 0) -> SplitSamples:
+def create_pretrain_snapshot(
+    source_dir: Path,
+    run_spec: RunSpec,
+    data_args: DataArguments,
+    epoch: int = 0,
+    source_corpora: Optional[SplitSamples] = None,
+) -> SplitSamples:
     pretrain_spec = resolve_pretrain_multi7_spec(run_spec)
-    corpora = load_run_corpora(source_dir, pretrain_spec)
+    corpora = (
+        select_run_corpora(source_corpora, pretrain_spec)
+        if source_corpora is not None
+        else load_run_corpora(source_dir, pretrain_spec)
+    )
     snapshot: SplitSamples = {
         "train": {},
         "eval": {lang: list(sentences) for lang, sentences in corpora["eval"].items()},
@@ -463,10 +711,10 @@ def create_pretrain_snapshot(source_dir: Path, run_spec: RunSpec, data_args: Dat
 def _write_split_csv(path: Path, sentences: Iterable[Sentence]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as fp:
-        writer = csv.writer(fp)
-        writer.writerow(["sentence", "labels"])
-        for tokens, labels in sentences:
-            writer.writerow([" ".join(tokens), " ".join(labels)])
+        writer = csv.DictWriter(fp, fieldnames=NER_CSV_COLUMNS)
+        writer.writeheader()
+        for sentence in sentences:
+            writer.writerow(sentence.to_csv_row())
 
 
 def write_run_snapshot(target_dir: Path, snapshot: SplitSamples, file_prefix: str = "ner") -> None:
@@ -480,15 +728,46 @@ def main(data_args: DataArguments) -> None:
     source_dir = paths.get_ctx_path("split").parent / 'ner'
     target_dir = paths.get_ctx_path("split")
     snapshot_epoch = int(data_args.attributes.get("snapshot_epoch", 0))
+    source_corpora = load_source_corpora(source_dir, SOURCE_KEYS)
+
+    if data_args.sampling.dedup:
+        source_corpora, stats_rows, duplicate_rows = deduplicate_corpora(source_corpora)
+        stats_path, duplicates_path = write_dedup_reports(
+            paths.get_ctx_path("analyze"),
+            stats_rows,
+            duplicate_rows,
+        )
+        logger.info(
+            "Removed %d duplicate NER samples, including %d label conflicts; "
+            "wrote reports to %s and %s.",
+            len(duplicate_rows),
+            sum(int(row["label_conflicts"]) for row in stats_rows),
+            stats_path,
+            duplicates_path,
+        )
+    else:
+        logger.info("NER sentence deduplication is disabled.")
 
     run_names = available_run_names()
     run_specs = [resolve_run_spec_from_name(run_name) for run_name in run_names]
     for run_spec in run_specs:
         output_dir = target_dir / run_spec.run_name
-        snapshot = create_run_snapshot(source_dir, run_spec, data_args, epoch=snapshot_epoch)
+        snapshot = create_run_snapshot(
+            source_dir,
+            run_spec,
+            data_args,
+            epoch=snapshot_epoch,
+            source_corpora=source_corpora,
+        )
         write_run_snapshot(output_dir, snapshot)
         if run_spec.pool_name == "pretrain-multi7-full":
-            pretrain_snapshot = create_pretrain_snapshot(source_dir, run_spec, data_args, epoch=snapshot_epoch)
+            pretrain_snapshot = create_pretrain_snapshot(
+                source_dir,
+                run_spec,
+                data_args,
+                epoch=snapshot_epoch,
+                source_corpora=source_corpora,
+            )
             write_run_snapshot(output_dir, pretrain_snapshot, file_prefix="pretrain-ner")
         logger.info("Prepared SDJT NER split for %s at %s", run_spec.run_name, output_dir)
     logger.info("Prepared %d SDJT NER runs under %s", len(run_specs), target_dir)

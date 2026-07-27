@@ -25,7 +25,7 @@ def _read_base_ner_stats(stats_file: Path) -> List[Dict[str, Any]]:
         reader = csv.DictReader(fp)
         for row in reader:
             language = str(row.get("language", "")).strip()
-            if not language:
+            if language not in MAIN_LANGUAGES and language not in AUX_LANGUAGES:
                 continue
             entity_counts = {entity_type: 0 for entity_type in CORE_ENTITY_TYPES}
             for key, raw_value in row.items():

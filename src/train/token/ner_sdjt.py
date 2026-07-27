@@ -239,7 +239,16 @@ def run_training_phase(data_root: Path, cache_root: Path, run_spec: RunSpec, mod
     train_args.output_dir = str(output_dir)
     train_args.metric_for_best_model = run_spec.metric_name
     languages = list(run_spec.train_languages)
-    ner_samples = NerSamplesLoader(data_root, languages)
+    evaluation_languages = list(run_spec.eval_languages)
+    ner_samples = NerSamplesLoader(
+        data_root,
+        languages,
+        split_languages={
+            "train": languages,
+            "eval": evaluation_languages,
+            "test": evaluation_languages,
+        },
+    )
     metrics = TokenClassificationMetrics(id2label=ner_samples.labeler.id2label)
     _log_run_configuration(run_spec, data_root, cache_root, train_args.output_dir, model_args, train_args)
     if init_model_source is not None:
