@@ -16,7 +16,7 @@ dependencies = [
     "python-dateutil==2.9.0.post0",
     "scikit-learn==1.8.0",
     "torch==2.11.0",
-    "transformers[torch]==5.8.0",
+    "transformers[sentencepiece,torch]==5.8.0",
     "sentencepiece==0.2.1",
     "evaluate==0.4.6",
     "seqeval==1.2.2",
