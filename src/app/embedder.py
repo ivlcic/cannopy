@@ -302,6 +302,7 @@ class LlamaCppQwen3GgufEmbedder(TextEmbedder):
         single = isinstance(texts, str)
         batch = [texts] if single else list(texts)
         if not batch:
+            # noinspection bad-return
             return self._empty_embeddings(self.truncate_dim, 0, single=False, pt=False)
 
         try:
@@ -369,7 +370,7 @@ class F2llmV2Embedder(STEmbedder):
         if self.mode == EmbeddingMode.QUERY:
             encode_query = getattr(self.model, "encode_query", None)
             if callable(encode_query):
-                # noinspection PyTypeChecker
+                # noinspection PyTypeChecker,calling-non-callable
                 return encode_query(batch, **common_kwargs)
             # sentence-transformers 3.4.0 lack encode_query; emulate the official prompt path.
             prompted_batch = [self.QUERY_PROMPT + text for text in batch]
@@ -377,7 +378,7 @@ class F2llmV2Embedder(STEmbedder):
             return self.model.encode(prompted_batch, **common_kwargs)
         encode_document = getattr(self.model, "encode_document", None)
         if callable(encode_document):
-            # noinspection PyTypeChecker
+            # noinspection PyTypeChecker,calling-non-callable
             return encode_document(batch, **common_kwargs)
         # Older sentence-transformers releases lack encode_document; plain encode is the document path.
         # noinspection PyTypeChecker
