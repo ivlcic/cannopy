@@ -17,9 +17,9 @@ from transformers import (
 )
 
 from ...app.args.data import DataArguments
-from ...app.dataset import NerDataset, NerSamplesLoader
 from ...app.args.model import ModelArguments
 from ...app.args.runtime import Paths
+from ...app.dataset import NerDataset, NerSamplesLoader
 from ...app.metrics import TokenClassificationMetrics
 from ...data.resample.ner_sdjt import (
     RunSpec,
@@ -282,6 +282,7 @@ def load_model_and_tokenizer(model_args: ModelArguments, cache_root: Path, label
         model_source,
         cache_dir=cache_root,
         config=config,
+        dtype=model_args.dtype,
     )
     return model, tokenizer
 
@@ -315,6 +316,7 @@ def run_training_phase(data_root: Path, cache_root: Path, run_spec: RunSpec, mod
         ner_samples.labeler,
         init_model_source,
     )
+    model_args.validate_training_parameter_dtypes(model)
     collator = DataCollatorForTokenClassification(tokenizer, padding="longest")
     datasets = ner_samples.create_split_datasets(tokenizer, model_args.max_seq_length)
     eval_datasets = build_eval_datasets(tokenizer, model_args.max_seq_length, ner_samples)

@@ -20,12 +20,16 @@ class EncoderTokenClassifier:
         self.model_kwargs = {}
         self.autocast = False
 
-        if self.device == "cuda":
-            if model_args.attn_implementation:
-                self.model_kwargs["attn_implementation"] = model_args.attn_implementation
-            if model_args.dtype:
-                self.autocast = True
-                self.model_kwargs["dtype"] = getattr(torch, model_args.dtype)
+        if model_args.dtype:
+            requested_dtype = getattr(torch, model_args.dtype)
+            load_dtype = requested_dtype
+            if self.device == "cpu" and requested_dtype in {torch.float16, torch.bfloat16}:
+                load_dtype = torch.float32
+            self.model_kwargs["dtype"] = load_dtype
+            self.autocast = self.device == "cuda" and requested_dtype in {torch.float16, torch.bfloat16}
+
+        if self.device == "cuda" and model_args.attn_implementation:
+            self.model_kwargs["attn_implementation"] = model_args.attn_implementation
 
         tokenizer_name = model_args.tokenizer_name or model_name_or_path
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)

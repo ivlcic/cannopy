@@ -27,11 +27,16 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
 
     train_args.output_dir = str(compute_train_dir(model_args, data_args, train_args))
     tokenizer_name = model_args.tokenizer_name or model_args.model_name_or_path
+    model_kwargs = {}
+    if model_args.attn_implementation:
+        model_kwargs["attn_implementation"] = model_args.attn_implementation
     ner = pipeline(
         task="token-classification",
         model=train_args.output_dir,
         tokenizer=tokenizer_name,
         aggregation_strategy="simple",
+        dtype=model_args.dtype,
+        model_kwargs=model_kwargs,
     )
     text = " Janez Novak... Metka Kralj,,. in Boris A. Novak živijo v Ljubljani in delajo za Microsoft."
     tokens = re.findall(r"\s+|\w+|[^\w\s]", text, flags=re.UNICODE)

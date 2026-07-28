@@ -61,7 +61,9 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         id2label=newsmon_samples.labeler.id2label,
         label2id=newsmon_samples.labeler.label2id,
         problem_type='multi_label_classification',
+        dtype=model_args.dtype,
     )
+    model_args.validate_training_parameter_dtypes(model)
 
     datasets: Dict[str, Dataset] = newsmon_samples.create_split_datasets(tokenizer, model_args.max_seq_length)
     trainer = Trainer(

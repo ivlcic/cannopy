@@ -63,7 +63,13 @@ fi
 
 run_data_pipeline
 
+# BERTić's published tuning range is 9e-6 to 1e-4; its released
+# ELECTRA configuration uses classifier dropout 0.10.
 SWEEP_SPECS=(
+  "bertic 1.0e-5 0.10"
+  "bertic 3.0e-5 0.10"
+  "bertic 5.0e-5 0.10"
+  "bertic 1.0e-4 0.10"
   "mm-bert 1.0e-5 0.05"
   "mm-bert 1.0e-5 0.10"
   "mm-bert 2.0e-5 0.05"
@@ -96,6 +102,11 @@ for idx in "${!SWEEP_SPECS[@]}"; do
   read -r model_config learning_rate classifier_dropout <<<"${SWEEP_SPECS[idx]}"
   worker=$((idx % MAX_PARALLEL_TASKS))
   WINDOW_COMMANDS[worker]+=" && ./train token ner-sdjt -c \"${model_config}\""
+  WINDOW_COMMANDS[worker]+=" -s \"data.attributes.run_name=multi8\""
+  WINDOW_COMMANDS[worker]+=" -s \"train.seed=${SEED}\""
+  WINDOW_COMMANDS[worker]+=" -s \"train.learning_rate=${learning_rate}\""
+  WINDOW_COMMANDS[worker]+=" -s \"model.classifier_dropout=${classifier_dropout}\""
+  WINDOW_COMMANDS[worker]+=" && ./eval token ner-sdjt -c \"${model_config}\""
   WINDOW_COMMANDS[worker]+=" -s \"data.attributes.run_name=multi8\""
   WINDOW_COMMANDS[worker]+=" -s \"train.seed=${SEED}\""
   WINDOW_COMMANDS[worker]+=" -s \"train.learning_rate=${learning_rate}\""

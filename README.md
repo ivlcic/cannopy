@@ -98,7 +98,8 @@ Now we can also run evaluation:
 ### 2.3 SDTJ Paper Experiments
 
 ```shell
-# run the 20-configuration Multi-8 learning-rate/dropout sweep
+# run the 24-configuration Multi-8 learning-rate/dropout sweep
+# (BERTić, mmBERT, mDeBERTa-v3, and XLM-R)
 ./sdjt-multi8-sweep.sh 2611
 
 ./data resample ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611

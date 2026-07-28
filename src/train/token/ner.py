@@ -55,7 +55,9 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
         num_labels=ner_samples.labeler.num_labels,
         id2label=ner_samples.labeler.id2label,
         label2id=ner_samples.labeler.label2id,
+        dtype=model_args.dtype,
     )
+    model_args.validate_training_parameter_dtypes(model)
 
     datasets: Dict[str, Dataset] = ner_samples.create_split_datasets(tokenizer, model_args.max_seq_length)
     trainer = Trainer(

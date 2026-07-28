@@ -1,7 +1,6 @@
 model:
   max_seq_length: 256
-  attn_implementation: flash_attention_2
-  dtype: float16
+  dtype: float32
 
 train:
   learning_rate: 0.00002 # 2e-5
