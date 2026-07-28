@@ -221,6 +221,8 @@ result/**/*.svg
 result/**/*.png
 result/**/*.npz
 result/train/**/*.bin
+result/train/**/*.pt
+result/train/**/*.pth
 result/train/**/*.safetensors
 result/train/**/*.model
 tmp/**
