@@ -97,13 +97,38 @@ Now we can also run evaluation:
 
 ### 2.3 SDTJ Paper Experiments
 
+Sweep runs (to determine learning rate and dropout):
 ```shell
-# run the 24-configuration Multi-8 learning-rate/dropout sweep
-# (BERTić, mmBERT, mDeBERTa-v3, and XLM-R)
-./sdjt-multi8-sweep.sh 2611
-
+./data split ner -s data.split.seed=2611 -s data.sampling.seed=2611
+./data analyze ner -s data.split.seed=2611 -s data.sampling.seed=2611
 ./data resample ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
 ./data analyze ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
+
+# repeat for each seed and model
+./train token ner-sdjt -c mm-bert -s data.attributes.run_name=multi8 -s train.seed=2611 \
+ -s train.learning_rate=1.0e-5 -s model.classifier_dropout=0.05
+./train token ner-sdjt -c mm-bert -s data.attributes.run_name=multi8 -s train.seed=2611 \
+ -s train.learning_rate=1.0e-5 -s model.classifier_dropout=0.10
+...
+```
+
+Finally compute best option and set configuration in yaml manually:
+```shell
+./eval token ner-sdjt sweep -c mm-bert
+```
+This reads the Multi-8 runs' validation `best_metric` values from
+`trainer_state.json` and writes the ranked summary to
+`result/eval/token/ner-sdjt/ner-sdjt.sweep.mm-bert.csv`. Only configurations
+covering every discovered seed receive a rank; test-set metrics are not used
+for sweep selection.
+
+Main experiment runs:
+```shell
+./data split ner -s data.split.seed=2611 -s data.sampling.seed=2611
+./data analyze ner -s data.split.seed=2611 -s data.sampling.seed=2611
+./data resample ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
+./data analyze ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
+
 ./train token ner-sdjt -c mm-bert -s data.attributes.run_name=mono-bg -s train.seed=2611
 ./train token ner-sdjt -c mm-bert -s data.attributes.run_name=mono-cs -s train.seed=2611
 ./train token ner-sdjt -c mm-bert -s data.attributes.run_name=mono-hr -s train.seed=2611
@@ -157,15 +182,13 @@ Now we can also run evaluation:
 ./train token ner-sdjt -c mm-bert -s data.attributes.run_name=full-multi12 -s train.seed=2611
 ./train token ner-sdjt -c mm-bert -s data.attributes.run_name=full-multi12-capaux -s train.seed=2611
 
-# token-matched Croatian source-quality ablation; all three select and test on L8 minus Croatian
 ./train token ner-sdjt -c mm-bert -s data.attributes.run_name=multi7-no-hr -s train.seed=2611
 ./train token ner-sdjt -c mm-bert -s data.attributes.run_name=multi7-plus-hr500k -s train.seed=2611
 ./train token ner-sdjt -c mm-bert -s data.attributes.run_name=multi7-plus-hr-wikiann -s train.seed=2611
 
-# delete all splits and repeat for each seed
-
 ./eval token ner-sdjt -c mm-bert
 ./data analyze ner-sdjt results -c mm-bert
+# delete all splits and repeat for each seed
 ```
 
 ### 2.4 Submit to [Slobench](https://slobench.cjvt.si/)
