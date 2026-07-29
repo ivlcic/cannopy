@@ -134,26 +134,44 @@ RUN_NAMES=(
   multi12-sr-p50
 )
 
-declare -a WINDOW_COMMANDS=()
-
-for ((worker=0; worker<MAX_PARALLEL_TASKS; worker++)); do
-  WINDOW_COMMANDS[worker]="cd \"${PROJECT_ROOT}\" && source \"${VENV_ACTIVATE}\""
-done
-
-for idx in "${!RUN_NAMES[@]}"; do
-  run_name="${RUN_NAMES[idx]}"
-  worker=$((idx % MAX_PARALLEL_TASKS))
-  WINDOW_COMMANDS[worker]+=" && ./train token ner-sdjt -c \"${MODEL_NAME}\""
-  WINDOW_COMMANDS[worker]+=" -s \"data.attributes.run_name=${run_name}\""
-  WINDOW_COMMANDS[worker]+=" -s \"train.seed=${SEED}\""
-done
-
 for ((worker=0; worker<MAX_PARALLEL_TASKS; worker++)); do
   window_name="${WINDOW_PREFIX}-worker-$((worker + 1))"
   if tmux list-windows -t "${TARGET_SESSION}" -F '#W' | grep -Fxq "${window_name}"; then
     echo "Error: tmux window ${window_name} already exists in session ${TARGET_SESSION}." >&2
     exit 1
   fi
+done
+
+declare -a WORKER_SCRIPTS=()
+
+for ((worker=0; worker<MAX_PARALLEL_TASKS; worker++)); do
+  worker_number=$((worker + 1))
+  worker_script="$(mktemp "/tmp/sdjt-train-${MODEL_NAME}-s${SEED}-worker-${worker_number}.XXXXXX.sh")"
+  WORKER_SCRIPTS[worker]="${worker_script}"
+
+  {
+    printf '#!/usr/bin/env bash\n\n'
+    printf 'set -euo pipefail\n\n'
+    printf 'cd %q\n' "${PROJECT_ROOT}"
+    printf 'source %q\n\n' "${VENV_ACTIVATE}"
+
+    for idx in "${!RUN_NAMES[@]}"; do
+      if (( idx % MAX_PARALLEL_TASKS != worker )); then
+        continue
+      fi
+
+      run_name="${RUN_NAMES[idx]}"
+      printf './train token ner-sdjt -c %q -s %q -s %q\n\n' \
+        "${MODEL_NAME}" \
+        "data.attributes.run_name=${run_name}" \
+        "train.seed=${SEED}"
+    done
+
+    printf 'echo\n'
+    printf 'echo %q\n' "${WINDOW_PREFIX}-worker-${worker_number} finished."
+  } >"${worker_script}"
+
+  chmod 700 "${worker_script}"
 done
 
 first_window_name="${WINDOW_PREFIX}-worker-1"
@@ -173,10 +191,10 @@ done
 
 for ((worker=0; worker<MAX_PARALLEL_TASKS; worker++)); do
   window_name="${WINDOW_PREFIX}-worker-$((worker + 1))"
-  window_command="${WINDOW_COMMANDS[worker]}"
-  window_command+="; echo; echo \"${window_name} finished.\""
-  printf -v quoted_command "%q" "${window_command}"
-  tmux send-keys -t "${TARGET_SESSION}:${window_name}" "bash -lc ${quoted_command}" C-m
+  worker_script="${WORKER_SCRIPTS[worker]}"
+  printf -v quoted_worker_script "%q" "${worker_script}"
+  tmux send-keys -t "${TARGET_SESSION}:${window_name}" "${quoted_worker_script}" C-m
+  echo "Worker $((worker + 1)) script: ${worker_script}"
 done
 
 echo "Started ${#RUN_NAMES[@]} runs across ${MAX_PARALLEL_TASKS} tmux windows in session ${TARGET_SESSION}."
