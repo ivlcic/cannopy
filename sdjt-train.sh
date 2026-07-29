@@ -3,20 +3,55 @@
 set -euo pipefail
 
 DEFAULT_SEED=2611
-VRAM_GB=32
-TASK_GB=8
+VRAM_GB=16
+TASK_GB=16
 MAX_PARALLEL_TASKS=$((VRAM_GB / TASK_GB))
 SEED="${1:-}"
-REQUESTED_SESSION_NAME="${2:-}"
+MODEL_NAME="${2:-}"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_ACTIVATE="${PROJECT_ROOT}/.venv/bin/activate"
+
+usage() {
+  echo "Usage: $0 [seed] <model-name>" >&2
+  echo "Example: $0 2611 mm-bert" >&2
+}
+
+run_data_pipeline() {
+  echo "Running SDJT data pipeline for seed ${SEED}..." >&2
+  (
+    cd "${PROJECT_ROOT}"
+    # shellcheck disable=SC1090
+    source "${VENV_ACTIVATE}"
+    ./data split ner -s "data.split.seed=${SEED}"
+    ./data analyze ner -s "data.split.seed=${SEED}"
+    ./data resample ner-sdjt -s "data.split.seed=${SEED}" -s "data.sampling.seed=${SEED}"
+    ./data analyze ner-sdjt -s "data.split.seed=${SEED}" -s "data.sampling.seed=${SEED}"
+  )
+  echo "Finished SDJT data pipeline for seed ${SEED}." >&2
+}
 
 if [[ -z "${SEED}" ]]; then
   SEED="${DEFAULT_SEED}"
   echo "Warning: no seed provided, defaulting to ${SEED}." >&2
 fi
 
-SESSION_NAME="${REQUESTED_SESSION_NAME:-sdjt-train-s${SEED}}"
+if [[ -z "${MODEL_NAME}" ]]; then
+  echo "Error: no model name provided." >&2
+  usage
+  exit 1
+fi
+
+if [[ ! "${MODEL_NAME}" =~ ^[[:alnum:]][[:alnum:]._-]*$ ]]; then
+  echo "Error: invalid model name ${MODEL_NAME}." >&2
+  exit 1
+fi
+
+if [[ ! -f "${PROJECT_ROOT}/conf/model/${MODEL_NAME}.yaml" ]]; then
+  echo "Error: model config conf/model/${MODEL_NAME}.yaml does not exist." >&2
+  exit 1
+fi
+
+SESSION_NAME="sdjt-train-${MODEL_NAME}-s${SEED}"
 WINDOW_PREFIX="${SESSION_NAME}"
 
 if (( MAX_PARALLEL_TASKS < 1 )); then
@@ -34,28 +69,11 @@ if [[ ! -f "${VENV_ACTIVATE}" ]]; then
   exit 1
 fi
 
-run_data_pipeline() {
-  echo "Running SDJT data pipeline for seed ${SEED}..." >&2
-  (
-    cd "${PROJECT_ROOT}"
-    # shellcheck disable=SC1090
-    source "${VENV_ACTIVATE}"
-    ./data split ner -s "data.split.seed=${SEED}"
-    ./data analyze ner -s "data.split.seed=${SEED}"
-    ./data resample ner-sdjt -s "data.split.seed=${SEED}" -s "data.sampling.seed=${SEED}"
-    ./data analyze ner-sdjt -s "data.split.seed=${SEED}" -s "data.sampling.seed=${SEED}"
-  )
-  echo "Finished SDJT data pipeline for seed ${SEED}." >&2
-}
-
 TARGET_SESSION="${SESSION_NAME}"
 CREATE_NEW_SESSION=1
 if [[ -n "${TMUX:-}" ]]; then
   TARGET_SESSION="$(tmux display-message -p '#S')"
   CREATE_NEW_SESSION=0
-  if [[ -n "${REQUESTED_SESSION_NAME}" && "${REQUESTED_SESSION_NAME}" != "${TARGET_SESSION}" ]]; then
-    echo "Warning: ignoring requested session ${REQUESTED_SESSION_NAME} and using current tmux session ${TARGET_SESSION}." >&2
-  fi
 elif tmux has-session -t "${SESSION_NAME}" 2>/dev/null; then
   echo "Error: tmux session ${SESSION_NAME} already exists." >&2
   exit 1
@@ -125,7 +143,7 @@ done
 for idx in "${!RUN_NAMES[@]}"; do
   run_name="${RUN_NAMES[idx]}"
   worker=$((idx % MAX_PARALLEL_TASKS))
-  WINDOW_COMMANDS[worker]+=" && ./train token ner-sdjt -c mm-bert"
+  WINDOW_COMMANDS[worker]+=" && ./train token ner-sdjt -c \"${MODEL_NAME}\""
   WINDOW_COMMANDS[worker]+=" -s \"data.attributes.run_name=${run_name}\""
   WINDOW_COMMANDS[worker]+=" -s \"train.seed=${SEED}\""
 done

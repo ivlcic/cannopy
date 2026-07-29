@@ -7,7 +7,6 @@ VRAM_GB=32
 TASK_GB=16
 MAX_PARALLEL_TASKS=$((VRAM_GB / TASK_GB))
 SEED="${1:-}"
-REQUESTED_SESSION_NAME="${2:-}"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_ACTIVATE="${PROJECT_ROOT}/.venv/bin/activate"
 
@@ -16,7 +15,7 @@ if [[ -z "${SEED}" ]]; then
   echo "Warning: no seed provided, defaulting to ${SEED}." >&2
 fi
 
-SESSION_NAME="${REQUESTED_SESSION_NAME:-sdjt-multi8-sweep-s${SEED}}"
+SESSION_NAME="sdjt-multi8-sweep-s${SEED}"
 WINDOW_PREFIX="${SESSION_NAME}"
 
 if (( MAX_PARALLEL_TASKS < 1 )); then
@@ -53,9 +52,6 @@ CREATE_NEW_SESSION=1
 if [[ -n "${TMUX:-}" ]]; then
   TARGET_SESSION="$(tmux display-message -p '#S')"
   CREATE_NEW_SESSION=0
-  if [[ -n "${REQUESTED_SESSION_NAME}" && "${REQUESTED_SESSION_NAME}" != "${TARGET_SESSION}" ]]; then
-    echo "Warning: ignoring requested session ${REQUESTED_SESSION_NAME} and using current tmux session ${TARGET_SESSION}." >&2
-  fi
 elif tmux has-session -t "${SESSION_NAME}" 2>/dev/null; then
   echo "Error: tmux session ${SESSION_NAME} already exists." >&2
   exit 1
