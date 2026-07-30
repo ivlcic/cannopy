@@ -21,7 +21,11 @@ from ...app.args.model import ModelArguments
 from ...app.args.runtime import Paths
 from ...app.dataset import NerSamplesLoader
 from ...app.metrics import TokenClassificationMetrics
-from ...data.resample.ner_sdjt import available_run_names, resolve_run_spec_from_name
+from ...data.resample.ner_sdjt import (
+    available_run_names,
+    parse_seed_suffix,
+    resolve_run_spec_from_name,
+)
 from ...train.token.ner_sdjt import (
     build_split_datasets,
     compute_model_prefix,
@@ -117,12 +121,14 @@ def build_result_rows(run_name: str, train_dirs: Sequence[Path],
                       metric_rows_by_model: Sequence[Dict[str, Dict[str, float]]]) -> List[Dict[str, Any]]:
     run_spec = resolve_run_spec_from_name(run_name)
     model_prefix = train_dirs[0].name.rsplit(".s", 1)[0]
+    model_seeds = [parse_seed_suffix(train_dir) for train_dir in train_dirs]
     base_row = {
         "run_name": run_name,
         "pool_name": run_spec.pool_name,
         "budget_pct": run_spec.budget_pct,
         "model_prefix": model_prefix,
         "models_evaluated": len(train_dirs),
+        "seeds": ";".join(str(seed) for seed in model_seeds),
     }
     rows: List[Dict[str, Any]] = []
     if not metric_rows_by_model:
@@ -151,6 +157,7 @@ def write_results_csv(output: Path, rows: Iterable[Dict[str, Any]]) -> None:
         "pool_name",
         "budget_pct",
         "models_evaluated",
+        "seeds",
         "language",
         "num_models",
         "p",
@@ -408,7 +415,6 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     for run_name in requested_run_names:
         run_spec = resolve_run_spec_from_name(run_name)
         try:
-            data_root, cache_root = init_dirs(paths, run_name)
             train_dirs = compute_train_dirs(model_args, data_args, train_args, run_name)
         except FileNotFoundError:
             if len(requested_run_names) == 1:
@@ -418,17 +424,19 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
 
         train_languages = list(run_spec.train_languages)
         evaluation_languages = list(run_spec.eval_languages)
-        ner_samples = NerSamplesLoader(
-            data_root,
-            train_languages,
-            split_languages={
-                "train": train_languages,
-                "eval": evaluation_languages,
-                "test": evaluation_languages,
-            },
-        )
         test_metric_rows: List[Dict[str, Dict[str, float]]] = []
         for train_dir in train_dirs:
+            model_seed = parse_seed_suffix(train_dir)
+            data_root, cache_root = init_dirs(paths, run_name, model_seed)
+            ner_samples = NerSamplesLoader(
+                data_root,
+                train_languages,
+                split_languages={
+                    "train": train_languages,
+                    "eval": evaluation_languages,
+                    "test": evaluation_languages,
+                },
+            )
             metrics = TokenClassificationMetrics(id2label=ner_samples.labeler.id2label)
             model, tokenizer = load_model_and_tokenizer(model_args, cache_root, ner_samples.labeler, train_dir)
             collator = DataCollatorForTokenClassification(tokenizer, padding="longest")
@@ -446,6 +454,12 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
                 lang: evaluate_language(trainer, dataset, lang)
                 for lang, dataset in test_datasets.items()
             })
+            logger.info(
+                "Evaluated %s model seed %d on matching split %s",
+                run_name,
+                model_seed,
+                data_root,
+            )
 
         run_rows = build_result_rows(run_name, train_dirs, test_metric_rows)
         all_rows.extend(run_rows)

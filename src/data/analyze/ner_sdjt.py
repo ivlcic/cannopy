@@ -9,7 +9,12 @@ from transformers import TrainingArguments
 from ._ner_sdjt.figures import write_dataset_shift_figures
 from ._ner_sdjt.results import analyze_results
 from .ner import _collect_tags, _compute_stats, _load_sentences
-from ..resample.ner_sdjt import SplitSamples, available_run_names, resolve_run_spec_from_name
+from ..resample.ner_sdjt import (
+    SplitSamples,
+    append_seed_suffix,
+    available_run_names,
+    resolve_run_spec_from_name,
+)
 from ...app.package import Package
 from ...app.args.data import DataArguments
 from ...app.args.model import ModelArguments
@@ -94,12 +99,18 @@ def results(data_args: DataArguments, model_args: ModelArguments, train_args: Tr
 def main(data_args: DataArguments) -> None:
     logger.info("Analyzing SDJT NER datasets")
 
-    split_dir = paths.get_ctx_path("split")
+    split_seed = data_args.split.seed
+    split_dir = append_seed_suffix(paths.get_ctx_path("split"), split_seed)
     if not split_dir.exists():
+        seed_override = (
+            f' -s "data.split.seed={split_seed}"'
+            if split_seed is not None
+            else ""
+        )
         raise FileNotFoundError(f"Split data not found at {split_dir}. "
-                                f"Run `./data resample {paths.curr_context}` first.")
+                                f"Run `./data resample {paths.curr_context}{seed_override}` first.")
 
-    output_dir = paths.get_ctx_path("analyze")
+    output_dir = append_seed_suffix(paths.get_ctx_path("analyze"), split_seed)
     output_file = output_dir / "ner-stats.csv"
     base_stats_file = output_dir.parent / "ner" / "ner-stats.csv"
     density_figure = output_dir / "entity-density-by-language.svg"

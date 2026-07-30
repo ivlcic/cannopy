@@ -112,6 +112,13 @@ Sweep runs (to determine learning rate and dropout):
 ...
 ```
 
+Resampled snapshots and their dataset-analysis artifacts are retained under
+seed-scoped directories such as `result/data/split/ner-sdjt.s2611` and
+`result/data/analyze/ner-sdjt.s2611`. Training resolves the split suffix from
+`train.seed`. Test evaluation discovers all matching trained model seeds and
+evaluates every model against the split with the same seed before computing the
+reported mean and standard deviation.
+
 Finally compute best option and set configuration in yaml manually:
 ```shell
 ./eval token ner-sdjt sweep -c mm-bert
@@ -188,7 +195,8 @@ Main experiment runs:
 
 ./eval token ner-sdjt -c mm-bert
 ./data analyze ner-sdjt results -c mm-bert
-# delete all splits and repeat for each seed
+# repeat split/resample/training for each seed; seed-scoped split directories are retained
+# after all model seeds and matching split directories are available, run evaluation once
 ```
 
 ### 2.4 Submit to [Slobench](https://slobench.cjvt.si/)

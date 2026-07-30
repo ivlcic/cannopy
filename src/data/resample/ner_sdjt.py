@@ -39,6 +39,22 @@ SPLIT_NAMES: Tuple[str, ...] = ("train", "eval", "test")
 DEDUP_SPLIT_PRIORITY: Tuple[str, ...] = ("test", "eval", "train")
 
 
+def append_seed_suffix(path: Path, seed: int | None) -> Path:
+    if seed is None:
+        return path
+    seed_value = int(seed)
+    if seed_value < 0:
+        raise ValueError(f"Seed must be non-negative, got {seed_value}.")
+    return path.with_name(f"{path.name}.s{seed_value}")
+
+
+def parse_seed_suffix(path: Path) -> int:
+    marker = path.name.rsplit(".s", 1)
+    if len(marker) != 2 or not marker[1].isdigit():
+        raise ValueError(f"Path does not end in a numeric .sSEED suffix: {path}")
+    return int(marker[1])
+
+
 @dataclass(frozen=True)
 class RunSpec:
     run_name: str
@@ -726,14 +742,16 @@ def write_run_snapshot(target_dir: Path, snapshot: SplitSamples, file_prefix: st
 
 def main(data_args: DataArguments) -> None:
     source_dir = paths.get_ctx_path("split").parent / 'ner'
-    target_dir = paths.get_ctx_path("split")
+    split_seed = data_args.split.seed
+    target_dir = append_seed_suffix(paths.get_ctx_path("split"), split_seed)
+    analyze_dir = append_seed_suffix(paths.get_ctx_path("analyze"), split_seed)
     snapshot_epoch = int(data_args.attributes.get("snapshot_epoch", 0))
     source_corpora = load_source_corpora(source_dir, SOURCE_KEYS)
 
     if data_args.sampling.dedup:
         source_corpora, stats_rows, duplicate_rows = deduplicate_corpora(source_corpora)
         stats_path, duplicates_path = write_dedup_reports(
-            paths.get_ctx_path("analyze"),
+            analyze_dir,
             stats_rows,
             duplicate_rows,
         )

@@ -23,6 +23,7 @@ from ...app.dataset import NerDataset, NerSamplesLoader
 from ...app.metrics import TokenClassificationMetrics
 from ...data.resample.ner_sdjt import (
     RunSpec,
+    append_seed_suffix,
     available_run_names,
     resolve_run_spec_from_name,
     resolve_pretrain_multi7_spec,
@@ -117,10 +118,22 @@ def _cleanup_checkpoints(output_dir: Path) -> None:
     logger.info("Removed %d checkpoint directories under %s", len(checkpoint_dirs), output_dir)
 
 
-def init_dirs(p: Paths, run_name: str) -> tuple[Path, Path]:
-    data_root = p.get_script_ctx_path("data", "split") / run_name
+def init_dirs(p: Paths, run_name: str, split_seed: int | None = None) -> tuple[Path, Path]:
+    split_root = append_seed_suffix(
+        p.get_script_ctx_path("data", "split"),
+        split_seed,
+    )
+    data_root = split_root / run_name
     if not data_root.exists():
-        raise EnvironmentError(f"Split data not found at {data_root}. Run `./data resample {p.curr_context}` first.")
+        seed_override = (
+            f' -s "data.split.seed={split_seed}"'
+            if split_seed is not None
+            else ""
+        )
+        raise FileNotFoundError(
+            f"Split data not found at {data_root}. "
+            f"Run `./data resample {p.curr_context}{seed_override}` first."
+        )
     cache_root = p.base.tmp / "cache"
     cache_root.mkdir(parents=True, exist_ok=True)
     if not cache_root.exists():
@@ -379,7 +392,7 @@ def pretrain(data_args: DataArguments, model_args: ModelArguments, train_args: T
         return
 
     logger.info("Starting pretrain-multi7 stage for %s", run_spec.run_name)
-    data_root, cache_root = init_dirs(paths, run_name)
+    data_root, cache_root = init_dirs(paths, run_name, train_args.seed)
     pretrain_run_spec = resolve_pretrain_multi7_spec(run_spec)
     pretrain_data_root = prepare_prefixed_split_dir(data_root, cache_root, "pretrain", train_args.seed)
     pretrain_output_dir = compute_pretrain_output_dir(model_args, data_args, train_args, run_spec)
@@ -407,7 +420,7 @@ def main(data_args: DataArguments, model_args: ModelArguments, train_args: Train
     if run_spec.pool_name == "pretrain-multi7-full":
         pretrain(data_args, model_args, train_args)
 
-    data_root, cache_root = init_dirs(paths, run_name)
+    data_root, cache_root = init_dirs(paths, run_name, train_args.seed)
     if not data_root.exists():
         raise FileNotFoundError(f"Run split not found at {data_root}. Run `./data split {paths.curr_context}` first.")
 
