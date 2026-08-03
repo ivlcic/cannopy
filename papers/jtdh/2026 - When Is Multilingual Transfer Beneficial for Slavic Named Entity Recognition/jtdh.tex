@@ -336,14 +336,16 @@ This design decreases both the amount of unique target-language evidence and its
 All experiments use the same pretrained multilingual \texttt{mmBERT-base}~\parencite{marone2025mmbertmodernmultilingualencoder} transformer encoder model and the same optimisation settings; only the composition of the training data changes across runs. 
 We use a model from the Hugging Face Transformers library~\parencite{wolf-etal-2020-transformers}, extended with a token classification head.
 
-In the current implementation, we follow the hyperparameter configuration of \textcite{piskorski-etal-2024-cross}, changing only the number of training epochs. 
-While their experiments were run for 5 epochs, we trained each model for up to 20 epochs to reduce the risk of underfitting, as low-resource and multilingual NER settings may require more optimisation steps for the model to adapt effectively to sparse target-language evidence.
-All remaining settings are kept identical: the maximum sequence length is 256 tokens, the optimiser is AdamW~\parencite{loshchilov2019decoupledweightdecayregularization} with a learning rate of $5 \times 10^{-6}$, and the batch size is 16. 
+We adopted the learning rate and scheduler configuration of \textcite{piskorski-etal-2024-cross} to retain comparability with their Slavic NER benchmark, rather than as the result of an \texttt{mmBERT}-specific hyperparameter search.
+Specifically, we use AdamW~\parencite{loshchilov2019decoupledweightdecayregularization} with a learning rate of $5 \times 10^{-6}$, linear learning-rate decay without warmup, no weight decay, a maximum sequence length of 256 tokens, and a batch size of 16.
+Whereas \textcite{piskorski-etal-2024-cross} trained for 5 epochs, we train each model for up to 20 epochs and select the checkpoint with the highest validation F1-score, reducing the risk of underfitting under this conservative learning rate.
+These optimisation settings are held fixed across all experimental conditions so that the controlled comparisons isolate changes in training-data composition; however, they were not independently optimised for \texttt{mmBERT}, and the absolute scores may depend on the optimisation recipe.
 In total, we evaluate 47 final model configurations, each repeated 3 times with a different random seed that controls the 80/10/10 train--validation--test split, reshuffling, resampling, and model training. 
 The \texttt{Pretrain-Multi7-full-L} configurations are two-stage runs, but they are evaluated in the same way as the other final models.
 
 During training, model selection is based on performance on the validation set. For each monolingual baseline, we retain the checkpoint that achieves the highest validation F1-score for its corresponding target language.
-For the balanced shared \texttt{Multi-8} and \texttt{Multi-12} models and for the full-pool shared models, checkpoint selection is based on macro-averaged validation-set F1-score across the eight evaluation languages in $L_8$. 
+For the balanced shared \texttt{Multi-8} and \texttt{Multi-12} models and for the full-pool shared models, checkpoint selection is based on macro-averaged validation-set F1-score over the eight evaluation languages in $L_8$.
+This also applies to the 12-language models: the four auxiliary languages in $L_{12} \setminus L_8$ contribute training data but do not enter the checkpoint-selection criterion.
 For target-resource profiles and target-specific variants such as \texttt{Multi8-full-sr} or \texttt{Pretrain-Multi7-full-sl}, the final checkpoint is selected based on the validation-set F1-score for the corresponding target language.
 
 \subsection{Evaluation}
@@ -448,6 +450,9 @@ Macro F1 & 97.67 & 92.51 {\scriptsize$\pm$ 0.40} & \textbf{97.80} & 97.65 \\
 \end{table}
 
 Table~\ref{tab:target_specific_results} shows that retaining full target-language evidence almost completely recovers the balanced multilingual deficit. \texttt{Multi8-full-L} improves over \texttt{Multi-8} on 7 of 8 languages, with a macro-average of 97.80 compared with 92.51 for \texttt{Multi-8} and 97.67 for \texttt{Mono-L}. 
+The exception is Serbian, for which \texttt{Multi8-full-sr} essentially matches \texttt{Multi-8} (98.36 versus 98.38 F1).
+This near-parity is expected because Serbian is the smallest dataset in $L_8$ and therefore determines the balanced quota $T_8$: \texttt{Multi-8} already retains all Serbian training data effectively, so the full-target variant adds no target-language evidence.
+Serbian is also the only language for which \texttt{Multi-8} already outperforms \texttt{Mono-L}.
 This confirms that the poor aggregate performance of \texttt{Multi-8} is largely due to target downsampling rather than evidence that clean multilingual training is inherently harmful. \texttt{Multi8-full-L} exceeds the monolingual baseline for Croatian, Polish, Russian, and Serbian, while remaining very close for Bulgarian, Czech, Slovene, and Ukrainian.
 
 The leave-one-target-out pretraining recipe is more mixed. \texttt{Pretrain-Multi7-full-L} reaches 97.65 macro F1, essentially matching the monolingual macro-average but not surpassing \texttt{Multi8-full-L}. 
@@ -506,7 +511,7 @@ The experiments suggest four practical guidelines for Slavic NER.
 First, if the goal is the strongest target-specific system and enough target-language data are available, a monolingual model or a full-target multilingual model should be preferred over a balanced shared model. The comparison between \texttt{Multi-8} and \texttt{Multi8-full-L} shows that balancing can impose a large target-evidence penalty.
 Second, if the target language is genuinely low-resource, clean multilingual transfer can be highly valuable: Serbian gains 13.20 F1-score points at the 10\% budget and remains above monolingual training even at 100\%.
 Third, lower-confidence auxiliary corpora should not be treated as interchangeable with manually curated data. 
-Their high annotation density and short sentence segmentation make them a distinct source of supervision, and equal weighting hurts in the balanced \texttt{Multi-12} setting.
+Their automatically constructed annotations, high annotation density, and short sentence segmentation make them a distinct source of supervision, and treating them as equally weighted gold data hurts in the balanced \texttt{Multi-12} setting.
 Fourth, if deployment requires a single maintainable model across the main languages, full-pool shared training is more promising than balanced shared training. \texttt{Full-Multi8} and \texttt{Full-Multi12} recover monolingual-level macro performance while preserving the operational advantage of one model.
 
 These guidelines also clarify the role of leave-one-target-out pretraining. \texttt{Pretrain-Multi7-full-L} is scientifically useful because it asks whether other languages help without seeing the target language during multilingual pretraining. 
@@ -521,6 +526,10 @@ This study has several limitations that qualify the interpretation of the result
 First, all experiments use a single multilingual encoder, \textsc{mmBERT}, so the observed effects may depend on this particular model family and may differ for newer or larger multilingual encoders.
 Second, the analysis is based on aggregate entity-level F1 scores and does not break down performance by entity type, entity length, frequency, or ambiguity. 
 Third, the evaluation uses random splits, which are appropriate for controlled comparisons between training regimes, but they do not test robustness to document-level, temporal, topical, or cross-corpus shifts. 
+%Fourth, language addition and corpus provenance are confounded because the four auxiliary languages are represented only by \texttt{WikiANN/PAN-X}; moreover, their inclusion in balanced \texttt{Multi-12} lowers the per-language quota for the main languages.
+%The experiments therefore cannot isolate whether the balanced-setting degradation is caused by annotation quality, annotation-density and sentence-segmentation mismatch, reduced main-language evidence, or a combination of these factors.
+Future work should separate corpus quality from language count more directly through a controlled ablation comparing the addition of a manually curated corpus for one further language, where such a resource is available, with the addition of a \texttt{WikiANN/PAN-X} corpus under a matched token budget and sampling procedure.
+This comparison would provide a more direct test of whether the observed degradation is associated with expanding the language inventory or with the provenance and annotation characteristics of the auxiliary data.
 
 \section{Conclusion}
 \label{sec:conclusion}
@@ -531,7 +540,9 @@ Its value depends on the target-resource size, the source-data quality, and whet
 
 In the balanced shared setting, a single \texttt{Multi-8} model did not replace strong monolingual baselines; it achieved 92.51 macro F1, compared with 97.67 for \texttt{Mono-L}. 
 The exception was Serbian, where multilingual training outperformed monolingual training, and the target-resource profiles showed particularly large gains at low data budgets. 
-Adding four lower-confidence auxiliary datasets in the balanced \texttt{Multi-12} setting consistently reduced performance, confirming that more languages are not inherently better when their annotation styles and corpus properties differ from those of the main evaluation data.
+Adding four lower-confidence auxiliary datasets in the balanced \texttt{Multi-12} setting consistently reduced performance.
+However, the added languages are represented exclusively by automatically constructed \texttt{WikiANN/PAN-X} corpora whose annotation density and sentence segmentation differ markedly from those of the main corpora.
+The result therefore argues against treating heterogeneous auxiliary corpora as interchangeable gold supervision, rather than showing that a larger language inventory is harmful in itself.
 
 The additional full-target and full-pool experiments refine this conclusion. 
 When all target-language data are retained, \texttt{Multi8-full-L} recovers most of the balanced model's deficit and slightly exceeds the monolingual macro-average. 
