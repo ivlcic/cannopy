@@ -39,6 +39,7 @@ NUMERIC_COLUMNS = (
     "acc_std",
 )
 METRIC_COLUMNS = ("p", "p_std", "r", "r_std", "f1", "f1_std", "acc", "acc_std")
+SIGNIFICANCE_LEVEL = 0.05
 
 
 def _import_pandas():
@@ -800,8 +801,13 @@ def _format_pvalue(value: float) -> str:
     return f"p = {value:.3f}"
 
 
-def _build_comparison_record(comparison: str, favored_label: str, left_values: list[float],
-                             right_values: list[float], interpretation: str) -> dict[str, str]:
+def _build_comparison_record(
+    comparison: str,
+    left_label: str,
+    right_label: str,
+    left_values: list[float],
+    right_values: list[float],
+) -> dict[str, str]:
     paired = [
         (float(left), float(right))
         for left, right in zip(left_values, right_values)
@@ -809,14 +815,63 @@ def _build_comparison_record(comparison: str, favored_label: str, left_values: l
     ]
     deltas = [left - right for left, right in paired]
     total = len(deltas)
-    favored_count = sum(1 for delta in deltas if delta > 0)
+    left_count = sum(1 for delta in deltas if delta > 0)
+    right_count = sum(1 for delta in deltas if delta < 0)
     mean_delta_points = 100.0 * (sum(deltas) / total) if total else float("nan")
+    sign_pvalue = _exact_sign_test_pvalue(deltas)
+    wilcoxon_pvalue = _exact_wilcoxon_pvalue(deltas)
+
+    if not total:
+        mean_advantage = "NA"
+        direction_count = "0/0 languages"
+        interpretation = "No paired language-level scores are available."
+    elif mean_delta_points == 0:
+        mean_advantage = "0.00; tied mean"
+        direction_count = (
+            f"{left_count}/{right_count}/{total - left_count - right_count} "
+            f"for {left_label}/{right_label}/ties"
+        )
+        interpretation = "The compared systems have equal mean F1."
+    else:
+        if mean_delta_points > 0:
+            higher_label = left_label
+            lower_label = right_label
+            higher_count = left_count
+        else:
+            higher_label = right_label
+            lower_label = left_label
+            higher_count = right_count
+
+        mean_advantage = f"{abs(mean_delta_points):.2f} for {higher_label}"
+        direction_count = f"{higher_count}/{total} languages for {higher_label}"
+        sign_significant = sign_pvalue < SIGNIFICANCE_LEVEL
+        wilcoxon_significant = wilcoxon_pvalue < SIGNIFICANCE_LEVEL
+        if sign_significant and wilcoxon_significant:
+            interpretation = (
+                f"Both exact tests support higher F1 for {higher_label} than {lower_label}."
+            )
+        elif wilcoxon_significant:
+            interpretation = (
+                f"The exact Wilcoxon test supports higher F1 for {higher_label}, "
+                "but the exact sign test does not."
+            )
+        elif sign_significant:
+            interpretation = (
+                f"The exact sign test supports higher F1 for {higher_label}, "
+                "but the exact Wilcoxon test does not."
+            )
+        else:
+            interpretation = (
+                "Neither exact test detects a language-level difference; "
+                f"the observed mean F1 is higher for {higher_label}."
+            )
+
     return {
         "Comparison": comparison,
-        "Mean delta, F1 points": f"{mean_delta_points:+.2f} for {favored_label}",
-        "Direction count": f"{favored_count}/{total} languages",
-        "Exact sign test": _format_pvalue(_exact_sign_test_pvalue(deltas)),
-        "Exact Wilcoxon": _format_pvalue(_exact_wilcoxon_pvalue(deltas)),
+        "Mean advantage, F1 points": mean_advantage,
+        "Direction count": direction_count,
+        "Exact sign test": _format_pvalue(sign_pvalue),
+        "Exact Wilcoxon": _format_pvalue(wilcoxon_pvalue),
         "Interpretation": interpretation,
     }
 
@@ -833,72 +888,72 @@ def compute_statistical_summary(df, rq1, rq2, rq4, rq5, croatian_ablation):
         _build_comparison_record(
             "Mono-L vs Multi-8",
             "Mono",
+            "Multi-8",
             rq1["mono_f1"].tolist(),
             rq1["multi8_f1"].tolist(),
-            "Strong evidence that balanced Multi-8 underperforms Mono overall, though the sign test is conservative.",
         ),
         _build_comparison_record(
             "Multi-8 vs Multi-12",
             "Multi-8",
+            "Multi-12",
             rq2["multi8_f1"].tolist(),
             rq2["multi12_f1"].tolist(),
-            "Statistically robust: adding lower-confidence auxiliary languages hurts balanced training.",
         ),
         _build_comparison_record(
             "Multi8-full-L vs Multi-8",
             "Multi8-full-L",
+            "Multi-8",
             rq4["multi8_full_f1"].tolist(),
             rq4["multi8_f1"].tolist(),
-            "Strong evidence that the balanced Multi-8 losses are largely due to target downsampling.",
         ),
         _build_comparison_record(
             "Multi8-full-L vs Mono-L",
             "Multi8-full-L",
+            "Mono-L",
             rq4["multi8_full_f1"].tolist(),
             rq4["mono_f1"].tolist(),
-            "No reliable evidence that full-target multilingual training beats monolingual overall. Better to say it recovers the gap.",
         ),
         _build_comparison_record(
             "Pretrain-Multi7-full-L vs Mono-L",
             "Pretrain",
+            "Mono-L",
             rq4["pretrain_multi7_full_f1"].tolist(),
             rq4["mono_f1"].tolist(),
-            "No overall significant advantage for leave-one-out pretraining.",
         ),
         _build_comparison_record(
             "Pretrain-Multi7-full-L vs Multi8-full-L",
             "Pretrain",
+            "Multi8-full-L",
             rq4["pretrain_multi7_full_f1"].tolist(),
             rq4["multi8_full_f1"].tolist(),
-            "No evidence that pretraining-then-adaptation is better than joint full-target multilingual training.",
         ),
         _build_comparison_record(
             "Full-Multi8 vs Mono-L",
             "Full-Multi8",
+            "Mono-L",
             full_vs_mono["full_multi8_f1"].tolist(),
             full_vs_mono["mono_f1"].tolist(),
-            "Suggestive but not significant. Treat as broadly competitive, not clearly better.",
         ),
         _build_comparison_record(
             "Full-Multi12 vs Full-Multi8",
             "Full-Multi12",
+            "Full-Multi8",
             rq5["full_multi12_f1"].tolist(),
             rq5["full_multi8_f1"].tolist(),
-            "Not significant; effectively a tie.",
         ),
         _build_comparison_record(
             "Full-Multi12-CapAux vs Full-Multi12",
             "CapAux",
+            "Full-Multi12",
             rq5["full_multi12_capaux_f1"].tolist(),
             rq5["full_multi12_f1"].tolist(),
-            "No clear evidence that capping auxiliary languages helps in the full-pool setting.",
         ),
         _build_comparison_record(
             "Multi7+HR500K vs Multi7+HR-WikiANN",
             "HR500K",
+            "HR-WikiANN",
             croatian_ablation["multi7_plus_hr500k_f1"].tolist(),
             croatian_ablation["multi7_plus_hr_wikiann_f1"].tolist(),
-            "Token-matched same-language contrast of manual and WikiANN/PAN-X Croatian supervision.",
         ),
     ]
     return pd.DataFrame.from_records(records)
@@ -1091,6 +1146,10 @@ def write_summary(
         file.write("\nStatistical Comparison Summary\n")
         file.write("------------------------------\n")
         file.write("Using the current language-level mean F1s, the important comparisons look like this:\n\n")
+        file.write(
+            "Interpretations use unadjusted alpha = 0.05 and report exact Wilcoxon "
+            "and sign-test evidence separately.\n\n"
+        )
         file.write(statistical_summary.to_string(index=False))
         file.write("\n")
 

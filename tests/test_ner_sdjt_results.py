@@ -1,6 +1,7 @@
 import pytest
 
 from src.data.analyze._ner_sdjt.results import (
+    _build_comparison_record,
     _exact_sign_test_pvalue,
     _exact_wilcoxon_pvalue,
     compute_rq1,
@@ -141,3 +142,58 @@ def test_compute_rq1_preserves_per_run_f1_std_columns():
     assert row["mono_f1_std"] == pytest.approx(0.03)
     assert row["multi8_f1_std"] == pytest.approx(0.07)
     assert row["delta_f1_multi8_minus_mono"] == pytest.approx(-0.02)
+
+
+def test_comparison_interpretation_reports_both_significant_tests():
+    record = _build_comparison_record(
+        "Left vs Right",
+        "Left",
+        "Right",
+        [0.8] * 8,
+        [0.7] * 8,
+    )
+
+    assert record["Mean advantage, F1 points"] == "10.00 for Left"
+    assert record["Direction count"] == "8/8 languages for Left"
+    assert record["Exact sign test"] == "p = 0.008"
+    assert record["Exact Wilcoxon"] == "p = 0.008"
+    assert record["Interpretation"] == (
+        "Both exact tests support higher F1 for Left than Right."
+    )
+
+
+def test_comparison_interpretation_reports_disagreement_between_tests():
+    record = _build_comparison_record(
+        "Left vs Right",
+        "Left",
+        "Right",
+        [0.82, 0.83, 0.84, 0.85, 0.86, 0.87, 0.88, 0.79],
+        [0.80] * 8,
+    )
+
+    assert record["Direction count"] == "7/8 languages for Left"
+    assert record["Exact sign test"] == "p = 0.070"
+    assert record["Exact Wilcoxon"] == "p = 0.016"
+    assert record["Interpretation"] == (
+        "The exact Wilcoxon test supports higher F1 for Left, "
+        "but the exact sign test does not."
+    )
+
+
+def test_comparison_interpretation_reverses_negative_delta_direction():
+    record = _build_comparison_record(
+        "Left vs Right",
+        "Left",
+        "Right",
+        [0.5, 0.5, 0.5, 0.5, 0.5, 1.5, 1.5, 1.5],
+        [1.0] * 8,
+    )
+
+    assert record["Mean advantage, F1 points"] == "12.50 for Right"
+    assert record["Direction count"] == "5/8 languages for Right"
+    assert record["Exact sign test"] == "p = 0.727"
+    assert record["Exact Wilcoxon"] == "p = 0.727"
+    assert record["Interpretation"] == (
+        "Neither exact test detects a language-level difference; "
+        "the observed mean F1 is higher for Right."
+    )
