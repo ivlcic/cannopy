@@ -7,6 +7,7 @@ from src.data.prepare import ner as ner_prepare
 from src.app.dataset import NerSamplesLoader
 from src.app.ner import NerSample
 from src.data.prepare.ner import (
+    BsnlpParser,
     ConllDatasetParser,
     NerDatasetParser,
     NerUkParser,
@@ -88,6 +89,70 @@ def test_ner_uk_assigns_i_prefix_to_entity_continuations(tmp_path) -> None:
         )
     ]
     assert parser.label_remap_counts[('ORG', 'ORG')] == 2
+
+
+def test_ner_uk_iterates_source_files_in_name_order(tmp_path) -> None:
+    data_dir = tmp_path / 'v2.0' / 'data'
+    for subset in ('bruk', 'ng'):
+        subset_dir = data_dir / subset
+        subset_dir.mkdir(parents=True)
+        for stem in ('z-last', 'a-first'):
+            (subset_dir / f'{stem}.txt').touch()
+            (subset_dir / f'{stem}.ann').touch()
+    parser = NerUkParser(tmp_path, {}, corpus='ner-uk')
+
+    pairs = list(parser._iter_pairs())
+
+    assert [txt_path.stem for txt_path, _ in pairs] == [
+        'a-first',
+        'z-last',
+        'a-first',
+        'z-last',
+    ]
+
+
+def test_bsnlp_iterates_annotation_and_raw_files_in_name_order(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        ner_prepare,
+        'logger',
+        logging.getLogger(__name__),
+        raising=False,
+    )
+    parser = BsnlpParser(tmp_path, {}, corpus='bsnlp')
+    ann_dir = tmp_path / 'annotated' / 'topic' / 'bg'
+    raw_dir = tmp_path / 'raw' / 'topic' / 'bg'
+    ann_dir.mkdir(parents=True)
+    raw_dir.mkdir(parents=True)
+    (ann_dir / 'z-last.out').write_text('doc\nBeta\tignored\tPER\n', encoding='utf-8')
+    (ann_dir / 'a-first.out').write_text('doc\nAlpha\tignored\tPER\n', encoding='utf-8')
+    (raw_dir / 'z-last.txt').touch()
+    (raw_dir / 'a-first.txt').touch()
+
+    annotations = parser._load_annotations()
+    processed_names = []
+
+    def process_doc(raw_file, annos, topic, lang):
+        processed_names.append(raw_file.stem)
+        sample = NerSample(
+            tokens=[raw_file.stem],
+            labels=['O'],
+            corpus_name='bsnlp',
+            doc_id=raw_file.stem,
+            sent_id='1',
+        )
+        return raw_file.stem, [sample]
+
+    monkeypatch.setattr(parser, '_process_doc', process_doc)
+    parser.parse()
+
+    assert [tokens for tokens, _ in annotations[('topic', 'bg', 'doc')]] == [
+        ['Alpha'],
+        ['Beta'],
+    ]
+    assert processed_names == ['a-first', 'z-last']
 
 
 def test_conll_parser_uses_source_document_and_sentence_ids(tmp_path) -> None:

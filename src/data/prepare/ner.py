@@ -394,7 +394,7 @@ class BsnlpParser(NerDatasetParser):
                 if not lang_dir.is_dir():
                     continue
                 lang = lang_dir.name
-                for ann_file in lang_dir.glob('*.out'):
+                for ann_file in sorted(lang_dir.glob('*.out')):
                     doc_id, entities = self._parse_annotation_file(ann_file)
                     if doc_id and entities:
                         index.setdefault((topic_dir.name, lang, doc_id), []).extend(entities)
@@ -464,7 +464,7 @@ class BsnlpParser(NerDatasetParser):
                 if not lang_dir.is_dir():
                     continue
                 lang = lang_dir.name
-                for raw_file in lang_dir.glob('*.txt'):
+                for raw_file in sorted(lang_dir.glob('*.txt')):
                     doc_id, sentences = self._process_doc(raw_file, annos, topic_dir.name, lang)
                     if doc_id and sentences:
                         output[lang].extend(sentences)
@@ -491,7 +491,7 @@ class NerUkParser(NerDatasetParser):
             subset_dir = data_dir / subset
             if not subset_dir.exists():
                 continue
-            for txt_file in subset_dir.glob('*.txt'):
+            for txt_file in sorted(subset_dir.glob('*.txt')):
                 ann_file = txt_file.with_suffix('.ann')
                 if ann_file.exists():
                     yield txt_file, ann_file
