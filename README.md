@@ -65,6 +65,7 @@ Create a dataset from Slovene news articles tagged with fourteen selected IPTC c
 ### 2.1 Dataset preparation
 
 Download and prepare Slavic NER dataset:
+- After the split deduplication is performed (you can switch it off with `-s data.split.dedup=False`)
 ```shell
 ./data download ner
 ./data prepare ner
@@ -115,6 +116,13 @@ Sweep runs (to determine learning rate and dropout):
 ...
 
 ```
+
+The NER split step performs sentence deduplication immediately after creating
+the train, validation, and test partitions because `data.split.dedup` is
+enabled in `conf/data/ner/ner.yaml`. It keeps duplicate occurrences in test
+before validation and training, and writes its audit files under
+`result/data/analyze/ner`. The SDJT resampling step consumes these deduplicated
+split files without running a second deduplication pass.
 
 Resampled snapshots and their dataset-analysis artifacts are retained under
 seed-scoped directories such as `result/data/split/ner-sdjt.s2611` and

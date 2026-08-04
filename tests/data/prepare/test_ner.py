@@ -5,7 +5,7 @@ import pytest
 
 from src.data.prepare import ner as ner_prepare
 from src.app.dataset import NerSamplesLoader
-from src.app.ner import NER_CSV_COLUMNS, NerSample
+from src.app.ner import NerSample
 from src.data.prepare.ner import (
     ConllDatasetParser,
     NerDatasetParser,
@@ -176,11 +176,26 @@ def test_writer_and_loader_preserve_ner_metadata(tmp_path) -> None:
     csv_path = tmp_path / 'ner-sl.train.csv'
     with csv_path.open(encoding='utf-8', newline='') as csv_file:
         reader = csv.DictReader(csv_file)
-        assert reader.fieldnames == NER_CSV_COLUMNS
+        assert reader.fieldnames == NerSample.NER_CSV_COLUMNS
         assert next(reader) == sample.to_csv_row()
 
     loader = NerSamplesLoader.__new__(NerSamplesLoader)
     assert loader._load_split_file(csv_path) == [sample]
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("O", "O"),
+        ("per", "B-PER"),
+        ("U-ORG", "B-ORG"),
+        ("L-LOC", "I-LOC"),
+        ("B-MISC", "O"),
+        ("X-PER", "O"),
+    ],
+)
+def test_ner_sample_harmonizes_sdjt_labels(label: str, expected: str) -> None:
+    assert NerSample.harmonize_label(label) == expected
 
 
 def test_loader_accepts_distinct_training_and_evaluation_languages(tmp_path) -> None:

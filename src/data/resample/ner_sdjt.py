@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 import math
 import random
-import unicodedata
 from dataclasses import dataclass, replace
 from logging import Logger
 from pathlib import Path
@@ -11,7 +10,7 @@ from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from ...app.args.data import DataArguments
 from ...app.args.runtime import Paths
-from ...app.ner import NER_CSV_COLUMNS, NerSample
+from ...app.ner import NerSample
 
 logger: Logger
 paths: Paths
@@ -34,9 +33,7 @@ CROATIAN_ABLATION_RUN_NAMES: Tuple[str, ...] = (
 SOURCE_KEYS: Tuple[str, ...] = ALL_LANGUAGES + (HR_WIKIANN_SOURCE,)
 CURVE_LANGUAGES = frozenset({"sr", "sl"})
 CURVE_BUDGETS = frozenset({10, 25, 50, 100})
-CORE_ENTITY_TYPES: Tuple[str, ...] = ("PER", "ORG", "LOC")
 SPLIT_NAMES: Tuple[str, ...] = ("train", "eval", "test")
-DEDUP_SPLIT_PRIORITY: Tuple[str, ...] = ("test", "eval", "train")
 
 
 def append_seed_suffix(path: Path, seed: int | None) -> Path:
@@ -88,13 +85,6 @@ class RunSpec:
     @property
     def metric_name(self) -> str:
         return "eval_macro_f1" if self.uses_macro_eval else "eval_f1"
-
-
-@dataclass
-class DedupCounts:
-    before: int = 0
-    removed: int = 0
-    label_conflicts: int = 0
 
 
 def available_run_names() -> List[str]:
@@ -303,27 +293,6 @@ def resolve_pretrain_multi7_spec(run_spec: RunSpec) -> RunSpec:
     )
 
 
-def harmonize_label(label: str) -> str:
-    value = label.strip()
-    if not value or value.upper() == "O":
-        return "O"
-    if "-" not in value:
-        entity = value.upper()
-        return f"B-{entity}" if entity in CORE_ENTITY_TYPES else "O"
-    prefix, entity = value.split("-", 1)
-    prefix = prefix.upper()
-    entity = entity.upper()
-    if prefix in {"S", "U"}:
-        prefix = "B"
-    elif prefix in {"E", "L"}:
-        prefix = "I"
-    if prefix not in {"B", "I"}:
-        return "O"
-    if entity not in CORE_ENTITY_TYPES:
-        return "O"
-    return f"{prefix}-{entity}"
-
-
 def _read_split_file(path: Path) -> List[Sentence]:
     samples: List[Sentence] = []
     if not path.exists():
@@ -334,7 +303,7 @@ def _read_split_file(path: Path) -> List[Sentence]:
             sample = NerSample.from_csv_row(row)
             if not sample.tokens or not sample.labels:
                 continue
-            labels = [harmonize_label(label) for label in sample.labels]
+            labels = [NerSample.harmonize_label(label) for label in sample.labels]
             if len(sample.tokens) != len(labels):
                 logger.warning(
                     "Skipping malformed row %d from %s due to token/label mismatch (%d != %d).",
@@ -358,113 +327,6 @@ def load_source_corpora(source_dir: Path, languages: Sequence[str]) -> SplitSamp
                 raise FileNotFoundError(f"No {split} samples found for language {lang} at {file_path}.")
             samples_by_split[split][lang] = samples
     return samples_by_split
-
-
-def _normalized_sentence_key(sample: Sentence) -> str:
-    text = " ".join(sample.tokens)
-    return unicodedata.normalize("NFKC", text).casefold()
-
-
-def deduplicate_corpora(
-    source_corpora: SplitSamples,
-) -> Tuple[SplitSamples, List[Dict[str, object]], List[Dict[str, object]]]:
-    deduplicated: SplitSamples = {split: {} for split in SPLIT_NAMES}
-    counts: Dict[Tuple[str, str, str], DedupCounts] = {}
-    duplicate_rows: List[Dict[str, object]] = []
-    languages = sorted({
-        lang
-        for split_samples in source_corpora.values()
-        for lang in split_samples
-    })
-
-    for lang in languages:
-        seen: Dict[str, Tuple[str, Sentence]] = {}
-        for split in DEDUP_SPLIT_PRIORITY:
-            kept: List[Sentence] = []
-            for sample in source_corpora.get(split, {}).get(lang, []):
-                corpus_name = sample.corpus_name or "unknown"
-                count_key = (lang, split, corpus_name)
-                corpus_counts = counts.setdefault(count_key, DedupCounts())
-                corpus_counts.before += 1
-
-                sentence_key = _normalized_sentence_key(sample)
-                survivor = seen.get(sentence_key)
-                if survivor is None:
-                    seen[sentence_key] = (split, sample)
-                    kept.append(sample)
-                    continue
-
-                survivor_split, survivor_sample = survivor
-                labels_match = sample.labels == survivor_sample.labels
-                corpus_counts.removed += 1
-                if not labels_match:
-                    corpus_counts.label_conflicts += 1
-                duplicate_rows.append({
-                    "language": lang,
-                    "removed_split": split,
-                    "removed_corpus_name": corpus_name,
-                    "removed_doc_id": sample.doc_id,
-                    "removed_sent_id": sample.sent_id,
-                    "kept_split": survivor_split,
-                    "kept_corpus_name": survivor_sample.corpus_name or "unknown",
-                    "kept_doc_id": survivor_sample.doc_id,
-                    "kept_sent_id": survivor_sample.sent_id,
-                    "labels_match": labels_match,
-                })
-            deduplicated[split][lang] = kept
-
-    stats_rows: List[Dict[str, object]] = []
-    for (lang, split, corpus_name), corpus_counts in sorted(counts.items()):
-        stats_rows.append({
-            "language": lang,
-            "split": split,
-            "corpus_name": corpus_name,
-            "before": corpus_counts.before,
-            "duplicates_removed": corpus_counts.removed,
-            "after": corpus_counts.before - corpus_counts.removed,
-            "label_conflicts": corpus_counts.label_conflicts,
-        })
-    return deduplicated, stats_rows, duplicate_rows
-
-
-def write_dedup_reports(
-    output_dir: Path,
-    stats_rows: Sequence[Dict[str, object]],
-    duplicate_rows: Sequence[Dict[str, object]],
-) -> Tuple[Path, Path]:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    stats_path = output_dir / "ner-dedup-stats.csv"
-    duplicates_path = output_dir / "ner-duplicates.csv"
-    stats_columns = [
-        "language",
-        "split",
-        "corpus_name",
-        "before",
-        "duplicates_removed",
-        "after",
-        "label_conflicts",
-    ]
-    duplicate_columns = [
-        "language",
-        "removed_split",
-        "removed_corpus_name",
-        "removed_doc_id",
-        "removed_sent_id",
-        "kept_split",
-        "kept_corpus_name",
-        "kept_doc_id",
-        "kept_sent_id",
-        "labels_match",
-    ]
-    with stats_path.open("w", encoding="utf-8", newline="") as stats_file:
-        writer = csv.DictWriter(stats_file, fieldnames=stats_columns)
-        writer.writeheader()
-        writer.writerows(stats_rows)
-    with duplicates_path.open("w", encoding="utf-8", newline="") as duplicates_file:
-        writer = csv.DictWriter(duplicates_file, fieldnames=duplicate_columns)
-        writer.writeheader()
-        writer.writerows(duplicate_rows)
-    return stats_path, duplicates_path
 
 
 def select_run_corpora(source_corpora: SplitSamples, run_spec: RunSpec) -> SplitSamples:
@@ -727,7 +589,7 @@ def create_pretrain_snapshot(
 def _write_split_csv(path: Path, sentences: Iterable[Sentence]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as fp:
-        writer = csv.DictWriter(fp, fieldnames=NER_CSV_COLUMNS)
+        writer = csv.DictWriter(fp, fieldnames=NerSample.NER_CSV_COLUMNS)
         writer.writeheader()
         for sentence in sentences:
             writer.writerow(sentence.to_csv_row())
@@ -744,27 +606,8 @@ def main(data_args: DataArguments) -> None:
     source_dir = paths.get_ctx_path("split").parent / 'ner'
     split_seed = data_args.split.seed
     target_dir = append_seed_suffix(paths.get_ctx_path("split"), split_seed)
-    analyze_dir = append_seed_suffix(paths.get_ctx_path("analyze"), split_seed)
     snapshot_epoch = int(data_args.attributes.get("snapshot_epoch", 0))
     source_corpora = load_source_corpora(source_dir, SOURCE_KEYS)
-
-    if data_args.sampling.dedup:
-        source_corpora, stats_rows, duplicate_rows = deduplicate_corpora(source_corpora)
-        stats_path, duplicates_path = write_dedup_reports(
-            analyze_dir,
-            stats_rows,
-            duplicate_rows,
-        )
-        logger.info(
-            "Removed %d duplicate NER samples, including %d label conflicts; "
-            "wrote reports to %s and %s.",
-            len(duplicate_rows),
-            sum(int(row["label_conflicts"]) for row in stats_rows),
-            stats_path,
-            duplicates_path,
-        )
-    else:
-        logger.info("NER sentence deduplication is disabled.")
 
     run_names = available_run_names()
     run_specs = [resolve_run_spec_from_name(run_name) for run_name in run_names]

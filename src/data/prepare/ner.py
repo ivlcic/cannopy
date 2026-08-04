@@ -11,7 +11,7 @@ from syntok.segmenter import process as syntok_process
 
 from ...app.args.runtime import Paths
 from ...app.args.data import DataArguments
-from ...app.ner import NER_CSV_COLUMNS, NerSample
+from ...app.ner import NerSample
 
 logger: Logger
 paths: Paths
@@ -644,7 +644,7 @@ def write_outputs(
         label_counter: Counter = Counter()
         tok_count = 0
         with target.open('w', encoding='utf-8', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=NER_CSV_COLUMNS)
+            writer = csv.DictWriter(f, fieldnames=NerSample.NER_CSV_COLUMNS)
             writer.writeheader()
             for sample in sentences:
                 tok_count += len(sample.tokens)

@@ -2,10 +2,11 @@
 
 ## Procedure
 
-Deduplication is enabled by `data.sampling.dedup: true` during the
-`ner-sdjt` resampling step. It operates on the already prepared and split NER
-samples, before the individual experimental pools and token-budgeted training
-sets are constructed.
+Deduplication is enabled by `data.split.dedup: true` during the `ner` splitting
+step. It runs immediately after the random train-validation-test split and
+before the split files are written. The later `ner-sdjt` resampling step uses
+these already deduplicated files to construct its experimental pools and
+token-budgeted training sets.
 
 For every sample, the duplicate key is computed as:
 
@@ -53,12 +54,11 @@ lower-priority sample is still removed and the case is additionally counted as
 a label conflict. Thus, `label_conflicts` is a subset of
 `duplicates_removed`.
 
-The implementation is in
-[`src/data/resample/ner_sdjt.py`](src/data/resample/ner_sdjt.py). Aggregate
-counts are recorded in
-[`ner-dedup-stats.csv`](result/data/analyze/ner-sdjt.s2611/ner-dedup-stats.csv), and
+The implementation is part of
+[`src/data/split/ner.py`](src/data/split/ner.py). Aggregate counts are recorded
+in [`ner-dedup-stats.csv`](result/data/analyze/ner/ner-dedup-stats.csv), and
 each removed-to-retained pair is recorded in
-[`ner-duplicates.csv`](result/data/analyze/ner-sdjt.s2611/ner-duplicates.csv).
+[`ner-duplicates.csv`](result/data/analyze/ner/ner-duplicates.csv).
 
 ## Overall results
 

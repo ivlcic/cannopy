@@ -81,6 +81,7 @@ class SplitConfig:
     eval: float = 0.1
     test: float = 0.1
     seed: int = 42
+    dedup: bool = False
 
 
 @dataclass
@@ -93,7 +94,6 @@ class SamplingStratificationConfig:
 @dataclass
 class SamplingConfig:
     seed: int = 2611
-    dedup: bool = False
     batch_size: int = 64
     stratification: SamplingStratificationConfig = field(default_factory=SamplingStratificationConfig)
     attributes: Dict[str, Any] = field(default_factory=dict)

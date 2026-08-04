@@ -8,10 +8,9 @@ from src.data.resample.ner_sdjt import (
     CROATIAN_ABLATION_EVAL_LANGUAGES,
     HR_WIKIANN_SOURCE,
     compute_language_token_budgets,
-    deduplicate_corpora,
     resolve_run_spec_from_name,
-    write_dedup_reports,
 )
+from src.data.split.ner import deduplicate_corpora, write_dedup_reports
 
 
 def _sample(
@@ -110,6 +109,33 @@ def test_deduplication_normalizes_unicode_and_writes_audit_reports(tmp_path) -> 
         rows = list(csv.DictReader(duplicates_file))
     assert rows[0]['removed_corpus_name'] == 'corpus-b'
     assert rows[0]['kept_corpus_name'] == 'corpus-a'
+
+
+def test_deduplication_ignores_malformed_samples_seen_before_valid_duplicates() -> None:
+    malformed_test = _sample(
+        'Isto besedilo',
+        'corpus-a',
+        'test-doc',
+        '1',
+        labels=['O'],
+    )
+    valid_train = _sample(
+        'isto besedilo',
+        'corpus-b',
+        'train-doc',
+        '2',
+    )
+    source = {
+        'train': {'sl': [valid_train]},
+        'eval': {'sl': []},
+        'test': {'sl': [malformed_test]},
+    }
+
+    deduplicated, _, duplicate_rows = deduplicate_corpora(source)
+
+    assert deduplicated['test']['sl'] == [malformed_test]
+    assert deduplicated['train']['sl'] == [valid_train]
+    assert duplicate_rows == []
 
 
 def test_croatian_ablation_run_specs_share_evaluation_languages() -> None:

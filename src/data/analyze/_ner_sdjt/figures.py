@@ -5,7 +5,8 @@ from html import escape
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ...resample.ner_sdjt import AUX_LANGUAGES, CORE_ENTITY_TYPES, MAIN_LANGUAGES
+from ....app.ner import NerSample
+from ...resample.ner_sdjt import AUX_LANGUAGES, MAIN_LANGUAGES
 
 
 def _language_sort_key(lang: str) -> tuple[int, int | str]:
@@ -27,7 +28,7 @@ def _read_base_ner_stats(stats_file: Path) -> List[Dict[str, Any]]:
             language = str(row.get("language", "")).strip()
             if language not in MAIN_LANGUAGES and language not in AUX_LANGUAGES:
                 continue
-            entity_counts = {entity_type: 0 for entity_type in CORE_ENTITY_TYPES}
+            entity_counts = {entity_type: 0 for entity_type in NerSample.CORE_ENTITY_TYPES}
             for key, raw_value in row.items():
                 if not key or "-" not in key:
                     continue
@@ -257,7 +258,7 @@ def _write_label_composition_svg(output_file: Path, stats_rows: List[Dict[str, A
         total = float(row["entity_total"])
         x = margin_left + language_slots[row["language"]] - bar_width / 2
         y_cursor = margin_top + plot_height
-        for entity_type in CORE_ENTITY_TYPES:
+        for entity_type in NerSample.CORE_ENTITY_TYPES:
             proportion = (row["entity_counts"][entity_type] / total) if total else 0.0
             if proportion <= 0:
                 continue

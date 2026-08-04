@@ -14,11 +14,7 @@ logger: Logger
 paths: Paths
 
 
-def aggregate_csv_file(
-    csv_file: Path,
-    lang: str,
-    aggregated: DefaultDict[str, List[Sentence]],
-) -> None:
+def aggregate_csv_file(csv_file: Path, lang: str, aggregated: DefaultDict[str, List[Sentence]],) -> None:
     with csv_file.open('r', encoding='utf-8', newline='') as f:
         reader = csv.DictReader(f)
         for row in reader:

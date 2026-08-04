@@ -18,6 +18,7 @@ data:
     eval: 0.1
     test: 0.1
     seed: 2611
+    dedup: true
   source:
     links:
       - url: https://kt-cloud.ijs.si/index.php/s/HcsrB5oEdxnQLgm/download?path=%2F&files=CNEC_2.0_konkol.zip
