@@ -1,11 +1,12 @@
 model:
   max_seq_length: 256
-  dtype: float32
-  classifier_dropout: 0.05
+  classifier_dropout: 0.10
 
 train:
   learning_rate: 0.00002 # 2e-5
-  num_train_epochs: 40
+  per_device_train_batch_size: 16
+  gradient_accumulation_steps: 2
+  num_train_epochs: 20
   warmup_ratio: 0.06
   weight_decay: 0.01
   lr_scheduler_type: linear
@@ -17,6 +18,5 @@ train:
   save_total_limit: 5
   metric_for_best_model: 'f1'
   logging_strategy: epoch
-  per_device_train_batch_size: 32
   per_device_eval_batch_size: 32
   seed: 2611

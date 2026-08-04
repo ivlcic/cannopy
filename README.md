@@ -80,6 +80,8 @@ Download and prepare Slavic NER dataset:
 ./train token ner -c xlmr
 # train the jhu-clsp/mmBERT-base
 ./train token ner -c mm-bert
+# train the microsoft/mdeberta-v3-base
+./train token ner -c mdeberta3
 # not implemented yet
 ./train token ner -c gemma3-270m
 # not implemented yet
@@ -99,8 +101,9 @@ Now we can also run evaluation:
 
 Sweep runs (to determine learning rate and dropout):
 ```shell
-./data split ner -s data.split.seed=2611 -s data.sampling.seed=2611
-./data analyze ner -s data.split.seed=2611 -s data.sampling.seed=2611
+./data split ner -s data.split.seed=2611
+./data analyze ner -s data.split.seed=2611
+# split seed is used to load the data for sampling from the correct split directory 
 ./data resample ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
 ./data analyze ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
 
@@ -110,6 +113,7 @@ Sweep runs (to determine learning rate and dropout):
 ./train token ner-sdjt -c mm-bert -s data.attributes.run_name=multi8 -s train.seed=2611 \
  -s train.learning_rate=1.0e-5 -s model.classifier_dropout=0.10
 ...
+
 ```
 
 Resampled snapshots and their dataset-analysis artifacts are retained under
@@ -130,9 +134,16 @@ covering every discovered seed receive a rank; test-set metrics are not used
 for sweep selection.
 
 Main experiment runs:
+- Repeat split/resample/training for each seed; seed-scoped split directories are retained.
+- Although where split seed seems unnecessary it is used to load the data from the correct split directory.
+- For training same seed value is used as for split. It's unrelated but handy also to load the data from the relevant split directory.
+- After all trained model seeds and matching split directories are available, run evaluation and result analysis once.
+
 ```shell
-./data split ner -s data.split.seed=2611 -s data.sampling.seed=2611
-./data analyze ner -s data.split.seed=2611 -s data.sampling.seed=2611
+# 
+./data split ner -s data.split.seed=2611
+./data analyze ner -s data.split.seed=2611
+# split seed is used to load the data for sampling from the correct split directory
 ./data resample ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
 ./data analyze ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
 
@@ -195,8 +206,7 @@ Main experiment runs:
 
 ./eval token ner-sdjt -c mm-bert
 ./data analyze ner-sdjt results -c mm-bert
-# repeat split/resample/training for each seed; seed-scoped split directories are retained
-# after all model seeds and matching split directories are available, run evaluation once
+
 ```
 
 ### 2.4 Submit to [Slobench](https://slobench.cjvt.si/)
