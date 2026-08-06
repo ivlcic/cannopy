@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import ClassVar, Dict, List, Tuple
+from typing import ClassVar, Dict, List
 
 
 @dataclass(frozen=True)
@@ -11,8 +11,6 @@ class NerSample:
         'doc_id',
         'sent_id',
     ]
-    CORE_ENTITY_TYPES: ClassVar[Tuple[str, ...]] = ("PER", "ORG", "LOC")
-
     tokens: List[str]
     labels: List[str]
     corpus_name: str = ''
@@ -30,27 +28,6 @@ class NerSample:
             doc_id=row.get('doc_id') or '',
             sent_id=row.get('sent_id') or '',
         )
-
-    @classmethod
-    def harmonize_label(cls, label: str) -> str:
-        value = label.strip()
-        if not value or value.upper() == "O":
-            return "O"
-        if "-" not in value:
-            entity = value.upper()
-            return f"B-{entity}" if entity in cls.CORE_ENTITY_TYPES else "O"
-        prefix, entity = value.split("-", 1)
-        prefix = prefix.upper()
-        entity = entity.upper()
-        if prefix in {"S", "U"}:
-            prefix = "B"
-        elif prefix in {"E", "L"}:
-            prefix = "I"
-        if prefix not in {"B", "I"}:
-            return "O"
-        if entity not in cls.CORE_ENTITY_TYPES:
-            return "O"
-        return f"{prefix}-{entity}"
 
     def to_csv_row(self) -> Dict[str, str]:
         values = [

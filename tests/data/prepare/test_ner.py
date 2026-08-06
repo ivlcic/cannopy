@@ -248,21 +248,6 @@ def test_writer_and_loader_preserve_ner_metadata(tmp_path) -> None:
     assert loader._load_split_file(csv_path) == [sample]
 
 
-@pytest.mark.parametrize(
-    ("label", "expected"),
-    [
-        ("O", "O"),
-        ("per", "B-PER"),
-        ("U-ORG", "B-ORG"),
-        ("L-LOC", "I-LOC"),
-        ("B-MISC", "O"),
-        ("X-PER", "O"),
-    ],
-)
-def test_ner_sample_harmonizes_sdjt_labels(label: str, expected: str) -> None:
-    assert NerSample.harmonize_label(label) == expected
-
-
 def test_loader_accepts_distinct_training_and_evaluation_languages(tmp_path) -> None:
     training_sample = NerSample(
         tokens=['Zagreb'],

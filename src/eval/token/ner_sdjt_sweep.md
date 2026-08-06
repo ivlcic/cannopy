@@ -2,12 +2,12 @@
 
 We used a model-specific, deliberately bounded hyperparameter sweep rather than assuming that a single learning rate would transfer equally well across all encoder architectures. The sweep concentrates on learning rate and dropout because these directly affect fine-tuning stability and generalisation, while the remaining optimisation settings were held constant to make results comparable. The selected values should therefore be understood as a local sensitivity analysis around established fine-tuning settings, not as values prescribed exactly by the original model authors.
 
-| Model | Learning rates | Dropout | Rationale |
-|---|---:|---:|---|
-| mmBERT-base | \(1,2,3\times10^{-5}\) | 0.05, 0.10 | Brackets the \(3\times10^{-5}\) classification setting in the model card and tests modest head regularisation |
+| Model |               Learning rates | Dropout | Rationale |
+|---|-----------------------------:|---:|---|
+| mmBERT-base |       \(1,2,3\times10^{-5}\) | 0.05, 0.10 | Brackets the \(3\times10^{-5}\) classification setting in the model card and tests modest head regularisation |
 | mDeBERTa-v3-base | \(1,1.5,2,2.5\times10^{-5}\) | 0.10, 0.15 | Finer search around the authors’ \(2\times10^{-5}\) example because this model showed greater optimisation sensitivity |
-| XLM-R-base | \(1,2,3\times10^{-5}\) | 0.10, 0.15 | Brackets the conventional \(2\times10^{-5}\) token-classification setting |
-| BERTić | \(1,3,5,10\times10^{-5}\) | 0.10 fixed | Samples the substantially wider \(9\times10^{-6}\)–\(10^{-4}\) range used in the original BERTić study |
+| XLM-R-base |         \(1,2\times10^{-5}\) | 0.10, 0.15 | Brackets the conventional \(2\times10^{-5}\) token-classification setting |
+| BERTić |    \(1,3,5,10\times10^{-5}\) | 0.10 fixed | Samples the substantially wider \(9\times10^{-6}\)–\(10^{-4}\) range used in the original BERTić study |
 
 For mmBERT-base, the official model card reports \(3\times10^{-5}\) for cross-lingual sequence classification and \(2\times10^{-5}\) for a reranking task. We therefore evaluated \(1\times10^{-5}\), \(2\times10^{-5}\), and \(3\times10^{-5}\), covering a conservative setting as well as the region demonstrated by the model authors. The released mmBERT configuration specifies zero classifier and encoder dropout, so classifier-dropout values of 0.05 and 0.10 were introduced as modest regularisation alternatives for the heterogeneous multilingual NER training data. Importantly, these values apply to the token-classification head and do not alter mmBERT’s encoder dropout. See the [mmBERT model card](https://huggingface.co/jhu-clsp/mmBERT-base) and [released configuration](https://huggingface.co/jhu-clsp/mmBERT-base/blob/8c1f42296af5de623b0ad6d3a5ed6a5a1838d82c/config.json).
 

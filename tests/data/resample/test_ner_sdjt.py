@@ -8,6 +8,7 @@ from src.data.resample.ner_sdjt import (
     CROATIAN_ABLATION_EVAL_LANGUAGES,
     HR_WIKIANN_SOURCE,
     compute_language_token_budgets,
+    harmonize_label,
     resolve_run_spec_from_name,
 )
 from src.data.split.ner import deduplicate_corpora, write_dedup_reports
@@ -28,6 +29,21 @@ def _sample(
         doc_id=doc_id,
         sent_id=sent_id,
     )
+
+
+@pytest.mark.parametrize(
+    ('label', 'expected'),
+    [
+        ('O', 'O'),
+        ('per', 'B-PER'),
+        ('U-ORG', 'B-ORG'),
+        ('L-LOC', 'I-LOC'),
+        ('B-MISC', 'O'),
+        ('X-PER', 'O'),
+    ],
+)
+def test_harmonize_label_maps_to_sdjt_label_space(label: str, expected: str) -> None:
+    assert harmonize_label(label) == expected
 
 
 def test_deduplication_prefers_test_then_eval_then_train_per_language() -> None:
@@ -96,7 +112,7 @@ def test_deduplication_normalizes_unicode_and_writes_audit_reports(tmp_path) -> 
     }
 
     _, stats_rows, duplicate_rows = deduplicate_corpora(source)
-    stats_path, duplicates_path = write_dedup_reports(
+    stats_path, duplicates_path, duplicates_data_path = write_dedup_reports(
         tmp_path,
         stats_rows,
         duplicate_rows,
@@ -109,6 +125,15 @@ def test_deduplication_normalizes_unicode_and_writes_audit_reports(tmp_path) -> 
         rows = list(csv.DictReader(duplicates_file))
     assert rows[0]['removed_corpus_name'] == 'corpus-b'
     assert rows[0]['kept_corpus_name'] == 'corpus-a'
+    with duplicates_data_path.open(
+        encoding='utf-8',
+        newline='',
+    ) as duplicates_data_file:
+        data_rows = list(csv.DictReader(duplicates_data_file))
+    assert data_rows[0]['removed_sentence'] == 'čas Cafe\u0301'
+    assert data_rows[0]['removed_labels'] == 'O O'
+    assert data_rows[0]['kept_sentence'] == 'Čas Café'
+    assert data_rows[0]['kept_labels'] == 'O O'
 
 
 def test_deduplication_ignores_malformed_samples_seen_before_valid_duplicates() -> None:

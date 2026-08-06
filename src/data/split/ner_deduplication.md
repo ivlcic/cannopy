@@ -49,10 +49,12 @@ precedence over training. Repetitions within the same split are also removed,
 with the first sample in that split's existing order retained.
 
 Labels do not determine whether samples are duplicates. After a textual match
-is found, the harmonized BIO label sequences are compared. If they differ, the
-lower-priority sample is still removed and the case is additionally counted as
-a label conflict. Thus, `label_conflicts` is a subset of
-`duplicates_removed`.
+is found, the original label sequences are compared without applying an
+experiment-specific label mapping. If they differ, the lower-priority sample
+is still removed and the case is additionally counted as a label conflict.
+Thus, `label_conflicts` is a subset of `duplicates_removed`. Label
+harmonization for the SDJT experiments is performed later by the `ner-sdjt`
+resampling task.
 
 The implementation is part of
 [`src/data/split/ner.py`](src/data/split/ner.py). Aggregate counts are recorded
@@ -64,10 +66,10 @@ each removed-to-retained pair is recorded in
 
 | Split | Before | Duplicates removed | After | Duplicate rate | Label conflicts |
 |---|---:|---:|---:|---:|---:|
-| Test | 33,160 | 1,595 | 31,565 | 4.81% | 15 |
-| Validation | 33,145 | 3,033 | 30,112 | 9.15% | 27 |
-| Training | 265,193 | 43,597 | 221,596 | 16.44% | 660 |
-| **Total** | **331,498** | **48,225** | **283,273** | **14.55%** | **702** |
+| Test | 33,160 | 1,595 | 31,565 | 4.81% | 18 |
+| Validation | 33,145 | 3,033 | 30,112 | 9.15% | 30 |
+| Training | 265,193 | 43,597 | 221,596 | 16.44% | 812 |
+| **Total** | **331,498** | **48,225** | **283,273** | **14.55%** | **860** |
 
 The duplicate rate is calculated as:
 
@@ -75,7 +77,7 @@ The duplicate rate is calculated as:
 duplicates_removed / before * 100
 ```
 
-The 702 label conflicts constitute 1.46% of removed duplicate occurrences.
+The 860 label conflicts constitute 1.78% of removed duplicate occurrences.
 
 ## Duplicate rate by language
 
@@ -84,19 +86,19 @@ key.
 
 | Language key | Before | Duplicates removed | After | Duplicate rate | Label conflicts |
 |---|---:|---:|---:|---:|---:|
-| Bulgarian (`bg`) | 18,333 | 2,559 | 15,774 | 13.96% | 89 |
+| Bulgarian (`bg`) | 18,333 | 2,559 | 15,774 | 13.96% | 103 |
 | Bosnian (`bs`) | 18,810 | 4,369 | 14,441 | 23.23% | 0 |
-| Czech (`cs`) | 20,864 | 1,749 | 19,115 | 8.38% | 31 |
+| Czech (`cs`) | 20,864 | 1,749 | 19,115 | 8.38% | 37 |
 | Croatian (`hr`) | 24,794 | 432 | 24,362 | 1.74% | 7 |
 | Croatian WikiANN (`hr-wikiann`) | 48,885 | 8,977 | 39,908 | 18.36% | 62 |
 | Macedonian (`mk`) | 16,227 | 4,904 | 11,323 | 30.22% | 0 |
-| Polish (`pl`) | 20,423 | 2,043 | 18,380 | 10.00% | 58 |
-| Russian (`ru`) | 25,141 | 3,627 | 21,514 | 14.43% | 311 |
+| Polish (`pl`) | 20,423 | 2,043 | 18,380 | 10.00% | 63 |
+| Russian (`ru`) | 25,141 | 3,627 | 21,514 | 14.43% | 408 |
 | Slovak (`sk`) | 50,907 | 12,009 | 38,898 | 23.59% | 43 |
-| Slovenian (`sl`) | 48,701 | 1,891 | 46,810 | 3.88% | 80 |
+| Slovenian (`sl`) | 48,701 | 1,891 | 46,810 | 3.88% | 108 |
 | Albanian (`sq`) | 10,098 | 4,848 | 5,250 | 48.01% | 1 |
 | Serbian (`sr`) | 3,891 | 3 | 3,888 | 0.08% | 0 |
-| Ukrainian (`uk`) | 24,424 | 814 | 23,610 | 3.33% | 20 |
+| Ukrainian (`uk`) | 24,424 | 814 | 23,610 | 3.33% | 28 |
 
 The highest duplicate rate is found in Albanian WANN (48.01%), followed by
 Macedonian WANN (30.22%). Bulgarian BSNLP is high at 13.96%, but comparable to
@@ -111,24 +113,24 @@ corpus under the same language key.
 
 | Language key | Source corpus | Before | Duplicates removed | After | Duplicate rate | Label conflicts |
 |---|---|---:|---:|---:|---:|---:|
-| `bg` | BSNLP | 18,333 | 2,559 | 15,774 | 13.96% | 89 |
+| `bg` | BSNLP | 18,333 | 2,559 | 15,774 | 13.96% | 103 |
 | `bs` | WANN | 18,810 | 4,369 | 14,441 | 23.23% | 0 |
-| `cs` | BSNLP | 11,947 | 1,690 | 10,257 | 14.15% | 19 |
-| `cs` | CNEC | 8,917 | 59 | 8,858 | 0.66% | 12 |
+| `cs` | BSNLP | 11,947 | 1,690 | 10,257 | 14.15% | 20 |
+| `cs` | CNEC | 8,917 | 59 | 8,858 | 0.66% | 17 |
 | `hr` | HR500K | 24,794 | 432 | 24,362 | 1.74% | 7 |
 | `hr-wikiann` | WikiANN-HR | 48,885 | 8,977 | 39,908 | 18.36% | 62 |
 | `mk` | WANN | 16,227 | 4,904 | 11,323 | 30.22% | 0 |
-| `pl` | BSNLP | 20,423 | 2,043 | 18,380 | 10.00% | 58 |
-| `ru` | BSNLP | 25,141 | 3,627 | 21,514 | 14.43% | 311 |
+| `pl` | BSNLP | 20,423 | 2,043 | 18,380 | 10.00% | 63 |
+| `ru` | BSNLP | 25,141 | 3,627 | 21,514 | 14.43% | 408 |
 | `sk` | WANN | 50,907 | 12,009 | 38,898 | 23.59% | 43 |
-| `sl` | BSNLP | 17,124 | 1,483 | 15,641 | 8.66% | 72 |
+| `sl` | BSNLP | 17,124 | 1,483 | 15,641 | 8.66% | 100 |
 | `sl` | ELEXIS-WSD | 2,024 | 0 | 2,024 | 0.00% | 0 |
 | `sl` | SentiCoref | 18,142 | 354 | 17,788 | 1.95% | 3 |
 | `sl` | ssj500k | 11,411 | 54 | 11,357 | 0.47% | 5 |
 | `sq` | WANN | 10,098 | 4,848 | 5,250 | 48.01% | 1 |
 | `sr` | SETimes | 3,891 | 3 | 3,888 | 0.08% | 0 |
-| `uk` | BSNLP | 6,085 | 563 | 5,522 | 9.25% | 14 |
-| `uk` | NER-UK | 18,339 | 251 | 18,088 | 1.37% | 6 |
+| `uk` | BSNLP | 6,085 | 563 | 5,522 | 9.25% | 20 |
+| `uk` | NER-UK | 18,339 | 251 | 18,088 | 1.37% | 8 |
 
 ## Duplicate rate by source corpus
 
@@ -137,11 +139,11 @@ corpus. Deduplication itself remains language-specific.
 
 | Source corpus | Before | Duplicates removed | After | Duplicate rate | Label conflicts |
 |---|---:|---:|---:|---:|---:|
-| BSNLP | 99,053 | 11,965 | 87,088 | 12.08% | 563 |
-| CNEC | 8,917 | 59 | 8,858 | 0.66% | 12 |
+| BSNLP | 99,053 | 11,965 | 87,088 | 12.08% | 714 |
+| CNEC | 8,917 | 59 | 8,858 | 0.66% | 17 |
 | ELEXIS-WSD | 2,024 | 0 | 2,024 | 0.00% | 0 |
 | HR500K | 24,794 | 432 | 24,362 | 1.74% | 7 |
-| NER-UK | 18,339 | 251 | 18,088 | 1.37% | 6 |
+| NER-UK | 18,339 | 251 | 18,088 | 1.37% | 8 |
 | SentiCoref | 18,142 | 354 | 17,788 | 1.95% | 3 |
 | SETimes | 3,891 | 3 | 3,888 | 0.08% | 0 |
 | ssj500k | 11,411 | 54 | 11,357 | 0.47% | 5 |

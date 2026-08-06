@@ -43,7 +43,10 @@
 \title{When Is Multilingual Transfer Beneficial for Slavic Named Entity Recognition?}
 
 \author{
-  Nikola IVAČIČ,\textsuperscript{1, 2}\orcidlink{0009-0008-8016-9530}, Senja POLLAK\textsuperscript{1, 2}\orcidlink{0000-0002-4380-0863}, Jaya CAPORUSSO\textsuperscript{1, 2}\orcidlink{0009-0007-8030-2840}, Matthew PURVER \textsuperscript{1, 3}\orcidlink{0009-0008-8016-9530} and Nada LAVRAČ\textsuperscript{1, 3}\orcidlink{0000-0002-9995-7093}
+  Nikola IVAČIČ,\textsuperscript{1, 2}\orcidlink{0009-0008-8016-9530},
+  Senja POLLAK\textsuperscript{1, 2}\orcidlink{0000-0002-4380-0863},
+  Jaya CAPORUSSO\textsuperscript{1, 2}\orcidlink{0009-0007-8030-2840},
+  Matthew PURVER \textsuperscript{1, 4}\orcidlink{0000-0003-2297-1273} and Nada LAVRAČ\textsuperscript{1, 3}\orcidlink{0000-0002-9995-7093}
 }
 \institutions{
  \textsuperscript{1}Department of Knowledge Technologies, Jožef Stefan Institute, Jamova cesta 39, 1000 Ljubljana, Slovenia
@@ -62,29 +65,24 @@
 \begin{abstract}
 We study when multilingual transfer is practically worthwhile for Slavic named entity recognition (NER). 
 Heterogeneous corpora for twelve languages are harmonised to an IOB2 setup with three shared entity types: LOC, ORG, and PER. 
-The experiments are performed on manually annotated datasets for eight languages and on lower-confidence, automatically constructed auxiliary corpora for four additional languages.
+Across three multilingual Transformer encoders, the experiments use manually annotated datasets for eight languages and lower-confidence, automatically constructed auxiliary corpora for four additional languages.
 We analyse the effects of multilingual pooling, data quality (manually annotated vs automatically constructed datasets), target resource size, and target language retention. 
+An additional same-language Croatian ablation holds the added language and nominal token budget constant while comparing manually annotated HR500K with automatically constructed WikiANN/PAN-X supervision.
 We investigate whether a balanced shared multilingual model can replace strong monolingual baselines, whether lower-confidence auxiliary corpora help or hurt, how transfer changes under reduced target-language supervision, and whether full-target or full-pool multilingual training can recover the gap to monolingual models. 
 The results show that balanced multilingual training is not a universal substitute for monolingual specialisation, but it can strongly benefit lower-resource targets. 
 In the balanced setting, adding lower-confidence auxiliary corpora as equally weighted supervision consistently degrades performance, while preserving full target-language evidence makes multilingual models competitive again.
-In this setup, multilingual transfer for Slavic NER is beneficial only when source quality, target-resource size, and sampling strategy are carefully controlled.
-We release the resulting multilingual NER model publicly via Hugging Face: 
-\url{https://huggingface.co/ivlcic/sour-sarma}.
+In this setup, multilingual transfer is most reliable when full target-language evidence is preserved and heterogeneous auxiliary sources are included selectively.
+%We release the resulting multilingual NER model publicly via Hugging Face:
+%\url{https://huggingface.co/ivlcic/sour-sarma}.
 \end{abstract}
 \keywordseng{multilingual named entity recognition, cross-lingual transfer, Slavic languages, low-resource NLP, multilingual NLP}
 \break
 
 \section{Introduction}
-Named entity recognition (NER) is one of the core components of multilingual information access. 
-It supports search, entity-centric analytics, event monitoring, linking, anonymisation, and downstream retrieval pipelines. 
-
-For Slavic languages, the problem is especially interesting because resources vary widely between languages, annotation schemes are not perfectly aligned \parencite{Strakova2016, piskorski-etal-2024-cross, chaplynskyi-romanyshyn-2024-introducing}, and deployment settings often require a single system to cover many related languages rather than a separate monolingual model for each language.
-Multilingual language models and transfer-learning approaches have significantly reduced the barrier to cross-lingual transfer for many NLP tasks \parencite{rahimi-etal-2019-massively, pollak-etal-2021-embeddia}. 
-As a result, they have expanded the range of feasible multilingual applications, particularly in low-resource scenarios. 
-Cross-lingual learning offers an effective way to mitigate data scarcity, including in zero-shot and few-shot settings~\parencite{pelicon-etal-2021-zero} where the target language has little or no labelled data. 
-At the same time, achieving multilingual performance that approaches strong monolingual baselines is valuable not only for accuracy but also for simplicity and scalability, since a single shared model can replace multiple monolingual systems~\parencite{suppa2021benchmarking, prelevikj-zitnik-2021-multilingual}. 
-A comparison of different monolingual models and cross-lingual transfer scenarios is presented by~\textcite{ulcar2026monocross}, which shows a small decrease in cross-lingual zero-shot performance compared to monolingual models.
-Furthermore, multilingual training can remain beneficial even when target-language data are available, as additional supervision from other languages may still lead to improved results.
+Named entity recognition (NER) supports multilingual search, entity-centric analytics, event monitoring, linking, and anonymisation.
+For Slavic languages, uneven resource sizes and imperfectly aligned annotation schemes complicate both cross-lingual transfer and shared deployment~\parencite{Strakova2016, piskorski-etal-2024-cross, chaplynskyi-romanyshyn-2024-introducing}.
+Multilingual encoders make zero- and few-shot transfer feasible~\parencite{rahimi-etal-2019-massively, pollak-etal-2021-embeddia, pelicon-etal-2021-zero}, while a shared model can simplify deployment by replacing several monolingual systems~\parencite{suppa2021benchmarking, prelevikj-zitnik-2021-multilingual}.
+However, effectiveness varies by task and language~\parencite{ulcar2026monocross}, leaving open whether multilingual fine-tuning remains useful once labelled target-language data are available.
 
 Prior work examined whether incorporating closely related Slavic languages during fine-tuning improves target-language NER ~\parencite{ivacic-etal-2023-analysis}. 
 The results were mixed rather than uniformly favourable: multilingual training did not improve Slovene, yielded gains for Croatian only in selected configurations, and produced the clearest improvement for Serbian, which had the smallest target corpus. 
@@ -92,38 +90,34 @@ These findings suggest that the benefits of multilingual transfer are likely to 
 
 These observations motivate a more targeted follow-up question: not simply whether adding languages is beneficial, but under which conditions additional languages improve performance, when they instead introduce negative transfer, and how these effects depend on corpus quality, label-space compatibility, and the amount of target-language supervision.
 
-Additional motivation concerns deployment.
-In many large-scale multilingual processing pipelines, extraction using frontier large language models (LLMs) is not the most suitable first-stage approach.
-Applications such as high-volume news monitoring, repeated archive reprocessing, public-sector document analysis, and latency-sensitive workflows favour smaller sequence-labelling models that are computationally efficient, easy to batch, and straightforward to retrain or redeploy when annotation guidelines, taxonomies, or training data are revised~\parencite{ivacic-etal-2025-extreme}.
-Accordingly, compact multilingual NER remains important not only as a research problem but also as a useful component of systems. 
+The question also matters operationally.
+High-volume, repeated, or latency-sensitive extraction workloads favour compact sequence-labelling models that are efficient to batch, retrain, and redeploy when data or annotation schemes change~\parencite{ivacic-etal-2025-extreme}.
 
 This work makes two contributions. 
 First, it extends the earlier South-Slavic transfer analysis into a broader multilingual study centred on balanced pooled training, heterogeneous corpora, target-resource settings, target-retention experiments, and full-pool shared models. 
 Second, it turns these comparisons into practical guidance on when to use monolingual specialisation, balanced multilingual transfer, target-specific multilingual training, or a single shared full-pool model. 
-Our aim is not to position compact NER models as universal substitutes for generative systems, but rather to show when they remain a suitable and effective abstraction for high-volume multilingual extraction tasks.
 
 Five research questions guide this study. 
 The first three evaluate balanced multilingual transfer directly, while the final two separate multilingual transfer from the loss of target-language evidence caused by balancing.
 \begin{enumerate}[label=\textbf{RQ\arabic*.}, leftmargin=*, itemsep=-2pt, topsep=-3pt]
     \item Can a single balanced shared multilingual model match or outperform strong full-data monolingual baselines on the eight main evaluation languages?
-    We compare \texttt{Mono-L} with \texttt{Multi-8} on Bulgarian, Czech, Croatian, Polish, Russian, Slovene, Serbian, and Ukrainian.
-    \item Does extending the higher-quality, manually annotated 8-language multilingual pool with lower-confidence automatically constructed auxiliary corpora in four languages lead to further improvement, or does it introduce negative transfer?
-    We compare \texttt{Multi-8} with \texttt{Multi-12}, which additionally includes automatically constructed data for Bosnian, Macedonian, Slovak, and Albanian.
-    %\item How does the multilingual advantage change as the amount of target-language supervision decreases?
-    %We construct target-resource profiles for Serbian and Slovene at 10\%, 25\%, 50\%, and 100\% of each language's own training data.
-    \item How does the multilingual advantage change under reduced target-language supervision? We construct relative-budget profiles for Serbian and Slovene at 10\%, 25\%, 50\%, and 100\%, where monolingual budgets are fractions of the full target-language training set and multilingual budgets are fractions of the balanced target-language quota.
+    We compare separate full-data monolingual models, one per target (\texttt{Mono-L}), with one balanced shared model over the eight main languages (\texttt{Multi-8}) on Bulgarian, Czech, Croatian, Polish, Russian, Slovene, Serbian, and Ukrainian.
+    \item Does adding lower-confidence automatically constructed data to balanced multilingual training help or cause negative transfer, and does source quality matter?
+    We compare the balanced eight-language model with its twelve-language counterpart (\texttt{Multi-12}), then isolate source quality through a Croatian ablation with the same nominal token budget.
+    \item How does the performance gap between monolingual and balanced multilingual training change across relative target-resource budgets?
+    We construct relative-budget profiles for Serbian and Slovene at 10\%, 25\%, 50\%, and 100\%, where monolingual budgets are fractions of the full target-language training set and multilingual budgets are fractions of the balanced target-language quota.
     \item When a balanced shared multilingual model underperforms monolingual baselines, is the loss mainly caused by target-language downsampling, and can cross-lingual transfer still help through target-specific training?
-    We compare \texttt{Mono-L}, \texttt{Multi-8}, \texttt{Multi8-full-L}, and \texttt{Pretrain-Multi7-full-L}.
-    \item For practical deployment, can a full-pool shared multilingual model recover monolingual-level performance, and how should lower-confidence auxiliary data be weighted? 
-    We compare \texttt{Full-Multi8}, \texttt{Full-Multi12}, and \texttt{Full-Multi12-CapAux}.
+    We compare the monolingual and balanced shared baselines with target-specific multilingual models that retain all target data (\texttt{Multi8-full-L}) and with leave-one-target-out multilingual pretraining followed by full-target adaptation (\texttt{Pretrain-Multi7-full-L}).
+    \item For practical deployment, can a full-pool shared multilingual model recover monolingual-level performance, and does capping lower-confidence auxiliary data improve over adding them in full?
+    We compare shared models trained on the complete eight- and twelve-language pools (\texttt{Full-Multi8} and \texttt{Full-Multi12}) with a twelve-language variant that caps the auxiliary contribution (\texttt{Full-Multi12-CapAux}).
 \end{enumerate}
 
 The working hypothesis behind these questions is that multilingual transfer is most useful for less-represented target languages, but only when the added data are sufficiently compatible and when training does not remove too much target-language evidence.
 In other words, the central trade-off is not simply monolingual versus multilingual training, but quality, target evidence, and transfer recipe.
 %\hl{link za cross lingual training strategies  v komentarju}%https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10892119
 
-The rest of the paper is organised as follows. 
-We first present the related work. We then describe the corpora used in the study, the preprocessing steps applied to them, and the resulting corpus analysis. This is followed by a presentation of the methodology, including the evaluation measures, models, hyperparameters, and software environment. Finally, we report and discuss the experimental results and conclude with the study's main findings and implications.
+% The rest of the paper is organised as follows.
+% We first present the related work. We then describe the corpora used in the study, the preprocessing steps applied to them, and the resulting corpus analysis. This is followed by a presentation of the methodology, including the evaluation measures, models, hyperparameters, and software environment. Finally, we report and discuss the experimental results and conclude with the study's main findings and implications.
 
 
 \section{Related work}
@@ -131,7 +125,7 @@ Research on NER for Slavic languages covers monolingual systems, annotated corpo
 Work on Croatian and Slovene included CroNER~\parencite{karan-2013-croner}, joint Croatian--Slovene CRF-based NER modelling~\parencite{ljubevsic2013combining}, NER for Croatian tweets~\parencite{baksa2016tagging}, and the manually annotated SETimes.HR corpus~\parencite{agic2014setimes}. 
 Additional resources have been developed for Slovene~\parencite{krek2020a-ssj500k}, Croatian~\parencite{hr500k-10}, and Serbian~\parencite{SETimes-SR-1.0}.
 
-Czech NER has been addressed through an annotated corpus containing more than 11,000 named-entity instances, together with a CRF-based recogniser~\parencite{konkol2013crf, CNEC-2.0}. 
+Czech NER resources include CNEC 2.0, which contains 8{,}993 sentences annotated with 35{,}220 named entities, as well as CRF-based recognition work~\parencite{CNEC-2.0, konkol2013crf}.
 In Polish, prior work has introduced annotation schemes and resources for the National Corpus of Polish~\parencite{waszczuk2010tools, savary2011language}, as well as methods for named-entity lemmatisation~\parencite{piskorski2009knowledge, marcinczuk2017lemmatization}. 
 
 Polish NER has also been evaluated in shared-task settings: PolEval 2018~\parencite{ogrodniczuk-poleval-2018} included an NER task, while PolEval 2020~\parencite{ogrodniczuk-poleval-2020} focused more broadly on information extraction and entity typing.
@@ -140,8 +134,7 @@ For Russian, key benchmarks include FactRuEval 2016~\parencite{as2016factrueval}
 At the multilingual level, SemEval 2022 Task 11 (MultiCoNER) includes Russian~\parencite{malmasi2022semeval}, and SemEval 2023 Task 2 (MultiCoNER 2) includes Ukrainian~\parencite{fetahu2023semeval}.
 
 More broadly, the BSNLP/Slav-NER shared tasks from 2017 to 2023 advance cross-lingual NER, normalisation, and linking for Slavic languages. 
-The 2024 cross-lingual Slavic named entity corpus~\parencite{piskorski-etal-2024-cross} was created by merging and curating data from the \textcite{piskorski-etal-2017-first, piskorski-etal-2019-second, piskorski-etal-2021-slav, yangarber-etal-2023-slav} editions of those shared tasks, adding positional information for entity mentions. %distinguishing cross-topic generalisation across heterogeneous text settings.
-%The paper is also useful methodologically because it distinguishes cross-topic generalisation from in-domain evaluation, reminding us that multilingual models should be judged not only by average held-out F1-score but also by how well they transfer across heterogeneous text settings.
+The 2024 cross-lingual Slavic named entity corpus~\parencite{piskorski-etal-2024-cross} was created by merging and curating data from the \textcite{piskorski-etal-2017-first, piskorski-etal-2019-second, piskorski-etal-2021-slav, yangarber-etal-2023-slav} editions of those shared tasks, adding positional information for entity mentions.
 
 \section{Data description}
 \label{sec:data}
@@ -152,12 +145,13 @@ However, the resulting training pool is heterogeneous rather than uniform (see T
 \begin{table}[H]
 \centering
 \small
-\caption{NER corpora used in the experiments. Sentence and token counts refer to the harmonised corpus versions used in our pipeline after conversion to a shared IOB2 format. We distinguish higher-confidence manually curated corpora from lower-confidence auxiliary corpora derived from WikiANN / PAN-X. }
+\caption{NER corpora used in the experiments. Sentence and token counts refer to the prepared corpus versions after format conversion and before random splitting, exact-sentence deduplication, and task-specific label harmonisation.
+We distinguish higher-confidence manually curated corpora from lower-confidence data derived from WikiANN / PAN-X.}
 \label{tab:corpora}
 \resizebox{0.74\textwidth}{!}{
 \begin{tabular}{lllrr}
 \toprule
-Language & Abbreviation & Corpus & Sentences & Tokens \\
+Language & Data key & Corpus & Sentences & Tokens \\
 \midrule
 \multicolumn{5}{l}{\textit{Higher-confidence manually curated corpora}} \\
 Bulgarian & bg & BSNLP / SlavNER & 18,333 & 430,871 \\
@@ -179,41 +173,33 @@ Bosnian & bs & WikiANN / PAN-X & 18,810 & 162,765 \\
 Macedonian & mk & WikiANN / PAN-X & 16,227 & 161,801 \\
 Slovak & sk & WikiANN / PAN-X & 50,907 & 411,950 \\
 Albanian & sq & WikiANN / PAN-X & 10,098 & 77,043  \\
+\midrule
+\multicolumn{5}{l}{\textit{Additional source used only in the Croatian source-quality ablation}} \\
+Croatian & hr-wikiann & WikiANN / PAN-X & 48,885 & 421,265 \\
 \bottomrule
 \end{tabular}
 }
 \end{table}
  
-The dataset combines manually curated language-specific corpora, multilingual shared-task data, and automatically constructed auxiliary corpora. 
-For this reason, we distinguish between higher-confidence manually curated resources and lower-confidence auxiliary data.
-
-The corpora differ not only in size and provenance, but also in label inventory. 
-Manually curated resources such as \texttt{BSNLP/SlavNER}, \texttt{hr500k}, \texttt{SETimes.SR}, \texttt{CNEC 2.0}, and \texttt{NER-UK 2.0} contain richer, and in some cases incompatible, named-entity taxonomies. In contrast, the \texttt{WikiANN/PAN-X} corpora provide only the coarse categories \texttt{PER}, \texttt{LOC}, and \texttt{ORG}. 
-
-The multilingual \texttt{BSNLP/SlavNER} is based on shared-task data~\parencite{piskorski-etal-2021-slav,piskorski-etal-2024-cross}, which produced manually annotated Slavic-language news and web corpora for named-entity recognition, normalisation, and cross-lingual linking. 
-In the broader cross-lingual corpus description, this line of work is summarised as a manually annotated, six-language corpus comprising 5{,}017 documents and 152{,}888 named-entity mentions, with five entity categories and dedicated cross-topic and single-topic-out splits. 
-In our setup, BSNLP-derived data provide the core shared-task component for Bulgarian, Czech, Polish, Russian, Ukrainian, and part of Slovene. 
-
-Slovene combines the \texttt{BSNLP/SlavNER} portion with NER-relevant material drawn from the Slovene training corpus \texttt{SUK}~\parencite{SUK-1.0}. 
-SUK is an umbrella training corpus of about one million tokens, created by upgrading \texttt{ssj500k}~\parencite{ssj500k-23} with additional subcorpora, most notably \texttt{SentiCoref 1.0}~\parencite{SentiCoref-10}, \texttt{ELEXIS-WSD}~\parencite{ELEXIS-WSD-10} for Slovene, which contain named-entity annotations. 
-In \texttt{SUK}, none of the subcorpora is originally a stand-alone NER corpus.
-Among these Slovene resources, \texttt{ssj500k 2.3} is the canonical manually curated morphosyntactic training corpus, with named entities annotated in about half of the corpus, while \texttt{SentiCoref 1.0} and \texttt{ELEXIS-WSD} add an additional layer of person, organisation, and location mentions, along with coreference, sentiment and parallel sense annotations.
-
-For Croatian and Serbian, we rely on the established reference corpora \texttt{hr500k 1.0}~\parencite{hr500k-10} and \texttt{SETimes.SR 1.0}~\parencite{SETimes-SR-1.0}. Both are manually curated South-Slavic training corpora with tokenisation, sentence segmentation, morphosyntactic annotation, and named entities; \texttt{SETimes.SR} additionally includes syntactic dependencies, while \texttt{hr500k} also contains partial dependency and semantic-role annotation. 
-
-Czech and Ukrainian are augmented with language-specific corpora in addition to the BSNLP data. 
-For Czech, we add \texttt{CNEC}~\parencite{CNEC-2.0}, a manually annotated named-entity corpus with a fine-grained Czech-specific taxonomy. 
-For Ukrainian, we complement the BSNLP portion with \texttt{NER-UK 2.0}~\parencite{chaplynskyi-romanyshyn-2024-introducing}, a manually annotated multi-genre corpus with 560 texts and 13 entity types. 
-
-Finally, for Bosnian, Macedonian, Slovak, and Albanian, we use \texttt{WikiANN/PAN-X}~\parencite{rahimi-etal-2019-massively}. 
-This resource is qualitatively different from the manually curated corpora above: it is a multilingual Wikipedia-based dataset with automatically constructed IOB2 annotations for three coarse categories, \texttt{PER}, \texttt{LOC}, and \texttt{ORG}. 
-In our earlier South-Slavic study, corpora of this type stood out clearly in sentence-length and label-ratio statistics, which is why they were treated as useful additional training data but not as gold-standard target-language evaluation sets. 
+Table~\ref{tab:corpora} gives the corpus inventory and prepared sizes; source and annotation details follow the corresponding releases~\parencite{piskorski-etal-2021-slav,piskorski-etal-2024-cross,CNEC-2.0,hr500k-10,SUK-1.0,ssj500k-23,ELEXIS-WSD-10,SentiCoref-10,SETimes-SR-1.0,chaplynskyi-romanyshyn-2024-introducing}.
+The distinction relevant to our design is annotation compatibility: the manually curated resources use richer and sometimes incompatible taxonomies, whereas the automatically constructed \texttt{WikiANN/PAN-X} data provide only \texttt{PER}, \texttt{LOC}, and \texttt{ORG}~\parencite{rahimi-etal-2019-massively}.
+This difference motivates the common label space described below; as indicated in the table, the Croatian WikiANN/PAN-X source remains separate and is used only for the source-quality ablation.
 
 \subsection{Data preparation}
 \label{sec:corpus_prep}
-To enable multilingual pooling, we first converted all corpora to a shared IOB2 representation and then harmonised them into a common coarse-grained label space. 
+To enable multilingual pooling, we first converted all corpora to a common sentence-level IOB2 representation.
+For languages represented by multiple source corpora, we pool all prepared sentences that share a language data key before constructing the split; we do not split each source corpus separately and then pool the resulting partitions.
+For each random seed, the pooled sentences within each data key were randomly divided into training, validation, and test partitions using an 80/10/10 ratio.
+Exact sentence duplicates were then removed independently within each data key.
+Duplicate matching uses the NFKC-normalised, case-folded token sequence; when a duplicate crosses partitions, the test occurrence is retained over validation and training, and validation is retained over training.
+Repetitions within a partition are also removed.
+The manually annotated Croatian and Croatian WikiANN sources instead retain separate data keys, so they are split independently and are not deduplicated against one another.
+Across the prepared collection in Table~\ref{tab:corpora}, this procedure removes 48,225 of 331,498 sentence occurrences (14.55\%), leaving 283,273.
+
+The deduplicated samples used in the NER experiments are subsequently harmonised into a common coarse-grained label space.
 We use three entity types, \texttt{PER}, \texttt{ORG}, and \texttt{LOC}, as these are the only labels consistently available across all 12 languages. 
-Corpus-specific fine-grained labels were mapped to the closest coarse category when this was unambiguous; otherwise, they were excluded from the main setup. 
+Corpus-specific fine-grained labels were mapped to the nearest coarse category when the mapping was clear.
+Remaining unsupported entity labels, including \texttt{MISC}, were mapped to \texttt{O}, while their tokens and sentences were retained.
 This choice reduces label-space asymmetry in multilingual training and makes the comparison between monolingual and multilingual models more interpretable. 
 \begin{figure}[H]
 \centering
@@ -235,14 +221,16 @@ This choice reduces label-space asymmetry in multilingual training and makes the
 \end{subfigure}
 \label{fig:labeldist}
 \end{figure}
-Even after harmonisation, the corpus collection remains strongly imbalanced in both size and annotation density (see Figure~\ref{fig:entity-density-by-language}). 
-When we collapse \texttt{B-} and \texttt{I-} prefixes and consider only \texttt{LOC}, \texttt{ORG}, and \texttt{PER}, the four auxiliary datasets for Bosnian, Macedonian, Slovak, and Albanian contribute 813{,}559 tokens, i.e.\ only 17.8\% of all training tokens, but 278{,}397 entity-labelled tokens, i.e.\ 47.0\% of all \texttt{LOC}/\texttt{ORG}/\texttt{PER} labels. 
-By contrast, the eight main language-specific datasets contribute 82.2\% of tokens but only 53.0\% of the collapsed entity labels. 
-This difference is reflected in annotation density: the auxiliary group contains 342.2 entity-labelled tokens per 1{,}000 tokens, compared with only 83.7 per 1{,}000 tokens in the main group. 
-The auxiliary corpora also have much shorter average sentence length (8.5 vs 20.1 tokens per sentence), which indicates that the multilingual training signal differs not only in corpus provenance but also in segmentation and annotation style.
+After harmonisation, the core twelve-language training collection remains strongly imbalanced in both size and annotation density (see Figure~\ref{fig:entity-density-by-language}).
+The figure and the following descriptive statistics use the \texttt{Full-Multi12} training split for a single seed after splitting, deduplication, and label harmonisation.
+They exclude the additional Croatian WikiANN/PAN-X source, which was used only in the ablation.
+When we collapse \texttt{B-} and \texttt{I-} prefixes and consider only \texttt{LOC}, \texttt{ORG}, and \texttt{PER}, the four auxiliary datasets for Bosnian, Macedonian, Slovak, and Albanian contribute 494{,}749 tokens, i.e.\ only 15.1\% of all training tokens in this collection, but 158{,}514 entity-labelled tokens, i.e.\ 40.7\% of all \texttt{LOC}/\texttt{ORG}/\texttt{PER} labels.
+By contrast, the eight main language-specific datasets contribute 84.9\% of tokens and 59.3\% of the collapsed entity labels.
+This difference is reflected in annotation density: the auxiliary group contains 320.4 entity-labelled tokens per 1{,}000 tokens, compared with only 83.1 per 1{,}000 tokens in the main group.
+The auxiliary corpora also have much shorter average sentence length (9.2 vs 20.3 tokens per sentence), which indicates that the multilingual training signal differs not only in corpus provenance but also in segmentation and annotation style.
 
-At the level of label composition, the main and auxiliary groups are surprisingly similar once \texttt{MISC} is removed. 
-In the main group, \texttt{LOC}, \texttt{ORG}, and \texttt{PER} account for 28.9\%, 37.4\%, and 33.7\% of all collapsed entity labels, respectively; in the auxiliary group, the corresponding shares are 28.9\%, 37.2\%, and 33.9\%. 
+At the level of label composition, the main and auxiliary groups remain broadly similar once \texttt{MISC} is removed.
+In the main group, \texttt{LOC}, \texttt{ORG}, and \texttt{PER} account for 28.6\%, 37.5\%, and 33.9\% of all collapsed entity labels, respectively; in the auxiliary group, the corresponding shares are 32.8\%, 33.3\%, and 33.9\%.
 Label composition suggests that the main source of mismatch is not the relative balance between the three shared entity types, but rather the much higher annotation density and shorter sentence segmentation in the auxiliary corpora (see Figure~\ref{fig:label-composition-by-language}). 
 For that reason, naive concatenation can overexpose a multilingual model to auxiliary corpora entity supervision. 
 We therefore treat the sampling strategy as an explicit experimental factor. 
@@ -253,7 +241,8 @@ The balanced multilingual settings equalise language exposure and make cross-lan
 \label{sec:method}
 
 \subsection{Task setup}
-We cast named entity recognition (NER) as token-level sequence labelling on tokenised sentences, using the IOB2 scheme. In the experiments, we predict the three coarse-grained entity types \texttt{LOC}, \texttt{ORG}, and \texttt{PER}, together with the outside label \texttt{O}. 
+We cast named entity recognition (NER) as token-level sequence labelling on tokenised sentences, using the IOB2 scheme.
+The classifier predicts seven tags: the outside label \texttt{O}, together with \texttt{B-} and \texttt{I-} tags for each of the three coarse-grained entity types \texttt{LOC}, \texttt{ORG}, and \texttt{PER}.
 
 We consider 12 languages: Bulgarian, Bosnian, Czech, Croatian, Macedonian, Polish, Russian, Slovak, Slovene, Albanian, Serbian, and Ukrainian. We denote the corresponding set of language codes as
 \[
@@ -263,298 +252,397 @@ Following the data-quality distinction introduced in Section~\ref{sec:data}, we 
 \[
 L_8 = \{\texttt{bg}, \texttt{cs}, \texttt{hr}, \texttt{pl}, \texttt{ru}, \texttt{sl}, \texttt{sr}, \texttt{uk}\}
 \text{ and  }
-A = \{\texttt{bs}, \texttt{mk}, \texttt{sq}, \texttt{sk}\}.
+A = \{\texttt{bs}, \texttt{mk}, \texttt{sk}, \texttt{sq}\}.
 \]
-All main comparisons are reported on $L_8$. The auxiliary group is used only within the multilingual training pool to test whether adding noisier cross-lingual supervision improves or degrades a shared model.
+All evaluation languages belong to $L_8$, while the auxiliary group $A$ is used only within the multilingual training pool to test whether adding noisier cross-lingual supervision improves or degrades a shared model.
+The shared core comparisons are reported over all languages in $L_8$, whereas the target-resource profiles are restricted to Serbian and Slovene.
 
-A direct concatenation of all corpora would cause large datasets to dominate multilingual training. 
-For each balanced multilingual pool $P$, we therefore define a seed-specific token quota
+For the controlled Croatian source-quality ablation, we define
 \[
-T_P = \min_{\ell \in P} |D_{\ell}^{\mathrm{train}}|,
+L_7 = L_8 \setminus \{\texttt{hr}\}.
 \]
-where $|D_{\ell}^{\mathrm{train}}|$ is the number of training tokens for language $\ell$ after the 80/10/10 split. 
-Therefore, the balanced \texttt{Multi-8} quota is determined by Serbian, the smallest training split in $L_8$, and is approximately $T_{8}=69{,}501$ tokens in the statistics split. 
-The balanced \texttt{Multi-12} quota is determined by Albanian, the smallest training split in $L_{12}$, and is approximately $T_{12}=61{,}903$ tokens in the statistics split.
+Starting from the same balanced $L_7$ pool (\texttt{Multi7-no-hr}), we add either manually annotated \texttt{HR500K} (\texttt{Multi7+HR500K}) or Croatian \texttt{WikiANN/PAN-X} (\texttt{Multi7+HR-WikiANN}).
+All three conditions are evaluated on $L_7$.
+Within each seed, all three conditions use the same nominal per-language token budget, determined by the smallest $L_7$ training split.
+Neither Croatian source is oversampled.
 
-Sampling is performed at the sentence level. 
-For each language, we shuffle the training sentences and sample without replacement until the cumulative token count reaches or first exceeds the corresponding quota $T_P$. 
-Because complete sentences are retained, the realised token totals can be slightly above the nominal quota. 
-Regarding the statistics split, the realised \texttt{Multi-8} language totals range from 69{,}501 to 69{,}540 tokens, while the realised \texttt{Multi-12} totals range from 61{,}903 to 61{,}963 tokens. 
-The quota is recomputed separately for each random seed after the seed-specific train--development--test split. 
-Within a run, the sampled training pool is fixed and reused across epochs; batches are reshuffled during training, but the multilingual pool is not resampled at every epoch.
+A direct concatenation of all corpora would cause large datasets to dominate multilingual training.
+After each seed-specific split and deduplication, we therefore balance every multilingual pool to the training-token count of its smallest language.
+%Serbian determines the per-language budget for \texttt{Multi-8}, which ranges from 69{,}115 to 69{,}743 tokens across the three seeds; Albanian determines it for \texttt{Multi-12}, where it ranges from 34{,}664 to 35{,}428 tokens.
+Serbian sets the per-language budget for \texttt{Multi-8}, with values ranging from 69{,}115 to 69{,}743 tokens across the three seeds, while Albanian sets the corresponding budget for \texttt{Multi-12}, where it ranges from 34{,}664 to 35{,}428 tokens.
+For each language, we shuffle the training sentences and sample without replacement until this budget is reached or first exceeded.
+Retaining complete sentences can cause a small overshoot.
+Within a run, the resulting training pool remains fixed across epochs, while batches are reshuffled.
 
 This procedure keeps exposure comparable across languages, but it can also heavily downsample large target languages. 
 We therefore add full-target and full-pool variants that deliberately relax this balancing constraint to distinguish negative transfer from the loss of target-language evidence.
 
 \subsection{Experimental settings}
-We compare six model families.
+Across three pretrained multilingual Transformer encoder architectures, we evaluate seven families of training configurations.
 \begin{enumerate}[leftmargin=*, itemsep=-2pt, topsep=-3pt]
 %\begin{itemize}\setlength\itemsep{0.6em}
     \item \textbf{Monolingual baselines (\texttt{Mono-L}).}
-    For each evaluation language $L \in L_8$, we train one monolingual model using only the full training set of that language. These runs provide strong practical baselines and reflect the best single-language setting available for each target. Because corpus sizes differ substantially across languages, these baselines are not token-matched across $L$; instead, each language uses all available target-language data.
+    For each evaluation language $L \in L_8$, we train one monolingual model using only the full training set of that language.
+    These runs provide strong practical baselines and reflect the best single-language setting available for each target.
+    Because corpus sizes differ substantially across languages, these baselines are not token-matched across $L$; instead, each language uses all available target-language data.
 
     \item \textbf{Balanced shared multilingual model on eight languages (\texttt{Multi-8}).}
-    We train one shared multilingual model on the eight higher-confidence evaluation languages in $L_8$ using balanced per-language sampling. This condition tests whether a compact shared multilingual model trained on the cleaner subset can match or outperform the corresponding monolingual baselines.
+    We train one shared multilingual model on the eight higher-confidence evaluation languages in $L_8$ using balanced per-language sampling.
+    This condition tests whether a compact shared multilingual model trained on the cleaner subset can match or outperform the corresponding monolingual baselines.
 
     \item \textbf{Balanced shared multilingual model on twelve languages (\texttt{Multi-12}).}
     We train one shared multilingual model on the full language pool $L_{12} = L_8 \cup A$, again using balanced per-language sampling. 
     This condition tests the balanced twelve-language design: it adds the four lower-confidence auxiliary corpora and, because the quota is recomputed over $L_{12}$, uses a lower per-language quota for the main languages than \texttt{Multi-8}.
 
+    \item \textbf{Controlled Croatian source-quality ablation.}
+    We compare \texttt{Multi7-no-hr}, \texttt{Multi7+HR500K}, and \texttt{Multi7+HR-WikiANN} to isolate source quality while holding the added language and nominal token budget constant.
+
     \item \textbf{Target-specific full-target multilingual models (\texttt{Multi8-full-L}).}
-    For each target language $L \in L_8$, we train a target-specific multilingual model that retains all available training data for $L$ while adding controlled contributions from the other seven higher-confidence datasets in $L_8 \setminus \{L\}$. This condition asks whether clean multilingual augmentation helps once the target language is no longer downsampled.
+    For each target language $L \in L_8$, we train a target-specific multilingual model that retains all available training data for $L$ while giving each of the other seven higher-confidence datasets the same seed-specific token budget used in \texttt{Multi-8}.
+    This condition asks whether clean multilingual augmentation helps once the target language is no longer downsampled.
 
     \item \textbf{Leave-one-target-out multilingual pretraining (\texttt{Pretrain-Multi7-full-L}).}
-    For each target language $L$, we first train a multilingual model on the seven higher-confidence datasets in $L_8 \setminus \{L\}$, excluding the target language entirely. We then continue fine-tuning on the full target-language training set for $L$. This two-stage setup tests whether the other clean Slavic languages provide a useful pretraining signal before target-only adaptation.
+    For each target language $L \in L_8$, we first train a balanced multilingual model on the seven higher-confidence datasets in $L_8 \setminus \{L\}$, excluding the target language entirely and recomputing the common quota over the remaining languages.
+    We then continue fine-tuning on the full target-language training set for $L$.
+    This two-stage setup tests whether the other clean Slavic languages provide a useful pretraining signal before target-only adaptation.
 
     \item \textbf{Full-pool shared multilingual models.}
-    Finally, we train shared multilingual models that preserve all available main-language data rather than balancing each language down to a common quota. \texttt{Full-Multi8} uses the complete $L_8$ pool. \texttt{Full-Multi12} adds all four auxiliary languages. 
-    \texttt{Full-Multi12-CapAux} keeps the full $L_8$ pool but caps each auxiliary dataset at $T_{12}$, testing whether lower-confidence WikiANN/PAN-X-derived data are harmful because they are added at all or because they receive too much effective weight.
+    Finally, we train shared multilingual models that preserve all available main-language data rather than balancing each language down to a common quota. \texttt{Full-Multi8} uses the complete $L_8$ pool.
+    \texttt{Full-Multi12} adds all four auxiliary languages.
+    \texttt{Full-Multi12-CapAux} keeps the full $L_8$ pool but caps each auxiliary dataset at the seed-specific per-language budget used in \texttt{Multi-12}, testing whether lower-confidence WikiANN/PAN-X-derived data are harmful because they are added at all or because they receive too much effective weight.
 \end{enumerate}
 
 Together, these settings separate three effects that are otherwise confounded: multilingual transfer, source-data quality, and the amount of target-language evidence retained during training.
 
 \subsection{Target-resource profiles}
-To analyse how multilingual gains change as target-language supervision becomes scarcer, we construct target-resource profiles for Serbian (\texttt{sr}) and Slovene (\texttt{sl}). These languages were chosen because they represent opposite ends of the clean-data spectrum in our setup: Serbian is the smallest higher-confidence target language dataset, while Slovene is the largest.
+To analyse how the performance gap between monolingual and balanced multilingual training changes with target-resource availability, we construct relative-budget profiles for Serbian (\texttt{sr}) and Slovene (\texttt{sl}).
+These languages were chosen because they represent opposite ends of the clean-data spectrum in our setup: Serbian is the smallest higher-confidence target language dataset, while Slovene is the largest.
 
-For each target language $g \in \{\texttt{sr}, \texttt{sl}\}$, we define nested training subsets
+For each target language $g \in \{\texttt{sr}, \texttt{sl}\}$ and seed $s$, we use one seed-specific shuffle of the target-language training sentences to construct nested subsets
 \[
-D_g^{10} \subset D_g^{25} \subset D_g^{50} \subset D_g^{100} = D_g,
+D_{g,s}^{10} \subset D_{g,s}^{25} \subset D_{g,s}^{50} \subset D_{g,s}^{100} = D_{g,s}^{\mathrm{train}}.
 \]
-corresponding to $10\%$, $25\%$, $50\%$, and $100\%$ of that language's own training data. The percentages are therefore within-language relative budgets rather than matched absolute token counts across languages.
+For the monolingual profile, at each percentage $p \in \{10,25,50,100\}$, we retain complete sentences from the same seed-specific shuffled order until $p$ percent of the tokens in the full target-language training split is first reached or exceeded.
+Reusing the same sentence order makes the resulting subsets nested, while complete-sentence sampling can place the realised token count slightly above the nominal budget.
+The \texttt{Mono-g@p} model is trained only on the resulting subset.
 
-For the monolingual profiles, \texttt{Mono-g@p} is trained only on $D_g^p$, where $p \in \{10,25,50,100\}$. For the multilingual target-specific variants, we reduce only the target-language contribution while keeping the rest of the multilingual pool unchanged. Concretely, in \texttt{Multi-8-g@p} and \texttt{Multi-12-g@p}, the target-language quota is set to
-\[
-q_g^p = \frac{p}{100}T,
-\]
-while all non-target languages retain the full multilingual quota $T$.
-Here $T$ denotes the quota of the corresponding multilingual pool: $T_8$ for \texttt{Multi-8-g@p} and $T_{12}$ for \texttt{Multi-12-g@p}. 
-Consequently, especially for Slovene, monolingual and multilingual results with the same nominal percentage are relative-budget comparisons rather than target-token-matched comparisons.
+For the multilingual profiles, we reduce only the target-language contribution while keeping the non-target-language samples unchanged.
+At each nominal percentage, \texttt{Multi-8-g@p} and \texttt{Multi-12-g@p} retain that percentage of the target-language sample used by the corresponding balanced model, while every non-target language retains its complete balanced sample.
+Complete-sentence sampling can again cause a small overshoot. The $p=100$ points reuse the standard \texttt{Mono-g}, \texttt{Multi-8}, and \texttt{Multi-12} models; only the $10\%$, $25\%$, and $50\%$ points require additional profile runs.
 
-This design decreases both the amount of unique target-language evidence and its effective weight within the multilingual pool, making the target-resource profiles directly interpretable as a function of target-data scarcity.
+The same nominal percentage therefore represents a relative-budget comparison and is not generally target-token matched between monolingual and multilingual profiles.
+Serbian \texttt{Mono} versus \texttt{Multi-8} is the exception because Serbian is the smallest language in $L_8$ and therefore determines the balanced per-language budget.
+The discrepancy is especially large for Slovene.
+Within each configuration family, reducing $p$ decreases both the amount of unique target-language evidence and its effective weight in the multilingual pool, providing a controlled profile of target-data scarcity.
 
 \subsection{Model and training configuration}
-All experiments use the same pretrained multilingual \texttt{mmBERT-base}~\parencite{marone2025mmbertmodernmultilingualencoder} transformer encoder model and the same optimisation settings; only the composition of the training data changes across runs. 
-We use a model from the Hugging Face Transformers library~\parencite{wolf-etal-2020-transformers}, extended with a token classification head.
+We evaluate three pretrained multilingual Transformer encoders: \texttt{mmBERT} (\texttt{jhu-clsp/mmBERT-base})~\parencite{marone2025mmbertmodernmultilingualencoder}, \texttt{mDeBERTa-v3} (\texttt{microsoft/mdeberta-v3-base})~\parencite{he2021debertav3}, and \texttt{XLM-R} (\texttt{FacebookAI/xlm-roberta-base})~\parencite{conneau2019xlmr}.
+The checkpoints are loaded through the Hugging Face Transformers library~\parencite{wolf-etal-2020-transformers} with their corresponding token-classification architectures.
 
-We adopted the learning rate and scheduler configuration of \textcite{piskorski-etal-2024-cross} to retain comparability with their Slavic NER benchmark, rather than as the result of an \texttt{mmBERT}-specific hyperparameter search.
-Specifically, we use AdamW~\parencite{loshchilov2019decoupledweightdecayregularization} with a learning rate of $5 \times 10^{-6}$, linear learning-rate decay without warmup, no weight decay, a maximum sequence length of 256 tokens, and a batch size of 16.
-Whereas \textcite{piskorski-etal-2024-cross} trained for 5 epochs, we train each model for up to 20 epochs and select the checkpoint with the highest validation F1-score, reducing the risk of underfitting under this conservative learning rate.
-These optimisation settings are held fixed across all experimental conditions so that the controlled comparisons isolate changes in training-data composition; however, they were not independently optimised for \texttt{mmBERT}, and the absolute scores may depend on the optimisation recipe.
-In total, we evaluate 47 final model configurations, each repeated 3 times with a different random seed that controls the 80/10/10 train--validation--test split, reshuffling, resampling, and model training. 
-The \texttt{Pretrain-Multi7-full-L} configurations are two-stage runs, but they are evaluated in the same way as the other final models.
+Before running the full experiment grid, we select the learning rate and dropout through a bounded \texttt{Multi-8} validation sweep that also includes \texttt{BERTi\'{c}} (\texttt{classla/bcms-bertic})~\parencite{ljubesic-lauc-2021-bertic} as a fourth candidate encoder.
+For \texttt{mmBERT}, we test learning rates of $\{1,2,3\} \times 10^{-5}$ with dropout values of 0.05 and 0.10;
+for \texttt{mDeBERTa-v3}, we test $\{1,1.5,2,2.5\} \times 10^{-5}$ with dropout values of 0.10 and 0.15;
+for \texttt{XLM-R}, we test $\{1,2\} \times 10^{-5}$ with dropout values of 0.10 and 0.15;
+and for \texttt{BERTi\'{c}}, we test $\{1,3,5,10\} \times 10^{-5}$ with dropout fixed at 0.10.
+The sweep therefore contains 22 candidate settings: six for \texttt{mmBERT}, eight for \texttt{mDeBERTa-v3}, four for \texttt{XLM-R}, and four for \texttt{BERTi\'{c}}.
+Each candidate setting is trained for up to 15 epochs with three random seeds and ranked by mean macro validation F1 over $L_8$; test scores are not used for selection.
+The best \texttt{BERTi\'{c}} setting reaches 89.71 validation macro F1, compared with 91.41 for \texttt{mmBERT}, 91.90 for \texttt{mDeBERTa-v3}, and 91.46 for \texttt{XLM-R}; each retained encoder also exceeds \texttt{BERTi\'{c}} on every seed.
+Given this consistent validation gap and the computational cost of running another complete configuration grid, we do not carry \texttt{BERTi\'{c}} into the main experiments.
+%For those experiments, the sweep selects a learning rate of $2 \times 10^{-5}$ for all three retained encoders, with dropout 0.05 for \texttt{mmBERT} and 0.10 for \texttt{mDeBERTa-v3} and \texttt{XLM-R}; the selected setting for each encoder is then fixed across all data configurations.
+%Here, dropout denotes classifier-head dropout for \texttt{mmBERT} and \texttt{XLM-R}; for \texttt{mDeBERTa-v3}, the Transformers implementation maps this setting to hidden dropout, which also affects the encoder layers.
+For these experiments, the sweep selects a learning rate of $2 \times 10^{-5}$ for all three retained encoders, with dropout set to 0.05 for \texttt{mmBERT} and 0.10 for \texttt{mDeBERTa-v3} and \texttt{XLM-R}.
+The selected setting for each encoder is then fixed across all data configurations.
+Here, dropout refers to classifier-head dropout for \texttt{mmBERT} and \texttt{XLM-R}. For \texttt{mDeBERTa-v3}, the Transformers implementation maps this setting to hidden dropout, which also affects the encoder layers.
 
-During training, model selection is based on performance on the validation set. For each monolingual baseline, we retain the checkpoint that achieves the highest validation F1-score for its corresponding target language.
-For the balanced shared \texttt{Multi-8} and \texttt{Multi-12} models and for the full-pool shared models, checkpoint selection is based on macro-averaged validation-set F1-score over the eight evaluation languages in $L_8$.
-This also applies to the 12-language models: the four auxiliary languages in $L_{12} \setminus L_8$ contribute training data but do not enter the checkpoint-selection criterion.
-For target-resource profiles and target-specific variants such as \texttt{Multi8-full-sr} or \texttt{Pretrain-Multi7-full-sl}, the final checkpoint is selected based on the validation-set F1-score for the corresponding target language.
+For the final experiments, we use AdamW~\parencite{loshchilov2019decoupledweightdecayregularization} with linear learning-rate decay, a warmup ratio of 0.06, weight decay of 0.01, and a maximum gradient norm of 1.0.
+All models use a maximum sequence length of 256 tokens, a per-device training batch size of 16, and two gradient-accumulation steps, giving an effective batch size of 32.
+The per-device evaluation batch size is 16 for \texttt{mmBERT} and \texttt{XLM-R} and 32 for \texttt{mDeBERTa-v3}.
+Models are trained in FP32 for 20 epochs, evaluated and checkpointed after each epoch, and restored to the checkpoint with the best configuration-specific validation F1-score.
+We evaluate 50 data configurations for each of the three retained encoders.
+Repeating every encoder--configuration pair with three random seeds yields 450 final models.
+For each repeat, the same seed value is passed separately to data splitting, multilingual sentence sampling, and model training, producing matched seed-specific datasets across encoder comparisons rather than a shared random-number stream.
+Eight data configurations per encoder use the two-stage \texttt{Pretrain-Multi7-full-L} procedure, in which the intermediate multilingual models constitute additional training stages and are not included in the count of 450 final models.
+
+Checkpoint selection follows each configuration's evaluation scope.
+For monolingual models, reduced-resource profile runs, \texttt{Multi8-full-L}, and the final adaptation stage of \texttt{Pretrain-Multi7-full-L}, we select the checkpoint with the highest target-language validation F1-score.
+The 100\% multilingual profile endpoints reuse the standard \texttt{Multi-8} and \texttt{Multi-12} checkpoints rather than selecting separate target-specific checkpoints.
+For \texttt{Multi-8}, \texttt{Multi-12}, and the full-pool shared models, model selection is based on validation F1 macro-averaged across $L_8$.
+Auxiliary languages contribute only to training and are excluded from the selection criterion.
+The Croatian source-quality models use macro-averaged validation F1 over $L_7$.
+In the first stage of \texttt{Pretrain-Multi7-full-L}, checkpoint selection uses macro-averaged validation F1 over the seven non-target source languages before target-language adaptation.
 
 \subsection{Evaluation}
-We evaluate models using the entity-level micro-averaged F1-score with exact span matching. 
-For the main comparison, target-specific recovery experiments, and full-pool shared models, we report per-language F1-scores for all languages in $L_8$, along with the macro-average across these eight languages. 
-For the target-resource profiles, we report only the target-language F1-score, since these experiments are designed to measure how multilingual transfer changes as the amount of target-language training data decreases. 
-Because the main setup is restricted to \texttt{LOC}, \texttt{ORG}, and \texttt{PER}, all reported scores in the core experiments reflect three-label NER.
+We use \texttt{seqeval} entity-level micro F1, which requires an exact match of both entity span and type.
+For every configuration and language, we report the mean and population standard deviation over three random-seed runs.
+This variation combines changes in the data split, multilingual sampling, and model training.
+The main comparisons, target-specific recovery experiments, and full-pool models report scores for every language in $L_8$ and their unweighted arithmetic mean.
+The Croatian source-quality ablation analogously reports the seven languages in $L_7$, while target-resource profiles report only the target language.
+Thus, ``macro F1'' denotes an average of language-level entity-micro F1 scores rather than an entity-type macro score. All core evaluations use the three entity types \texttt{LOC}, \texttt{ORG}, and \texttt{PER}.
 
-In addition to reporting mean F1 over three random seeds, we assess whether model-family differences are consistent across the eight main evaluation languages. 
-For each main comparison, we compute paired language-level F1 differences and apply an exact two-sided Wilcoxon signed-rank test over the eight languages. 
-We also compute exact sign-test results as a more conservative robustness check. 
-Because only three training seeds are available per configuration, we treat seed-level standard deviations as uncertainty estimates rather than as sufficient evidence for per-language significance claims. 
-Consequently, statistical tests are used to support corpus-level and model-family conclusions, while individual language differences are interpreted primarily based on effect size and consistency.
+For each retained encoder separately, we evaluate ten RQ-aligned configuration contrasts using paired language-level F1 means, with each language score first averaged over the three seeds.
+The Croatian source-quality contrast has seven paired observations, while all other tested contrasts have eight.
+Alongside the mean F1-point difference and direction count, we use the exact two-sided Wilcoxon signed-rank test as the primary language-level test because it accounts for ranked difference magnitudes.
+We additionally report an exact two-sided sign test as a magnitude-free robustness check based only on the direction of the differences. Both tests omit zero differences.
+The reported $p$-values are exploratory and use an unadjusted $\alpha=0.05$ without correction for multiple comparisons.
+We do not apply these tests to the target-resource profiles, nor do we make per-language significance claims based on only three runs.
+Instead, those results are interpreted through effect size, direction, and run-to-run variation.
 
 \section{Results}
 \label{sec:results}
 
-Table~\ref{tab:main_results} reports the mean entity-level F1-score over three random seeds on the eight evaluation languages; standard deviations are shown in the table. Since token-level accuracy is near the ceiling across all settings, we focus primarily on the F1-score.
+Since token-level accuracy is near the ceiling, we focus on entity-level F1.
+Throughout this section, macro F1 is the unweighted mean of the language-level means.
+In paired contrasts, [wins] counts languages favouring the first configuration, while $p_W/p_S$ denotes the exact two-sided Wilcoxon and sign-test p-values defined in the Evaluation subsection.
+Boldface marks the best macro within each encoder and Wilcoxon values meeting the unadjusted $\alpha=0.05$ threshold.
+Table~\ref{tab:main_results} reports the balanced comparisons for RQ1--RQ2.
 \begin{table}[H]
 \centering
-\caption{Main balanced-training results on the eight evaluation languages. Scores are mean entity-level F1 over three seeds, with standard deviations shown after $\pm$. Best scores are boldfaced. Macro F1 is averaged over languages.}
-\resizebox{0.91\textwidth}{!}{
-\setlength{\tabcolsep}{6pt}
-\begin{tabular}{lccccc}
+\caption{RQ1--RQ2 macro F1 and paired language-level contrasts for monolingual and balanced multilingual training. Panel (b) cells report $\Delta$F1 [wins] $p_W/p_S$.}
+\resizebox{0.86\textwidth}{!}{
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccc}
 \toprule
-Language & Mono & Multi-8 & Multi-12 & $\Delta$(Multi-8$-$Mono) & $\Delta$(Multi-12$-$Multi-8) \\
+\multicolumn{4}{c}{\textbf{(a) Macro F1}} \\
 \midrule
-bg    & \textbf{98.51} {\scriptsize$\pm$ 0.10} & 93.12 {\scriptsize$\pm$ 0.26} & 92.87 {\scriptsize$\pm$ 0.06} & -5.39 & -0.26 \\
-cs    & \textbf{96.79} {\scriptsize$\pm$ 2.60} & 90.85 {\scriptsize$\pm$ 0.95} & 89.97 {\scriptsize$\pm$ 0.70} & -5.94 & -0.89 \\
-hr    & \textbf{96.03} {\scriptsize$\pm$ 3.04} & 90.51 {\scriptsize$\pm$ 0.57} & 89.51 {\scriptsize$\pm$ 0.50} & -5.52 & -1.00 \\
-pl    & \textbf{99.04} {\scriptsize$\pm$ 0.04} & 95.37 {\scriptsize$\pm$ 0.07} & 95.16 {\scriptsize$\pm$ 0.34} & -3.68 & -0.21 \\
-ru    & \textbf{97.42} {\scriptsize$\pm$ 0.09} & 89.79 {\scriptsize$\pm$ 0.55} & 89.24 {\scriptsize$\pm$ 0.40} & -7.63 & -0.55 \\
-sl    & \textbf{97.62} {\scriptsize$\pm$ 1.65} & 90.49 {\scriptsize$\pm$ 0.18} & 89.94 {\scriptsize$\pm$ 0.34} & -7.13 & -0.56 \\
-sr    & 97.43 {\scriptsize$\pm$ 2.45} & \textbf{98.38} {\scriptsize$\pm$ 1.25} & 97.65 {\scriptsize$\pm$ 1.77} & +0.96 & -0.74 \\
-uk    & \textbf{98.51} {\scriptsize$\pm$ 0.27} & 91.58 {\scriptsize$\pm$ 0.17} & 91.44 {\scriptsize$\pm$ 0.07} & -6.93 & -0.14 \\
+\textbf{Configuration} & \textbf{mmBERT} & \textbf{mDeBERTa-v3} & \textbf{XLM-R} \\
 \midrule
-Macro F1 & \textbf{97.67} & 92.51 {\scriptsize$\pm$ 0.40} & 91.97 {\scriptsize$\pm$ 0.41} & -5.16 & -0.54 \\
+Mono-$L$ & \textbf{93.19} & \textbf{93.70} & \textbf{93.44} \\
+Multi-8  & 91.63 & 92.00 & 91.59 \\
+Multi-12 & 89.72 & 90.35 & 89.90 \\
+\midrule
+\multicolumn{4}{c}{\textbf{(b) Paired language-level comparisons}} \\
+\midrule
+\textbf{First $-$ second} & \textbf{mmBERT} & \textbf{mDeBERTa-v3} & \textbf{XLM-R} \\
+\midrule
+Mono-$L$ $-$ Multi-8
+ & $+1.56$ [7/8] \textbf{0.016}/0.070
+ & $+1.70$ [7/8] \textbf{0.016}/0.070
+ & $+1.85$ [8/8] \textbf{0.008}/0.008 \\
+Multi-8 $-$ Multi-12
+ & $+1.92$ [8/8] \textbf{0.008}/0.008
+ & $+1.65$ [8/8] \textbf{0.008}/0.008
+ & $+1.69$ [8/8] \textbf{0.008}/0.008 \\
 \bottomrule
 \end{tabular}
 }
 \label{tab:main_results}
 \end{table}
 
-Regarding RQ1, full-data monolingual baselines remain strongest overall. The macro-average F1-score is 97.67 for the monolingual systems, compared with 92.51 for \texttt{Multi-8}, a gap of 5.16 F1-score points. Monolingual training outperforms the shared multilingual model on 7 of the 8 evaluation languages. The only exception is Serbian, where \texttt{Multi-8} improves from 97.43 to 98.38 F1-score (+0.96). The largest multilingual losses are observed for Russian (-7.63), Slovene (-7.13), and Ukrainian (-6.93). In this balanced regime, a single shared multilingual model does not replace strong monolingual baselines, although it can still benefit a smaller target such as Serbian.
+For RQ1, \texttt{Mono-L} exceeds \texttt{Multi-8} by 1.56--1.85 macro F1 points across encoders and leads on seven or eight languages.
+The Wilcoxon test supports all three contrasts, while the sign test supports only \texttt{XLM-R}.
+Serbian is the sole reversal for \texttt{mmBERT} and \texttt{mDeBERTa-v3}, with gains of 1.05 and 0.26 points, while \texttt{XLM-R} remains 0.23 points lower.
+Balanced shared training therefore underperforms monolingual specialisation overall, with an encoder-dependent exception for the smallest target.
 
-Regarding RQ2, adding the four lower-confidence auxiliary datasets does not improve the balanced multilingual model. \texttt{Multi-12} reaches 91.97 macro F1-score, which is 0.54 points below \texttt{Multi-8}. This degradation is consistent across all eight evaluation languages. The largest drops are observed for Croatian (-1.00), Czech (-0.89), Serbian (-0.74), and Slovene (-0.56). 
-%These results suggest that treating lower-confidence auxiliary corpora as equally weighted multilingual supervision introduces negative transfer rather than useful complementary evidence.
-In this balanced setup, adding lower-confidence auxiliary corpora degrades performance; this likely reflects a combination of lower clean-language quota, high label density in the auxiliary datasets, and annotation/source mismatch.
+For balanced RQ2, \texttt{Multi-8} exceeds \texttt{Multi-12} by 1.65--1.92 points on every evaluation language and encoder, with support from both tests.
+However, \texttt{Multi-12} both adds auxiliary corpora and lowers the per-language quota, so the comparison does not isolate annotation quality from reduced main-language evidence and other source differences.
+
+The Croatian ablation examines provenance more directly by holding the added language and nominal token budget constant (Table~\ref{tab:croatian_ablation}).
+It evaluates transfer to the seven non-Croatian languages in $L_7$, not Croatian test performance.
+
 \begin{table}[H]
 \centering
-\caption{Relative-budget profiles for Serbian and Slovene. Monolingual budgets are percentages of the full target-language training set, whereas multilingual budgets are percentages of the balanced multilingual target-language quota $T$; Monolingual and multilingual results with the same nominal percentage are relative-budget comparisons. Scores are mean entity-level F1 over three random seeds, with standard deviations shown after $\pm$. The best system within each language and nominal budget is boldfaced.}
-\resizebox{0.85\textwidth}{!}{
-\setlength{\tabcolsep}{6pt}
-\begin{tabular}{rccc|ccc}
+\caption{RQ2 Croatian source-quality ablation. Scores are macro F1 over $L_7$, and the paired contrast compares HR500K with Croatian WikiANN/PAN-X.}
+\resizebox{0.82\textwidth}{!}{
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccccc}
 \toprule
-\multirow{2}{*}{Budget (\%)} & \multicolumn{3}{c|}{Serbian} & \multicolumn{3}{c}{Slovene} \\
-\cmidrule(lr){2-4}\cmidrule(l){5-7}
- & Mono & Multi-8 & Multi-12 & Mono & Multi-8 & Multi-12 \\
+\textbf{Encoder} & \textbf{No HR} & \textbf{+HR500K} & \textbf{+HR-WikiANN} & $\Delta$ \textbf{[wins]} & $p_W$ & $p_S$ \\
 \midrule
-10  & 80.73 {\scriptsize$\pm$ 1.26} & \textbf{93.92} {\scriptsize$\pm$ 0.25} & 92.93 {\scriptsize$\pm$ 1.20} & \textbf{88.97} {\scriptsize$\pm$ 0.35} & 88.31 {\scriptsize$\pm$ 0.36} & 87.62 {\scriptsize$\pm$ 0.51} \\
-25  & 91.33 {\scriptsize$\pm$ 1.65} & \textbf{95.33} {\scriptsize$\pm$ 0.71} & 93.89 {\scriptsize$\pm$ 0.95} & \textbf{91.84} {\scriptsize$\pm$ 1.14} & 88.67 {\scriptsize$\pm$ 0.53} & 87.76 {\scriptsize$\pm$ 0.35} \\
-50  & 94.58 {\scriptsize$\pm$ 1.24} & \textbf{96.67} {\scriptsize$\pm$ 0.77} & 95.89 {\scriptsize$\pm$ 1.01} & \textbf{94.57} {\scriptsize$\pm$ 1.09} & 89.44 {\scriptsize$\pm$ 0.52} & 88.35 {\scriptsize$\pm$ 0.35} \\
-100 & 97.43 {\scriptsize$\pm$ 2.45} & \textbf{98.38} {\scriptsize$\pm$ 1.25} & 97.65 {\scriptsize$\pm$ 1.77} & \textbf{97.62} {\scriptsize$\pm$ 1.65} & 90.49 {\scriptsize$\pm$ 0.18} & 89.94 {\scriptsize$\pm$ 0.34} \\
+mmBERT      & 91.56 & \textbf{91.81} & 91.36 & $+0.45$ [7/7] & \textbf{0.016} & 0.016 \\
+mDeBERTa-v3 & 92.16 & \textbf{92.24} & 91.83 & $+0.41$ [6/7] & \textbf{0.031} & 0.125 \\
+XLM-R       & \textbf{91.81} & 91.72 & 91.48 & $+0.24$ [7/7] & \textbf{0.016} & 0.016 \\
+\bottomrule
+\end{tabular}
+}
+\label{tab:croatian_ablation}
+\end{table}
+
+HR500K exceeds Croatian WikiANN/PAN-X by 0.24--0.45 macro F1 points, leading on six or seven languages with Wilcoxon support for every encoder.
+The sign test agrees for \texttt{mmBERT} and \texttt{XLM-R}, but not for \texttt{mDeBERTa-v3}.
+Against \texttt{Multi7-no-hr}, HR500K changes macro F1 by $+0.25$, $+0.08$, and $-0.09$ points, while WikiANN/PAN-X is lower for all three encoders.
+Manual Croatian supervision therefore transfers more effectively under the nominally matched budget, but does not always improve on using no Croatian source.
+
+Regarding RQ3, the target-resource profiles reveal a strong asymmetry between Serbian and Slovene (Table~\ref{tab:resource_profiles}).
+\begin{table}[!htbp]
+\centering
+\caption{RQ3 relative-budget profiles. Cells give F1-point differences between language-level means over three seeds. Equal percentages use each configuration's own target pool. Only Serbian \texttt{Multi-8} versus \texttt{Mono} is effectively target-token matched.}
+\resizebox{0.85\textwidth}{!}{
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrccc|ccc}
+\toprule
+\multirow{2}{*}{\textbf{Target}} & \multirow{2}{*}{\textbf{Relative budget (\%)}} & \multicolumn{3}{c|}{$\Delta$(Multi-8$-$Mono)} & \multicolumn{3}{c}{$\Delta$(Multi-12$-$Multi-8)} \\
+\cmidrule(lr){3-5}\cmidrule(l){6-8}
+ & & \textbf{mmBERT} & \textbf{mDeBERTa-v3} & \textbf{XLM-R} & \textbf{mmBERT} & \textbf{mDeBERTa-v3} & \textbf{XLM-R} \\
+\midrule
+\multirow{4}{*}{Serbian}
+ & 10  & $+7.53$ & $+4.32$ & $+6.63$ & $-1.81$ & $-1.64$ & $-2.55$ \\
+ & 25  & $+1.52$ & $+2.66$ & $+2.12$ & $-1.83$ & $-1.82$ & $-2.50$ \\
+ & 50  & $+1.36$ & $+1.10$ & $+0.92$ & $-1.46$ & $-1.59$ & $-1.59$ \\
+ & 100 & $+1.05$ & $+0.26$ & $-0.23$ & $-1.09$ & $-0.85$ & $-0.94$ \\
+\midrule
+\multirow{4}{*}{Slovene}
+ & 10  & $-0.72$ & $-1.09$ & $-0.64$ & $-2.34$ & $-1.94$ & $-2.15$ \\
+ & 25  & $-1.25$ & $-1.68$ & $-1.80$ & $-2.37$ & $-1.64$ & $-2.01$ \\
+ & 50  & $-2.05$ & $-1.69$ & $-2.45$ & $-2.10$ & $-1.63$ & $-2.12$ \\
+ & 100 & $-2.56$ & $-1.85$ & $-2.32$ & $-1.76$ & $-1.71$ & $-1.63$ \\
 \bottomrule
 \end{tabular}
 }
 \label{tab:resource_profiles}
 \end{table}
-Regarding RQ3, the target-resource profiles reveal a strong asymmetry between Serbian and Slovene (Table~\ref{tab:resource_profiles}). 
-For Serbian, multilingual training is beneficial across all budgets, with the largest gains in the lowest-resource setting. At 10\% of the Serbian training data, \texttt{Multi-8} exceeds the monolingual baseline by 13.20 F1-score points (93.92 vs 80.73). 
-The gain remains positive at 25\% (+4.00), 50\% (+2.09), and even 100\% (+0.96). \texttt{Multi-12} also remains above monolingual performance for Serbian at all budgets, but is consistently below \texttt{Multi-8}. 
-In contrast, Slovene remains monolingual-best at every budget. 
-The gap between \texttt{Mono-sl} and \texttt{Multi-8} widens as more Slovene training data become available, from +0.66 F1-score at 10\% to +7.13 F1-score at 100\%. 
-\texttt{Multi-12} is again consistently below \texttt{Multi-8}.
+Because Serbian determines the \texttt{Multi-8} quota, its monolingual and \texttt{Multi-8} profiles are effectively target-token matched.
+The multilingual gain falls from 4.32--7.53 points at 10\% to 0.92--1.36 at 50\%, and at 100\% becomes $+1.05$, $+0.26$, and $-0.23$ across the three encoders.
+Balanced transfer is therefore most useful for Serbian when target supervision is scarce.
 
-The first three experiments show that balanced multilingual training is not competitive in aggregate, but they do not by themselves reveal whether this is due to negative multilingual transfer or to the loss of target-language evidence caused by balancing. 
+For Slovene, \texttt{Multi-8} remains below \texttt{Mono-sl} at every budget and encoder.
+These profiles are not target-token matched because each percentage is drawn from a much smaller multilingual target pool.
+Their widening gap therefore combines training strategy with unequal Slovene supervision and does not show that transfer itself becomes more harmful as target data increase.
+\texttt{Multi-12} also remains below \texttt{Multi-8} for both targets, every budget, and every encoder, but again combines auxiliary-language addition with a lower quota.
 
-RQ4 addresses this by retaining all target-language data in target-specific multilingual settings.
-\begin{table}[h]
+RQ1--RQ3 cannot distinguish negative transfer from the target-evidence loss caused by balancing.
+RQ4 addresses this with target-specific models that retain all target data (Table~\ref{tab:target_specific_results}).
+\begin{table}[!htbp]
 \centering
-\caption{Target-specific recovery experiments for RQ4. Language-level scores are the mean entity-level F1-score over three random seeds, with standard deviations shown after $\pm$. The best score in each row is boldfaced. Macro F1 is the macro-average of the language-level means; for the shared \texttt{Multi-8} model, the macro-F1 standard deviation over seeds is also reported.}
-\resizebox{0.80\textwidth}{!}{
-\setlength{\tabcolsep}{6pt}
-\begin{tabular}{lcccc}
+\caption{RQ4 target-specific recovery. Panel (a) reports macro F1 and panel (b) paired contrasts. \texttt{Pretrain} abbreviates \texttt{Pretrain-Multi7-full-L}.}
+\resizebox{0.95\textwidth}{!}{
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccc}
 \toprule
-Language & Mono & Multi-8 & Multi8-full-L & Pretrain-Multi7-full-L \\
+\multicolumn{4}{c}{\textbf{(a) Macro F1}} \\
 \midrule
-bg & 98.51 {\scriptsize$\pm$ 0.10} & 93.12 {\scriptsize$\pm$ 0.26} & 98.35 {\scriptsize$\pm$ 0.10} & \textbf{98.58} {\scriptsize$\pm$ 0.06} \\
-cs & \textbf{96.79} {\scriptsize$\pm$ 2.60} & 90.85 {\scriptsize$\pm$ 0.95} & 96.66 {\scriptsize$\pm$ 2.67} & 96.77 {\scriptsize$\pm$ 2.25} \\
-hr & 96.03 {\scriptsize$\pm$ 3.04} & 90.51 {\scriptsize$\pm$ 0.57} & 96.30 {\scriptsize$\pm$ 2.99} & \textbf{96.33} {\scriptsize$\pm$ 2.96} \\
-pl & 99.04 {\scriptsize$\pm$ 0.04} & 95.37 {\scriptsize$\pm$ 0.07} & \textbf{99.09} {\scriptsize$\pm$ 0.15} & 99.05 {\scriptsize$\pm$ 0.15} \\
-ru & 97.42 {\scriptsize$\pm$ 0.09} & 89.79 {\scriptsize$\pm$ 0.55} & \textbf{97.58} {\scriptsize$\pm$ 0.21} & 96.27 {\scriptsize$\pm$ 1.96} \\
-sl & \textbf{97.62} {\scriptsize$\pm$ 1.65} & 90.49 {\scriptsize$\pm$ 0.18} & 97.58 {\scriptsize$\pm$ 1.60} & 97.53 {\scriptsize$\pm$ 1.54} \\
-sr & 97.43 {\scriptsize$\pm$ 2.45} & \textbf{98.38} {\scriptsize$\pm$ 1.25} & 98.36 {\scriptsize$\pm$ 1.65} & 98.23 {\scriptsize$\pm$ 1.38} \\
-uk & \textbf{98.51} {\scriptsize$\pm$ 0.27} & 91.58 {\scriptsize$\pm$ 0.17} & 98.50 {\scriptsize$\pm$ 0.14} & 98.45 {\scriptsize$\pm$ 0.17} \\
+\textbf{Configuration} & \textbf{mmBERT} & \textbf{mDeBERTa-v3} & \textbf{XLM-R} \\
 \midrule
-Macro F1 & 97.67 & 92.51 {\scriptsize$\pm$ 0.40} & \textbf{97.80} & 97.65 \\
+Mono-$L$                  & 93.19          & 93.70          & 93.44 \\
+Multi-8                   & 91.63          & 92.00          & 91.59 \\
+Multi8-full-$L$           & \textbf{93.34} & 93.73          & 93.39 \\
+Pretrain-Multi7-full-$L$  & 93.22          & \textbf{93.95} & \textbf{93.47} \\
+\midrule
+\multicolumn{4}{c}{\textbf{(b) Paired language-level comparisons}} \\
+\midrule
+\textbf{First $-$ second} & \textbf{mmBERT} & \textbf{mDeBERTa-v3} & \textbf{XLM-R} \\
+\midrule
+Multi8-full-$L$ $-$ Multi-8
+ & $+1.71$ [7/8] \textbf{0.016}/0.070
+ & $+1.73$ [8/8] \textbf{0.008}/0.008
+ & $+1.80$ [8/8] \textbf{0.008}/0.008 \\
+Multi8-full-$L$ $-$ Mono-$L$
+ & $+0.15$ [6/8] 0.250/0.289
+ & $+0.03$ [5/8] 0.547/0.727
+ & $-0.05$ [2/8] 0.312/0.289 \\
+Pretrain $-$ Mono-$L$
+ & $+0.03$ [4/8] 0.641/1.000
+ & $+0.25$ [7/8] \textbf{0.016}/0.070
+ & $+0.03$ [4/8] 0.641/1.000 \\
+Pretrain $-$ Multi8-full-$L$
+ & $-0.12$ [2/8] 0.383/0.289
+ & $+0.22$ [7/8] \textbf{0.016}/0.070
+ & $+0.08$ [4/8] 0.844/1.000 \\
 \bottomrule
 \end{tabular}
 }
 \label{tab:target_specific_results}
 \end{table}
 
-Table~\ref{tab:target_specific_results} shows that retaining full target-language evidence almost completely recovers the balanced multilingual deficit. \texttt{Multi8-full-L} improves over \texttt{Multi-8} on 7 of 8 languages, with a macro-average of 97.80 compared with 92.51 for \texttt{Multi-8} and 97.67 for \texttt{Mono-L}. 
-The exception is Serbian, for which \texttt{Multi8-full-sr} essentially matches \texttt{Multi-8} (98.36 versus 98.38 F1).
-This near-parity is expected because Serbian is the smallest dataset in $L_8$ and therefore determines the balanced quota $T_8$: \texttt{Multi-8} already retains all Serbian training data effectively, so the full-target variant adds no target-language evidence.
-Serbian is also the only language for which \texttt{Multi-8} already outperforms \texttt{Mono-L}.
-This confirms that the poor aggregate performance of \texttt{Multi-8} is largely due to target downsampling rather than evidence that clean multilingual training is inherently harmful. \texttt{Multi8-full-L} exceeds the monolingual baseline for Croatian, Polish, Russian, and Serbian, while remaining very close for Bulgarian, Czech, Slovene, and Ukrainian.
+\texttt{Multi8-full-L} gains 1.71--1.80 points over \texttt{Multi-8}, leading on seven languages for \texttt{mmBERT} and all eight for the other encoders.
+The Wilcoxon test supports every contrast, while the sign test supports \texttt{mDeBERTa-v3} and \texttt{XLM-R}.
+Yet \texttt{Multi8-full-L} remains within $-0.05$ to $+0.15$ points of \texttt{Mono-L}, with neither test detecting a difference for any encoder.
+Full-target multilingual training therefore recovers the balanced deficit rather than reliably surpassing monolingual specialisation.
+Serbian changes least because it already determines the balanced quota and gains essentially no target data in the full-target condition.
 
-The leave-one-target-out pretraining recipe is more mixed. \texttt{Pretrain-Multi7-full-L} reaches 97.65 macro F1, essentially matching the monolingual macro-average but not surpassing \texttt{Multi8-full-L}. 
-It gives its clearest improvements for Croatian and Serbian, but it is weaker for Russian and slightly below monolingual performance for Czech, Slovene, and Ukrainian. 
-This suggests that other Slavic languages can provide a useful pretraining signal in certain cases, but multilingual pretraining followed by target-only adaptation is not uniformly better than joint full-target multilingual training.
+Pretraining is encoder-dependent.
+For \texttt{mmBERT} and \texttt{XLM-R}, it is only 0.03 points above \texttt{Mono-L} and unsupported by either test.
+For \texttt{mDeBERTa-v3}, it gains 0.25 points over \texttt{Mono-L} and 0.22 over joint full-target training, leading on seven languages with Wilcoxon but not sign-test support.
 
-The full-target experiments clarify the source of the balanced Multi-8 loss. 
-Multi8-full-L outperforms the shared balanced Multi-8 model across seven of the eight languages, and the language-level Wilcoxon test is significant ($p=0.016$). 
-However, Multi8-full-L does not significantly outperform Mono-L overall ($p=0.547$), and Pretrain-Multi7-full-L is also not significantly better than Mono-L ($p=1.000$). 
-Therefore, full-target multilingual training primarily recovers the loss due to downsampling, rather than providing a robust overall gain over strong monolingual baselines.
-
-RQ5 shifts from target-specific recipes to the practical question of whether a single shared model can be made competitive by retaining the full main-language pool.
+RQ5 asks whether retaining the full main-language pool makes one shared model competitive and whether capping auxiliary data helps (Table~\ref{tab:full_pool_results}).
 
 \begin{table}[H]
 \centering
-\caption{Full-pool shared multilingual variants for RQ5. Scores are mean entity-level F1 over three seeds, with standard deviations shown after $\pm$. The table includes \texttt{Mono-L} and balanced \texttt{Multi-8} for comparison. Best scores are boldfaced.}
-\resizebox{0.90\textwidth}{!}{
+\caption{RQ5 full-pool shared results. Panel (a) reports macro F1 and panel (b) paired contrasts. \texttt{CapAux} abbreviates \texttt{Full-Multi12-CapAux}.}
+\resizebox{0.95\textwidth}{!}{
 \setlength{\tabcolsep}{5pt}
-\begin{tabular}{lccccc}
+\begin{tabular}{lccc}
 \toprule
-Language & Mono & Multi-8 & Full-Multi8 & Full-Multi12 & Full-Multi12-CapAux \\
+\multicolumn{4}{c}{\textbf{(a) Macro F1}} \\
 \midrule
-bg & 98.51 {\scriptsize$\pm$ 0.10} & 93.12 {\scriptsize$\pm$ 0.26} & 98.63 {\scriptsize$\pm$ 0.08} & \textbf{98.70} {\scriptsize$\pm$ 0.01} & 98.54 {\scriptsize$\pm$ 0.13} \\
-cs & \textbf{96.79} {\scriptsize$\pm$ 2.60} & 90.85 {\scriptsize$\pm$ 0.95} & 96.65 {\scriptsize$\pm$ 2.58} & 96.76 {\scriptsize$\pm$ 2.52} & 96.62 {\scriptsize$\pm$ 2.37} \\
-hr & 96.03 {\scriptsize$\pm$ 3.04} & 90.51 {\scriptsize$\pm$ 0.57} & \textbf{96.72} {\scriptsize$\pm$ 2.57} & 96.37 {\scriptsize$\pm$ 2.80} & 96.40 {\scriptsize$\pm$ 2.66} \\
-pl & 99.04 {\scriptsize$\pm$ 0.04} & 95.37 {\scriptsize$\pm$ 0.07} & 99.06 {\scriptsize$\pm$ 0.04} & \textbf{99.16} {\scriptsize$\pm$ 0.10} & 99.08 {\scriptsize$\pm$ 0.14} \\
-ru & 97.42 {\scriptsize$\pm$ 0.09} & 89.79 {\scriptsize$\pm$ 0.55} & 97.54 {\scriptsize$\pm$ 0.10} & \textbf{97.64} {\scriptsize$\pm$ 0.09} & 97.53 {\scriptsize$\pm$ 0.06} \\
-sl & \textbf{97.62} {\scriptsize$\pm$ 1.65} & 90.49 {\scriptsize$\pm$ 0.18} & 97.55 {\scriptsize$\pm$ 1.70} & 97.56 {\scriptsize$\pm$ 1.55} & 97.60 {\scriptsize$\pm$ 1.64} \\
-sr & 97.43 {\scriptsize$\pm$ 2.45} & 98.38 {\scriptsize$\pm$ 1.25} & 98.51 {\scriptsize$\pm$ 1.31} & \textbf{98.67} {\scriptsize$\pm$ 1.26} & 98.46 {\scriptsize$\pm$ 1.41} \\
-uk & 98.51 {\scriptsize$\pm$ 0.27} & 91.58 {\scriptsize$\pm$ 0.17} & 98.62 {\scriptsize$\pm$ 0.16} & 98.49 {\scriptsize$\pm$ 0.31} & \textbf{98.63} {\scriptsize$\pm$ 0.38} \\
+\textbf{Configuration} & \textbf{mmBERT} & \textbf{mDeBERTa-v3} & \textbf{XLM-R} \\
 \midrule
-Macro F1 & 97.67 & 92.51 {\scriptsize$\pm$ 0.40} & 97.91 {\scriptsize$\pm$ 1.02} & \textbf{97.92} {\scriptsize$\pm$ 1.03} & 97.86 {\scriptsize$\pm$ 0.94} \\
+Mono-$L$                  & 93.19          & 93.70          & 93.44 \\
+Multi-8                   & 91.63          & 92.00          & 91.59 \\
+Full-Multi8               & \textbf{93.62} & \textbf{94.02} & \textbf{93.56} \\
+Full-Multi12              & 93.42          & 93.90          & 93.45 \\
+Full-Multi12-CapAux       & 93.56          & 93.86          & 93.53 \\
+\midrule
+\multicolumn{4}{c}{\textbf{(b) Paired language-level comparisons}} \\
+\midrule
+\textbf{First $-$ second} & \textbf{mmBERT} & \textbf{mDeBERTa-v3} & \textbf{XLM-R} \\
+\midrule
+Full-Multi8 $-$ Mono-$L$
+ & $+0.43$ [6/8] \textbf{0.039}/0.289
+ & $+0.32$ [5/8] 0.195/0.727
+ & $+0.12$ [4/8] 0.945/1.000 \\
+Full-Multi12 $-$ Full-Multi8
+ & $-0.21$ [2/8] \textbf{0.039}/0.289
+ & $-0.12$ [3/8] 0.383/0.727
+ & $-0.12$ [3/8] 0.250/0.727 \\
+CapAux $-$ Full-Multi12
+ & $+0.14$ [6/8] 0.250/0.289
+ & $-0.04$ [3/8] 0.742/0.727
+ & $+0.08$ [6/8] 0.195/0.289 \\
 \bottomrule
 \end{tabular}
 }
 \label{tab:full_pool_results}
 \end{table}
 
-The full-pool shared models substantially alter the practical interpretation (see Table~\ref{tab:full_pool_results}). 
-When all main-language training evidence is retained, shared multilingual training becomes competitive with monolingual specialisation: \texttt{Full-Multi8} reaches 97.91 macro F1 and \texttt{Full-Multi12} reaches 97.92, compared with 92.51 for the balanced \texttt{Multi-8} model and 97.67 for the monolingual macro-average. 
-This suggests that the poor performance of the balanced shared model is not caused by multilinguality alone. 
-Rather, it largely reflects the cost of balancing when this procedure removes substantial evidence in the target language.
+\texttt{Full-Multi8} gains about two points over balanced \texttt{Multi-8} and lies 0.12--0.43 points above \texttt{Mono-L}.
+Only the \texttt{mmBERT} difference has Wilcoxon support, which the sign test does not confirm.
+The shared model is therefore practically competitive rather than consistently superior to monolingual specialisation.
 
-The role of the lower-confidence auxiliary datasets is more nuanced. 
-In the balanced setting, adding the four auxiliary datasets in additional languages hurts all eight evaluation language datasets, indicating that treating these corpora as equally weighted gold supervision introduces negative transfer. 
-In the full-pool setting, however, \texttt{Full-Multi12} is only marginally above \texttt{Full-Multi8}, while \texttt{Full-Multi12-CapAux} is slightly below both on average. 
-In \texttt{Full-Multi12-CapAux}, the eight main languages are kept at their full training sizes, while each auxiliary language is capped at the same approximately 61.9k-token quota used in the balanced \texttt{Multi-12} setting.
-We find no significant difference among the full-pool variants under the language-level tests.
-We consequently do not take RQ5 as evidence that lower-confidence auxiliary data are reliably beneficial. 
-The safer conclusion is that auxiliary data are harmful under equal, balanced treatment, but become neutral or, at most, mildly useful once the full, higher-confidence main-language evidence is retained.
+\texttt{Full-Multi12} is 0.12--0.21 points below \texttt{Full-Multi8} for every encoder, with Wilcoxon-only support for \texttt{mmBERT}.
+Capping changes it by $+0.14$, $-0.04$, and $+0.08$ points without support from either test and remains descriptively below \texttt{Full-Multi8} throughout.
+Thus, \texttt{Full-Multi8} is the strongest full-pool configuration tested, and no nonzero auxiliary weighting receives consistent support.
 
 \section{Discussion: practical guidance}
 \label{sec:discussion}
 
-The experiments suggest four practical guidelines for Slavic NER.
-First, if the goal is the strongest target-specific system and enough target-language data are available, a monolingual model or a full-target multilingual model should be preferred over a balanced shared model. The comparison between \texttt{Multi-8} and \texttt{Multi8-full-L} shows that balancing can impose a large target-evidence penalty.
-Second, if the target language is genuinely low-resource, clean multilingual transfer can be highly valuable: Serbian gains 13.20 F1-score points at the 10\% budget and remains above monolingual training even at 100\%.
-Third, lower-confidence auxiliary corpora should not be treated as interchangeable with manually curated data. 
-Their automatically constructed annotations, high annotation density, and short sentence segmentation make them a distinct source of supervision, and treating them as equally weighted gold data hurts in the balanced \texttt{Multi-12} setting.
-Fourth, if deployment requires a single maintainable model across the main languages, full-pool shared training is more promising than balanced shared training. \texttt{Full-Multi8} and \texttt{Full-Multi12} recover monolingual-level macro performance while preserving the operational advantage of one model.
+The results suggest four practical decisions.
+First, target-rich training should preserve all target-language evidence. Full-target models recover the balanced deficit without reliably outperforming monolingual specialisation.
+Second, clean balanced transfer is most valuable under genuine scarcity. Serbian benefits strongly at low budgets, but its full-data result depends on the encoder.
+Third, manually curated and automatically constructed corpora are not interchangeable. Manual Croatian supervision transfers consistently better under the nominally matched budget, while the broader \texttt{Multi-12} result also reflects a lower main-language quota.
+Fourth, \texttt{Full-Multi8} is the strongest shared deployment recipe tested. It is practically competitive with separate monolingual models, whereas adding or capping the lower-confidence auxiliary sources provides no consistent benefit.
 
-These guidelines also clarify the role of leave-one-target-out pretraining. \texttt{Pretrain-Multi7-full-L} is scientifically useful because it asks whether other languages help without seeing the target language during multilingual pretraining. 
-In practice, however, it is not consistently better than either monolingual training or joint full-target multilingual training. 
-It should therefore be viewed as an optional transfer recipe for selected low-resource targets, not as the default choice.
+Leave-one-target-out pretraining is an encoder-dependent alternative. Its \texttt{mDeBERTa-v3} advantage has Wilcoxon but not sign-test support and does not replicate for the other encoders. Joint full-target training is therefore the more consistent recovery strategy.
+Overall, multilingual NER depends not on language count alone, but on target evidence, source compatibility, encoder, and sampling strategy.
 
-Taken together, the results indicate that multilingual Slavic NER performance is influenced less by the sheer number of languages included than by the source quality, target-language evidence, and the chosen sampling strategy.
-Balanced multilingual training is useful for diagnostics. 
-It can strongly help a small target such as Serbian, but full-target or full-pool training is the better recipe when sufficient target-language data are available.
-
-This study has several limitations that qualify the interpretation of the results. 
-First, all experiments use a single multilingual encoder, \textsc{mmBERT}, so the observed effects may depend on this particular model family and may differ for newer or larger multilingual encoders.
-Second, the analysis is based on aggregate entity-level F1 scores and does not break down performance by entity type, entity length, frequency, or ambiguity. 
-Third, the evaluation uses random splits, which are appropriate for controlled comparisons between training regimes, but they do not test robustness to document-level, temporal, topical, or cross-corpus shifts. 
-%Fourth, language addition and corpus provenance are confounded because the four auxiliary languages are represented only by \texttt{WikiANN/PAN-X}; moreover, their inclusion in balanced \texttt{Multi-12} lowers the per-language quota for the main languages.
-%The experiments therefore cannot isolate whether the balanced-setting degradation is caused by annotation quality, annotation-density and sentence-segmentation mismatch, reduced main-language evidence, or a combination of these factors.
-Future work should separate corpus quality from language count more directly through a controlled ablation comparing the addition of a manually curated corpus for one further language, where such a resource is available, with the addition of a \texttt{WikiANN/PAN-X} corpus under a matched token budget and sampling procedure.
-This comparison would provide a more direct test of whether the observed degradation is associated with expanding the language inventory or with the provenance and annotation characteristics of the auxiliary data.
+The study is limited to three base-sized multilingual encoders and aggregate entity-level F1, without analysis by entity type, length, frequency, or ambiguity.
+Random sentence-level splits do not test document, temporal, topical, or cross-corpus shifts.
+The Slovene profiles are not target-token matched and cannot isolate a causal transfer effect as target data increase.
+The Croatian ablation covers one language and two sources under nominal matching, and those sources also differ in domain, segmentation, density, and annotation process.
+Likewise, \texttt{Multi-8} versus \texttt{Multi-12} combines language addition, provenance, and quota reduction.
+Finally, the tests use only seven or eight language observations and an unadjusted exploratory threshold, so broader confirmation is needed.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented a multilingual NER study for Slavic languages covering 12 training languages and 8 main evaluation languages, with all corpora harmonised to a shared three-label \texttt{LOC}/\texttt{ORG}/\texttt{PER} setup. 
-The central result is that multilingual transfer is not a single yes-or-no decision. 
-Its value depends on the target-resource size, the source-data quality, and whether the training recipe preserves sufficient target-language evidence.
+Across three encoders, balanced \texttt{Multi-8} trails monolingual training by 1.56--1.85 macro F1 points overall, yet gains 4.32--7.53 points for Serbian at the 10\% target budget.
+The benefit narrows and becomes encoder-dependent at full target data.
+Balanced \texttt{Multi-12} is worse on every evaluation language and encoder, while the Croatian ablation shows that manual HR500K transfers 0.24--0.45 points better than WikiANN/PAN-X under nominal matching.
 
-In the balanced shared setting, a single \texttt{Multi-8} model did not replace strong monolingual baselines; it achieved 92.51 macro F1, compared with 97.67 for \texttt{Mono-L}. 
-The exception was Serbian, where multilingual training outperformed monolingual training, and the target-resource profiles showed particularly large gains at low data budgets. 
-Adding four lower-confidence auxiliary datasets in the balanced \texttt{Multi-12} setting consistently reduced performance.
-However, the added languages are represented exclusively by automatically constructed \texttt{WikiANN/PAN-X} corpora whose annotation density and sentence segmentation differ markedly from those of the main corpora.
-The result therefore argues against treating heterogeneous auxiliary corpora as interchangeable gold supervision, rather than showing that a larger language inventory is harmful in itself.
+Retaining all target data recovers the balanced deficit and reaches monolingual-level performance without a reliable overall advantage.
+Pretraining adds a benefit only for \texttt{mDeBERTa-v3}.
+For one shared model, \texttt{Full-Multi8} reaches 93.62 macro F1 for \texttt{mmBERT}, 94.02 for \texttt{mDeBERTa-v3}, and 93.56 for \texttt{XLM-R}, making it descriptively the strongest full-pool configuration for every encoder.
+Adding or capping lower-confidence auxiliary data gives no consistent improvement.
 
-The additional full-target and full-pool experiments refine this conclusion. 
-When all target-language data are retained, \texttt{Multi8-full-L} recovers most of the balanced model's deficit and slightly exceeds the monolingual macro-average. 
-Likewise, shared \texttt{Full-Multi8} and \texttt{Full-Multi12} models reach about 97.9 macro F1, showing that a single multilingual model can be practically competitive when it does not discard high-confidence target evidence. 
-Leave-one-target-out pretraining is useful in certain cases, but it is not uniformly stronger than joint full-target multilingual training.
-
-For practitioners, the resulting guidance is straightforward. Use clean multilingual transfer for genuinely low-resource targets; avoid giving lower-confidence auxiliary corpora the same status as manually curated data; and, when a shared model is needed, preserve full main-language evidence rather than enforcing strict balance. In this sense, the main lesson is quality over quantity, but also target evidence over artificial balance.
+Multilingual transfer is therefore most useful under genuine target-data scarcity.
+With sufficient target data, preserve them rather than enforce balance.
+Treat source compatibility explicitly, and validate lower-confidence auxiliary corpora before including them in a shared full-pool model.
 
 \section{Reproducibility and availability}
 
-The experiments are reproducible with the code available at \url{https://github.com/ivlcic/cannopy}. 
-In addition, the multilingual variant of the \texttt{Full-Multi12} model is available on Hugging Face \url{https://huggingface.co/ivlcic/sour-sarma}.
+The experiments are reproducible with the code available at \url{https://github.com/ivlcic/cannopy}.
+Supplementary material is available at \url{https://github.com/ivlcic/jtdh2026-ner-supp}.
+It provides the complete per-label precision, recall, and F1 statistics for \texttt{PER}, \texttt{LOC}, and \texttt{ORG}, including variation across random-seed runs.
+The repository also contains the deduplicated NER corpus used to construct the experimental datasets and the duplicate audit data produced during preprocessing.
 
 \acknowledgmenteng{This work was funded by the Slovenian Research and Innovation Agency (ARIS) through the core research programme P2-0103 (Knowledge Technologies) and the project L2-50070 (Embeddings-based techniques for Media Monitoring Applications). The work of J.C. was supported by the Young Researcher Grant PR-13409.}
 
@@ -566,13 +654,13 @@ In addition, the multilingual variant of the \texttt{Full-Multi12} model is avai
 \begin{abstracteng}
 V prispevku preučujemo, kdaj je večjezični prenos v praksi koristen za prepoznavanje imenskih entitet v slovanskih jezikih (NER).
 Heterogenim korpusom dvanajstih jezikov uskladimo označevalno shemo IOB2 s tremi skupnimi tipi entitet: LOC, ORG in PER.
-Poskuse smo izvedli na ročno označenih podatkovnih zbirkah osmih jezikov, ter na pomožnih samodejno zgrajenih korpusih z nižjo stopnjo zaupanja za dodatne štiri jezike.
+Poskuse smo izvedli s pomočjo treh Transformer kodirnikov na ročno označenih podatkovnih zbirkah osmih jezikov, ter na pomožnih samodejno zgrajenih korpusih z nižjo stopnjo zaupanja za dodatne štiri jezike.
 Analiziramo vplive večjezičnega združevanja, kakovosti podatkov (ročno označene v primerjavi s samodejno zgrajenimi podatkovnimi zbirkami), obsega virov za ciljni jezik in ohranjanja učinkov ciljnega jezika.
-Sprašujemo se, ali lahko uravnotežen skupni večjezični model nadomesti močne enojezične izhodiščne modele, ali pomožni korpusi z nižjo stopnjo zaupanja pomagajo ali škodujejo, kako se prenos spreminja ob zmanjšani količini učnih podatkov za ciljni jezik in ali lahko večjezično učenje z vsemi podatki ciljnega jezika, oziroma z vsemi podatki v združenem naboru, zmanjša razliko v primerjavi z enojezičnimi modeli.
+Z izklapljanjem znotraj hrvaškega jezika, pri enakem nominalnem številu pojavnic primerjamo ročno označeno zbirko HR500K s samodejno zgrajeno zbirko WikiANN/PAN-X.
+Preverjamo, ali lahko uravnotežen skupni večjezični model nadomesti močne enojezične izhodiščne modele, ali pomožni korpusi z nižjo stopnjo zaupanja pomagajo ali škodujejo, kako se prenos spreminja ob zmanjšani količini učnih podatkov za ciljni jezik in ali lahko večjezično učenje z vsemi podatki ciljnega jezika, oziroma z vsemi podatki v združenem naboru, zmanjša razliko v primerjavi z enojezičnimi modeli.
 Rezultati kažejo, da uravnoteženo večjezično učenje ni univerzalna zamenjava za enojezično specializacijo, lahko pa izrazito koristi ciljnim jezikom z manj viri.
-Dodajanje pomožnih korpusov z nižjo stopnjo zaupanja pri učenju kot enakovredne povzroča negativni prenos, medtem ko ohranjanje vseh podatkov ciljnega jezika veča konkurenčnost večjezičnih modelov.
-Na splošno je večjezični prenos za prepoznavanje imenskih entitet v slovanskih jezikih koristen le, kadar so kakovost izvornih podatkov, obseg virov za ciljni jezik in strategija vzorčenja, skrbno nadzorovani.
-Nastali večjezični model za prepoznavanje imenskih entitet javno objavljamo na platformi Hugging Face: \url{https://huggingface.co/ivlcic/sour-sarma}.
+Pri uporabi uravnoteženja podatkov vključevanje pomožnih korpusov z nižjo stopnjo zaupanja kot enakovredno uteženih učnih podatkov dosledno poslabša uspešnost, medtem ko ohranitev vseh podatkov ciljnega jezika večjezičnim modelom ponovno vrne konkurenčnost.
+V tej postavitvi je večjezični prenos najzanesljivejši, kadar ohranimo vse podatke ciljnega jezika in heterogene pomožne vire vključujemo selektivno.
 \end{abstracteng}
 
 \keywordsslo{večjezično prepoznavanje imenskih entitet, medjezikovni prenos, slovanski jeziki, obdelava naravnega jezika pri omejenih virih, večjezična obdelava naravnega jezika}

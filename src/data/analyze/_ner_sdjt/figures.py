@@ -5,8 +5,10 @@ from html import escape
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ....app.ner import NerSample
-from ...resample.ner_sdjt import AUX_LANGUAGES, MAIN_LANGUAGES
+from ...resample.ner_sdjt import AUX_LANGUAGES, CORE_ENTITY_TYPES, MAIN_LANGUAGES
+
+FIGURE_RUN_NAME = "full-multi12"
+FIGURE_SPLIT = "train"
 
 
 def _language_sort_key(lang: str) -> tuple[int, int | str]:
@@ -17,18 +19,23 @@ def _language_sort_key(lang: str) -> tuple[int, int | str]:
     return 2, lang
 
 
-def _read_base_ner_stats(stats_file: Path) -> List[Dict[str, Any]]:
+def _read_harmonized_training_stats(stats_file: Path) -> List[Dict[str, Any]]:
     if not stats_file.exists():
-        raise FileNotFoundError(f"Base NER stats file not found at {stats_file}. Run `./data analyze ner` first.")
+        raise FileNotFoundError(
+            f"SDJT NER stats file not found at {stats_file}. "
+            "Run `./data analyze ner-sdjt` first."
+        )
 
     rows: List[Dict[str, Any]] = []
     with stats_file.open("r", encoding="utf-8", newline="") as fp:
         reader = csv.DictReader(fp)
         for row in reader:
+            if row.get("run_name") != FIGURE_RUN_NAME or row.get("split") != FIGURE_SPLIT:
+                continue
             language = str(row.get("language", "")).strip()
             if language not in MAIN_LANGUAGES and language not in AUX_LANGUAGES:
                 continue
-            entity_counts = {entity_type: 0 for entity_type in NerSample.CORE_ENTITY_TYPES}
+            entity_counts = {entity_type: 0 for entity_type in CORE_ENTITY_TYPES}
             for key, raw_value in row.items():
                 if not key or "-" not in key:
                     continue
@@ -45,7 +52,9 @@ def _read_base_ner_stats(stats_file: Path) -> List[Dict[str, Any]]:
             })
     rows.sort(key=lambda row: _language_sort_key(row["language"]))
     if not rows:
-        raise ValueError(f"No rows found in {stats_file}.")
+        raise ValueError(
+            f"No {FIGURE_RUN_NAME!r} {FIGURE_SPLIT!r} rows found in {stats_file}."
+        )
     return rows
 
 
@@ -258,7 +267,7 @@ def _write_label_composition_svg(output_file: Path, stats_rows: List[Dict[str, A
         total = float(row["entity_total"])
         x = margin_left + language_slots[row["language"]] - bar_width / 2
         y_cursor = margin_top + plot_height
-        for entity_type in NerSample.CORE_ENTITY_TYPES:
+        for entity_type in CORE_ENTITY_TYPES:
             proportion = (row["entity_counts"][entity_type] / total) if total else 0.0
             if proportion <= 0:
                 continue
@@ -291,6 +300,6 @@ def _write_label_composition_svg(output_file: Path, stats_rows: List[Dict[str, A
 
 
 def write_dataset_shift_figures(stats_file: Path, density_figure: Path, composition_figure: Path) -> None:
-    stats_rows = _read_base_ner_stats(stats_file)
+    stats_rows = _read_harmonized_training_stats(stats_file)
     _write_entity_density_svg(density_figure, stats_rows)
     _write_label_composition_svg(composition_figure, stats_rows)

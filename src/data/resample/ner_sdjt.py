@@ -33,6 +33,7 @@ CROATIAN_ABLATION_RUN_NAMES: Tuple[str, ...] = (
 SOURCE_KEYS: Tuple[str, ...] = ALL_LANGUAGES + (HR_WIKIANN_SOURCE,)
 CURVE_LANGUAGES = frozenset({"sr", "sl"})
 CURVE_BUDGETS = frozenset({10, 25, 50, 100})
+CORE_ENTITY_TYPES: Tuple[str, ...] = ("PER", "ORG", "LOC")
 SPLIT_NAMES: Tuple[str, ...] = ("train", "eval", "test")
 
 
@@ -293,6 +294,27 @@ def resolve_pretrain_multi7_spec(run_spec: RunSpec) -> RunSpec:
     )
 
 
+def harmonize_label(label: str) -> str:
+    value = label.strip()
+    if not value or value.upper() == "O":
+        return "O"
+    if "-" not in value:
+        entity = value.upper()
+        return f"B-{entity}" if entity in CORE_ENTITY_TYPES else "O"
+    prefix, entity = value.split("-", 1)
+    prefix = prefix.upper()
+    entity = entity.upper()
+    if prefix in {"S", "U"}:
+        prefix = "B"
+    elif prefix in {"E", "L"}:
+        prefix = "I"
+    if prefix not in {"B", "I"}:
+        return "O"
+    if entity not in CORE_ENTITY_TYPES:
+        return "O"
+    return f"{prefix}-{entity}"
+
+
 def _read_split_file(path: Path) -> List[Sentence]:
     samples: List[Sentence] = []
     if not path.exists():
@@ -303,7 +325,7 @@ def _read_split_file(path: Path) -> List[Sentence]:
             sample = NerSample.from_csv_row(row)
             if not sample.tokens or not sample.labels:
                 continue
-            labels = [NerSample.harmonize_label(label) for label in sample.labels]
+            labels = [harmonize_label(label) for label in sample.labels]
             if len(sample.tokens) != len(labels):
                 logger.warning(
                     "Skipping malformed row %d from %s due to token/label mismatch (%d != %d).",

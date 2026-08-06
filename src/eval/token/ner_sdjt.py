@@ -36,6 +36,15 @@ from ...train.token.ner_sdjt import (
 logger: Logger
 paths: Paths
 
+OVERALL_METRIC_NAMES = ("p", "r", "f1", "acc")
+ENTITY_LABELS = ("PER", "LOC", "ORG")
+ENTITY_METRIC_NAMES = tuple(
+    f"{label.lower()}_{metric}"
+    for label in ENTITY_LABELS
+    for metric in ("p", "r", "f1")
+)
+RESULT_METRIC_NAMES = OVERALL_METRIC_NAMES + ENTITY_METRIC_NAMES
+
 SWEEP_COLUMNS = [
     "rank",
     "selected",
@@ -90,12 +99,18 @@ def resolve_requested_run_names(data_args: DataArguments) -> List[str]:
 
 def evaluate_language(trainer: Trainer, dataset: Dataset, lang: str) -> Dict[str, float]:
     metrics = trainer.evaluate(eval_dataset=dataset, metric_key_prefix=f"test_{lang}")
-    return {
+    language_metrics = {
         "p": float(metrics.get(f"test_{lang}_p", 0.0)),
         "r": float(metrics.get(f"test_{lang}_r", 0.0)),
         "f1": float(metrics.get(f"test_{lang}_f1", 0.0)),
         "acc": float(metrics.get(f"test_{lang}_acc", 0.0)),
     }
+    for label in ENTITY_LABELS:
+        for metric in ("p", "r", "f1"):
+            output_name = f"{label.lower()}_{metric}"
+            trainer_name = f"test_{lang}_label.{label}.{metric}"
+            language_metrics[output_name] = float(metrics.get(trainer_name, 0.0))
+    return language_metrics
 
 
 def aggregate_metric_values(values: Sequence[float]) -> tuple[float, float]:
@@ -110,7 +125,7 @@ def aggregate_language_metrics(metric_rows: Sequence[Dict[str, Any]], base_row: 
     row = dict(base_row)
     row["language"] = language
     row["num_models"] = len(metric_rows)
-    for metric in ("p", "r", "f1", "acc"):
+    for metric in RESULT_METRIC_NAMES:
         mean_value, std_value = aggregate_metric_values([float(metric_row[metric]) for metric_row in metric_rows])
         row[metric] = mean_value
         row[f"{metric}_std"] = std_value
@@ -141,10 +156,9 @@ def build_result_rows(run_name: str, train_dirs: Sequence[Path],
     if len(languages) > 1:
         macro_rows = []
         for metric_rows in metric_rows_by_model:
-            metric_names = ("p", "r", "f1", "acc")
             macro_row = {
                 metric: sum(float(metric_rows[lang][metric]) for lang in languages) / len(languages)
-                for metric in metric_names
+                for metric in RESULT_METRIC_NAMES
             }
             macro_rows.append(macro_row)
         rows.append(aggregate_language_metrics(macro_rows, base_row, "macro"))
@@ -152,6 +166,11 @@ def build_result_rows(run_name: str, train_dirs: Sequence[Path],
 
 
 def write_results_csv(output: Path, rows: Iterable[Dict[str, Any]]) -> None:
+    metric_columns = [
+        column
+        for metric in RESULT_METRIC_NAMES
+        for column in (metric, f"{metric}_std")
+    ]
     columns = [
         "run_name",
         "pool_name",
@@ -160,14 +179,7 @@ def write_results_csv(output: Path, rows: Iterable[Dict[str, Any]]) -> None:
         "seeds",
         "language",
         "num_models",
-        "p",
-        "p_std",
-        "r",
-        "r_std",
-        "f1",
-        "f1_std",
-        "acc",
-        "acc_std",
+        *metric_columns,
         "model_prefix",
     ]
     with output.open("w", encoding="utf-8", newline="") as fp:

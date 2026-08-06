@@ -79,10 +79,6 @@ def _normalized_sentence_key(sample: Sentence) -> str:
     return unicodedata.normalize('NFKC', text).casefold()
 
 
-def _harmonized_labels(sample: Sentence) -> List[str]:
-    return [Sentence.harmonize_label(label) for label in sample.labels]
-
-
 def _has_aligned_tokens_and_labels(sample: Sentence) -> bool:
     return (
         bool(sample.tokens and sample.labels)
@@ -122,20 +118,26 @@ def deduplicate_corpora(source_corpora: SplitSamples) -> Tuple[SplitSamples, Lis
                     continue
 
                 survivor_split, survivor_sample = survivor
-                labels_match = _harmonized_labels(sample) == _harmonized_labels(survivor_sample)
+                labels_match = sample.labels == survivor_sample.labels
                 corpus_counts.removed += 1
                 if not labels_match:
                     corpus_counts.label_conflicts += 1
+                removed_row = sample.to_csv_row()
+                kept_row = survivor_sample.to_csv_row()
                 duplicate_rows.append({
                     'language': lang,
                     'removed_split': split_name,
                     'removed_corpus_name': corpus_name,
                     'removed_doc_id': sample.doc_id,
                     'removed_sent_id': sample.sent_id,
+                    'removed_sentence': removed_row['sentence'],
+                    'removed_labels': removed_row['labels'],
                     'kept_split': survivor_split,
                     'kept_corpus_name': survivor_sample.corpus_name or 'unknown',
                     'kept_doc_id': survivor_sample.doc_id,
                     'kept_sent_id': survivor_sample.sent_id,
+                    'kept_sentence': kept_row['sentence'],
+                    'kept_labels': kept_row['labels'],
                     'labels_match': labels_match,
                 })
             deduplicated[split_name][lang] = kept
@@ -158,10 +160,11 @@ def write_dedup_reports(
     output_dir: Path,
     stats_rows: Sequence[Dict[str, object]],
     duplicate_rows: Sequence[Dict[str, object]],
-) -> Tuple[Path, Path]:
+) -> Tuple[Path, Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     stats_path = output_dir / 'ner-dedup-stats.csv'
     duplicates_path = output_dir / 'ner-duplicates.csv'
+    duplicates_data_path = output_dir / 'ner-duplicates-data.csv'
     stats_columns = [
         'language',
         'split',
@@ -183,15 +186,46 @@ def write_dedup_reports(
         'kept_sent_id',
         'labels_match',
     ]
+    duplicate_data_columns = [
+        'language',
+        'labels_match',
+        'removed_split',
+        'removed_corpus_name',
+        'removed_doc_id',
+        'removed_sent_id',
+        'removed_sentence',
+        'removed_labels',
+        'kept_split',
+        'kept_corpus_name',
+        'kept_doc_id',
+        'kept_sent_id',
+        'kept_sentence',
+        'kept_labels',
+    ]
     with stats_path.open('w', encoding='utf-8', newline='') as stats_file:
         writer = csv.DictWriter(stats_file, fieldnames=stats_columns)
         writer.writeheader()
         writer.writerows(stats_rows)
     with duplicates_path.open('w', encoding='utf-8', newline='') as duplicates_file:
-        writer = csv.DictWriter(duplicates_file, fieldnames=duplicate_columns)
+        writer = csv.DictWriter(
+            duplicates_file,
+            fieldnames=duplicate_columns,
+            extrasaction='ignore',
+        )
         writer.writeheader()
         writer.writerows(duplicate_rows)
-    return stats_path, duplicates_path
+    with duplicates_data_path.open(
+        'w',
+        encoding='utf-8',
+        newline='',
+    ) as duplicates_data_file:
+        writer = csv.DictWriter(
+            duplicates_data_file,
+            fieldnames=duplicate_data_columns,
+        )
+        writer.writeheader()
+        writer.writerows(duplicate_rows)
+    return stats_path, duplicates_path, duplicates_data_path
 
 
 def main(data_args: DataArguments) -> None:
@@ -214,18 +248,19 @@ def main(data_args: DataArguments) -> None:
     split_data = _split_language_data(aggregated, train_ratio, dev_ratio, test_ratio, seed)
     if data_args.split.dedup:
         split_data, stats_rows, duplicate_rows = deduplicate_corpora(split_data)
-        stats_path, duplicates_path = write_dedup_reports(
+        stats_path, duplicates_path, duplicates_data_path = write_dedup_reports(
             paths.get_ctx_path('analyze'),
             stats_rows,
             duplicate_rows,
         )
         logger.info(
             'Removed %d duplicate NER samples, including %d label conflicts; '
-            'wrote reports to %s and %s.',
+            'wrote reports to %s, %s, and %s.',
             len(duplicate_rows),
             sum(int(row['label_conflicts']) for row in stats_rows),
             stats_path,
             duplicates_path,
+            duplicates_data_path,
         )
     else:
         logger.info('NER sentence deduplication is disabled.')

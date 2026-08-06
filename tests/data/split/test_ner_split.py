@@ -77,4 +77,21 @@ def test_main_deduplicates_after_splitting_and_preserves_raw_labels(
         duplicate_rows = list(csv.DictReader(input_file))
     assert len(duplicate_rows) == 2
     assert {row["kept_split"] for row in duplicate_rows} == {"test"}
-    assert {row["labels_match"] for row in duplicate_rows} == {"True"}
+    assert {row["labels_match"] for row in duplicate_rows} == {"True", "False"}
+
+    with (analyze_dir / "ner-duplicates-data.csv").open(
+        encoding="utf-8",
+        newline="",
+    ) as input_file:
+        duplicate_data_rows = list(csv.DictReader(input_file))
+    assert len(duplicate_data_rows) == 2
+    assert {row["kept_sentence"] for row in duplicate_data_rows} == {"Isto besedilo"}
+    assert {row["kept_labels"] for row in duplicate_data_rows} == {"O B-MISC"}
+    assert {row["removed_sentence"] for row in duplicate_data_rows} == {
+        "isto besedilo",
+        "ISTO BESEDILO",
+    }
+    conflicting_row = next(
+        row for row in duplicate_data_rows if row["labels_match"] == "False"
+    )
+    assert conflicting_row["removed_labels"] == "O O"

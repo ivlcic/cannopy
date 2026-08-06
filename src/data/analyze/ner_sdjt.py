@@ -112,7 +112,6 @@ def main(data_args: DataArguments) -> None:
 
     output_dir = append_seed_suffix(paths.get_ctx_path("analyze"), split_seed)
     output_file = output_dir / "ner-stats.csv"
-    base_stats_file = output_dir.parent / "ner" / "ner-stats.csv"
     density_figure = output_dir / "entity-density-by-language.svg"
     composition_figure = output_dir / "label-composition-by-language.svg"
     seed = int(data_args.sampling.seed or data_args.split.seed or 2611)
@@ -144,6 +143,6 @@ def main(data_args: DataArguments) -> None:
     _write_stats_csv(output_file, rows, tags)
     logger.info("Wrote %d SDJT NER stats rows to %s", len(rows), output_file)
 
-    write_dataset_shift_figures(base_stats_file, density_figure, composition_figure)
+    write_dataset_shift_figures(output_file, density_figure, composition_figure)
     logger.info("Wrote entity density figure to %s", density_figure)
     logger.info("Wrote label composition figure to %s", composition_figure)
