@@ -664,7 +664,9 @@ Treat source compatibility explicitly, and validate lower-confidence auxiliary c
 The experiments are reproducible with the code available at \url{https://github.com/ivlcic/cannopy}.
 Supplementary material is available at \url{https://github.com/ivlcic/jtdh2026-ner-supp}.
 It provides the complete per-label precision, recall, and F1 statistics for \texttt{PER}, \texttt{LOC}, and \texttt{ORG}, including variation across random-seed runs.
-The repository also contains the deduplicated NER corpus used to construct the experimental datasets and the duplicate audit data produced during preprocessing.
+Two \texttt{mDeBERTa-v3-base} NER checkpoints intended for broader use are available at \url{https://huggingface.co/ivlcic/snerta-8l-base} and \url{https://huggingface.co/ivlcic/snerta-12l-base}.
+The former was trained on the eight manually annotated language datasets, while the latter additionally uses four WikiANN/PAN-X auxiliary-language datasets.
+Unlike the controlled experiments reported in this paper, both checkpoints retain \texttt{MISC} as a fourth entity type rather than mapping it to \texttt{O}.
 
 \acknowledgmenteng{This work was funded by the Slovenian Research and Innovation Agency (ARIS) through the core research programme P2-0103 (Knowledge Technologies) and the project L2-50070 (Embeddings-based techniques for Media Monitoring Applications). The work of J.C. was supported by the Young Researcher Grant PR-13409.}
 
