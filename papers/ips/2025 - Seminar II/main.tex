@@ -1,0 +1,130 @@
+%--------------------------------------------------------------------------------------------------
+% ips-phd-thesis-eng-apa.tex v1.3 (see the end of the file for modification history)
+% To be used with ipsthesis.cls v1.3
+% 
+% A template for creating a PhD thesis in English using the APA 6th edition reference formatting
+% with several accompanying files.  
+% By Tea Tušar <tea.tusar@ijs.si>
+%
+% IMPORTANT NOTE: Biber must be used as the backhand for processing bibliographies, not bibtex!
+%
+% To compile this template, you need to run the following sequence of commands:
+% 1. pdflatex  ips-phd-thesis-eng-apa
+% 2. biber     ips-phd-thesis-eng-apa
+% 3. makeindex ips-phd-thesis-eng-apa (optional, if you want an index)
+% 4. pdflatex  ips-phd-thesis-eng-apa 
+% 5. pdflatex  ips-phd-thesis-eng-apa
+%--------------------------------------------------------------------------------------------------
+\documentclass[phd,eng,apa]{ipsthesis}
+
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{float}
+\usepackage{tablefootnote}
+\usepackage[utf8]{inputenc}
+\usepackage{caption}
+\usepackage{makecell}
+
+\DeclareMathSymbol{\mhyphen}{\mathord}{AMSa}{"39}
+
+%
+%--------------------------------------------------------------------------------------------------
+%  
+% PREAMBULE
+%--------------------------------------------------------------------------------------------------
+%
+% Files with bibliographies 
+\addbibresource{references.bib}
+%
+% Define here all other packages and commands you need for your thesis, for example:
+\usepackage{color}
+\usepackage{listings}
+\usepackage{longtable}
+%--
+% MP added for comments
+\usepackage{todonotes}
+%--------------------------------------------------------------------------------------------------
+%  
+% DOCUMENT
+%--------------------------------------------------------------------------------------------------
+\begin{document}
+%--------------------------------------------------------------------------------------------------
+%
+% The cover page and spine are created separately using two .doc files provided by IPS.
+%--------------------------------------------------------------------------------------------------
+%
+% FRONT MATTER
+%--------------------------------------------------------------------------------------------------
+%
+\frontmatter
+%
+\selectlanguage{american}
+\pagestyle{fancy}
+%
+% Title pages
+\input{text/front-title-pages}
+% 
+% English abstract
+\input{text/front-abstract-eng}
+%
+% Contents
+\maketoc
+%
+%--------------------------------------------------------------------------------------------------
+%
+% MAIN MATTER
+%--------------------------------------------------------------------------------------------------
+%
+\mainmatter
+\captionsetup{font=small}
+%
+\input{text/01-introduction}
+\input{text/02-chapter}
+\input{text/03-chapter}
+\input{text/04-chapter}
+\input{text/05-conclusions}
+%--------------------------------------------------------------------------------------------------
+%
+% APPENDICES (optional)
+%--------------------------------------------------------------------------------------------------
+%
+\appendix
+\begin{appendices}
+%
+\end{appendices}
+%--------------------------------------------------------------------------------------------------
+%
+% BACK MATTER
+%--------------------------------------------------------------------------------------------------
+%
+\backmatter
+%
+% References used in the thesis
+\printreferences
+% 
+% Author's bibliography 
+%\input{text/back-bibliography-apa}
+%
+% Author's biography
+%\input{text/back-biography}
+%
+% Index (optional)
+%\printmyindex
+%--------------------------------------------------------------------------------------------------
+\end{document}
+%--------------------------------------------------------------------------------------------------
+%
+% MODIFICATION HISTORY
+%--------------------------------------------------------------------------------------------------
+% Version 1.3:
+%  - Removed the sorting option from \printbibliography in IEEE bibliographies due to a new warning.
+% Version 1.2: 
+%  - Modified the symbols and abbreviations example to adjust the vertical positioning of the text
+% Version 1.1: 
+%  - Removed slovene.lbx and slovene-apa.lbx from accompanying files as they are now included in 
+%    the latest biblatex version.
+%  - Modified the bibliography example to include publications not referenced before.
+%  - Modified the references example to show DOI should be used only for articles not yet published. 
+%  - Modified the symbols and abbreviations example to accommodate long lines and long lists.
+%  - Added pdf bookmarks for Acknowledgments, Abstract and Povzetek. 
+%--------------------------------------------------------------------------------------------------

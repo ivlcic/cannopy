@@ -1,0 +1,78 @@
+%--------------------------------------------------------------------------------------------------
+% 
+\chapter{Introduction}
+%--------------------------------------------------------------------------------------------------
+In this section, we delve into specific industries' challenges, focusing on applying deep-learning solutions to the multi-label text classification (MLTC) problem. We will examine the latest trends in Natural Language Processing (NLP) development and provide an overview of the foundational concepts that underpin our approach.
+
+\section{Media Monitoring Industry}
+Initially, the primary goal of media monitoring and analysis was to alleviate the burden of manually tracking all published news. However, as the news volume surged, the field had to evolve, incorporating more sophisticated NLP techniques. Media monitoring and analysis hold significant potential for societal benefit because they aim to present and scrutinize news content impartially without favouring any particular viewpoint. Furthermore, these processes help society by identifying biased perspectives, misinformation, and sentiment within news content.
+
+In today's fast-paced world, media monitoring and analysis require near real-time capabilities to deliver timely and relevant information. This process involves categorizing articles by content, attaching metadata tags, and synthesizing information from multiple news sources. Advanced NLP techniques are well-suited to these tasks, enabling the development of personalized news recommendation systems, automated content summarization, and effective organization and prioritization of news items. Furthermore, the industry demands systems that ensure low-latency processing and operate autonomously, without relying on third-party services, to maintain data integrity, security, and uninterrupted access to critical updates.
+
+Intense competition has significantly reduced profit margins in the media monitoring industry, particularly in the Western Balkan region. 
+This financial pressure limits the ability to invest in large-scale hardware necessary for deploying state-of-the-art NLP technology in server clusters. 
+Consequently, we are focusing on researching solutions that can efficiently run on consumer-grade hardware, enabling low-resource and cost-effective operations without sacrificing performance.
+
+We aim to tackle the specific challenge of classifying news articles in South Slavic languages with custom-tailored topics for end users. 
+For this purpose, we developed a new $NewsMon$ dataset, which involved sampling, preparing, and analyzing a collection of labelled news articles sourced from the news monitoring industry. 
+This dataset contains over a million articles and more than twelve thousand labels for the classifier to learn, placing this challenging classification task in the realm of large-scale if not extreme, multilabel classification.
+
+Similar challenges, such as assigning a few labels from a vast label space, also arise in other industries, like tagging keywords for online shopping items or classifying industrial products for tax purposes~\parencite{zhang2023longtailed}.
+
+\section{Pretrained Large Language Models}
+\label{sec:llm}
+In Natural Language Processing, Transformer-based deep neural network models~\parencite{vaswani2017attention} have recently become the leading approach. 
+While Transformer Encoder architecture initially drove the transition to the usage of pre-trained large language models like BERT~\parencite{devlin2018bert} and RoBERTa~\parencite{liu2019roberta}, the most significant advancements have occurred with generative, text-to-text Transformer models. 
+Notable examples include complete Transformer architecture models like T5~\parencite{raffel2020exploring} and popular Auto-Regressive Transformer Decoder architectures such as the GPT family~\parencite{radford2018improving, radford2019language, brown2020language}, LaMDA~\parencite{thoppilan2022lamda}, PaLM~\parencite{chowdhery2022palm}, and LLaMA~\parencite{touvron2023llama, touvron2023llama2openfoundation}. 
+These models are pre-trained on extensive text datasets and fine-tuned for various text-based tasks, including question-answering, text generation, and language translation, significantly advancing language understanding and generation capabilities. 
+The top-performing MLTC systems also utilize Transformer-based deep neural network models~\parencite{tarekegn2024deeplearningmultilabellearning}.
+
+Current trends in Large Language Models (LLMs) evolve along two distinct yet complementary paths. 
+On the one hand, we're witnessing the development of increasingly sophisticated and performant families of models characterized by massive training datasets, enormous parameter counts, multi-modal capabilities~\parencite{openai2024gpt4technicalreport, dubey2024llama3herdmodels, geminiteam2024geminifamilyhighlycapable} and substantial compute and energy cost~\parencite{rae2021scaling, thoppilan2022lamda}.
+These versatile Foundation Models have state-of-the-art capabilities for text classification but are out of reach, given our initial constraints.
+However, there is a significant opportunity to use these models to generate synthetic training data for fine-tuning smaller, more efficient models~\parencite{kuzman2023chatgptbeginningendmanual}.
+On the other hand, there's a growing focus on developing smaller, more efficient language models that can run on less powerful hardware~\parencite{li2024DataCompLM, gemma_2024, abdin2024phi3technicalreporthighly, jiang2023mistral7b, parmar2024nemotron415btechnicalreport}. 
+This trend aims to bring the power of advanced language processing to edge devices, enabling real-time, on-device inference without relying on third-party cloud infrastructure. 
+
+Unfortunately, these smaller, efficient language models largely lack pre-training in South Slavic languages. 
+They cannot operate on consumer-grade hardware without techniques like pruning, knowledge distillation~\parencite{muralidharan2024compact, hinton2015distillingknowledgeneuralnetwork, gu2024minillmknowledgedistillationlarge} or quantization~\parencite{nagel2021whitepaperneuralnetwork, gholami2021surveyquantizationmethodsefficient, malinovskii2024pvtuningstraightthroughestimationextreme}, and they often come with restrictive licensing terms for industrial use. 
+Additionally, deploying these models in a production environment may lead to significant inference latency, causing critical delays.
+
+\section{Retrieval Augmented Approaches}
+
+Retrieval-Augmented Generation (RAG) is an innovative technique in natural language processing that enhances pre-trained language model text generation by incorporating external knowledge sources~\parencite{lewis2021retrievalaugmentedgenerationknowledgeintensivenlp}. 
+By combining these strengths, RAG excels in knowledge-intensive NLP tasks, where ensuring factual accuracy and delivering up-to-date information is critical. 
+This approach allows models to dynamically retrieve relevant data, significantly improving their performance in complex applications. 
+RAG models consist of four main components: 
+\begin{itemize}
+    \item Encoder: Commonly, a language model, fine-tuned on retrieval tasks, is used to obtain the dense query and text passage representation.
+    \item Document Index: On disk or in memory document index or a database containing dense document or text passage representation.
+    \item Retriever: Typically a Dense Passage Retriever (DPR) that fetches relevant document passages from a large corpus~\parencite{karpukhin2020dense}
+    \item Generator: Usually a pre-trained sequence-to-sequence model like Auto-Regressive Transformer Decoder (see section~\ref{sec:llm}) for answering or summarisation based on a context from retrieved passages.
+\end{itemize}
+
+Our approach draws inspiration from this work, particularly by integrating pre-trained Transformer Encoder models with non-parametric memory using a general-purpose fine-tuning method and a dense retriever.
+In our scenario, using non-parametric memory and a dense retriever minimizes the need for continuous model fine-tuning, as labels are frequently updated, added and removed. 
+
+We can find a similar approach in the work of \textcite{zhang2023longtailed}, which addresses extreme multi-label text classification (XMTC) with a novel framework of Dual Encoder with Pseudo Label (DEPL).
+DEPL treats each input document as a query, utilizing a neural network model to retrieve relevant labels from the candidate space based on their textual descriptions. 
+To achieve this, a linear support vector machine (SVM) model is trained using bag-of-words (BoW) features, such as TF-IDF, to generate informative keywords automatically. 
+These keywords serve as pseudo descriptions for each label, helping the model accurately identify and match the appropriate labels for each document.
+
+\section{Scope and Objectives}
+This paper presents the analysis of the news monitoring data collected for our research. 
+By examining the current state-of-the-art in MTLC and XMTC, we aim to compare and identify potential improvements to our information retrieval method. 
+Finally, we present the foundations of our approach and share the results of our initial experiments.
+
+\section{Organization of the Paper}
+
+%The following chapter introduces the data, explains how it was created, and compares it to a similar, well-studied dataset. 
+%We then explore the evaluation metrics for MTLC and XMTC, followed by an analysis of the latest advancements in the field and their contributions in Chapter~\ref{ch:background}.
+%Next, in Chapter~\ref{ch:retrieval}, we present our method, baseline models, and a preliminary zero-shot evaluation. 
+%In the final Chapter~\ref{ch:trends}, we discuss potential enhancements and outline our planned research efforts for the future.
+
+The following chapter introduces the background of our research. 
+We explore the evaluation metrics for MTLC and XMTC and then analyze the latest advancements in the field and their contributions.
+We then introduce the data, explain its creation, and compare it to a similar, well-studied dataset in Chapter~\ref{ch:data}.
+Next, in Chapter~\ref{ch:retrieval}, we present our method, embedding models, baseline and preliminary zero-shot experiments.
+In the final Chapter~\ref{ch:trends}, we discuss potential enhancements and outline our planned research efforts for the future.

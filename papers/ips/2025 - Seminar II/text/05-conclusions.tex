@@ -1,0 +1,39 @@
+%--------------------------------------------------------------------------------------------------
+% 
+\chapter{Conclusion}
+\label{ch:trends}
+%--------------------------------------------------------------------------------------------------
+This chapter provides a concise overview of key considerations for our method, followed by potential improvements to our previous research.
+
+\section{General Considerations}
+
+By separating the classification and encoding of dense document and label representations, we can solve the problem of frequent label changes since we do not need to retrain the model end-to-end when enough label changes accumulate. 
+Every label can be updated or removed simply by altering the label-relevant text passage (LRP) index.
+Additionally, if we separate these two components, we can more easily replace the embedding model when better-performance models emerge.
+Since we do not fine-tune end-to-end, we lose classification performance but gain greater explainability. 
+We can easily explain why the classifier selected a certain label based on the document's similarity to the LRP.
+Finally, since the model is not fine-tuned end-to-end for the multi-label classification task, it could be employed for additional purposes, such as clustering, general retrieval and summarization.
+
+\section{Future work}
+
+Upon examining our work, several areas for potential improvements emerge. 
+Initially, a more detailed data analysis could enhance classification accuracy. 
+By analyzing the labels more deeply, we could determine the proportion of labels belonging to Named Entity (NE) classes versus those representing General Concepts (GC). 
+Incorporating a supplementary Named Entity Recognition (NER) model~\parencite{ivacic2023analysis} would allow us to identify duplicates in label classes and NEs. 
+This integration would enable us to tailor the classification type based on label class during inference.
+
+Moreover, it is crucial to determine how many labels lack associated text spans, necessitating the synthesis of relevant label text passages. Employing techniques such as LLM prompting and paraphrasing can significantly improve information retrieval results~\parencite{wang2024improvingtextembeddingslarge}
+Additionally, categorizing labels by frequency and analyzing performance across these categories (frequent, rare, etc.) could help pinpoint weaknesses in our classification framework and guide further improvements.
+
+Finally, fine-tuning the model with query text passage pairs at different granularity should be tested.
+
+\section{Summary}
+
+We have explored multi-label text classification (MLTC) as applied to the news monitoring industry and discussed using advanced NLP technologies to address the identified challenges. 
+Next, we discussed our approach to preparing and analyzing this multilingual and multi-label dataset, outlining the specific challenges and the strategies we employed.
+We reviewed MTLC evaluation metrics used in research together with contemporary methods, followed by problems with representing lengthy documents. 
+We further discussed transitioning from conventional MLTC methods to more intricate scenarios requiring different approaches and advanced handling techniques for large-scale datasets.
+We presented a retrieval-augmented approach tailored to address specific challenges such as multilinguality, rare languages, and frequent label changes. 
+This approach benefits low-resource languages and systems, which often suffer from a scarcity of training data and unusable models.
+Leveraging these emerging paradigms, we plan to continue our research, focusing on applied solutions for news analysis.
+We have laid the groundwork for advancing the application of NLP technologies in news monitoring, addressing the pressing challenges through innovative methodologies.

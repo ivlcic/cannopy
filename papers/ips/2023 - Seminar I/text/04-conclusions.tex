@@ -1,0 +1,104 @@
+%--------------------------------------------------------------------------------------------------
+% 
+\chapter{Trends and Challenges}
+\label{ch:trends}
+%--------------------------------------------------------------------------------------------------
+This chapter provides a concise overview of key considerations for both Named Entity Recognition (NER) and Computational Framing Analysis (CFA),
+followed by potential improvements to our previous research.
+The chapter concludes by outlining further areas of research in news analysis applied solutions that we intend to investigate.
+
+\section{Named Entity Recognition}
+
+\subsection{General Considerations}
+We argue that the traditional CoNLL NER annotations, which have been widely adopted, contain insufficient labels considering the capabilities of today's Large Pre-trained Multilingual Models (LPMMs).
+While this has been recently addressed in \textcite{malmasi-etal-2022-semeval}, there is still a challenge for minority and low-resource languages.
+A related challenge we see is custom on-the-fly labelling instead of pre-selected static one, where unseen labels by the training are given at inference time. 
+This can be addressed with more research on Zero-shot learning techniques regarding unseen label discovery.
+
+\subsection{Past Research Improvements}
+Since the short paper submission~\parencite{ivacic2023analysis}, we have already further investigated if the model is affected by fine-tuning with broader family languages.
+The first results confirm that model performance is stable even if fine-tuned with 11 additional languages.
+Further cross-validation is necessary to validate and claim state-of-the-art results, especially considering that no significant improvements have been made to LPMMs.
+
+\section{Computational Framing Analysis}
+
+\subsection{General Considerations}
+
+As most recent research in CFA has shifted towards supervised learning with LPMMs, we identify the primary challenges to further advancements in the utilization of the same Policy Frames Codebook (PFC) as a foundation for the most widely used corpora: ``Media Frames Corpus'' (MFC) and ``Gun Violence Frame Corpus'' (GVFC).
+The labels derived from the PFC are often misinterpreted as an additional layer of topics, referring to the content presented in the news rather than addressing the fundamental framing question of how the news is presented~\parencite{ali-hassan-2022-survey}.
+Despite the vague definition of framing, the PFC labels remain static, which may be disputable when alternative news framing emerges in response to a new issue or agenda.
+Following the research initiated by SemEval-2023 task 3~\parencite{piskorski-etal-2023-semeval-task3}, we believe the general trends go in the right direction. 
+The trend of limited-size corpora encourages the pursuit of further advancements in zero- and few-shot learning approaches, which again reduces the need for large, manually annotated corpora.
+More diverse corpora with a broader aim to develop models that could further generalize the framing concept without solely counting on the PFC codebook.
+In this context, the latest advancements in text-to-text transformers could offer potential benefits by generalizing the framing concept beyond predefined labels, allowing for more flexible generalizations derived from these labels. 
+Therefore this will be the focus of our future research.
+
+\subsection{Past Research Improvements}
+Since only initial work has been conducted regarding CFA and the Slovene language, there are many, even essential, improvements to be made.
+Apart from more rigorous cross-validation with removing unnecessary problem transformation methods, we should finish the started manual corpora annotation with multiple coders to achieve mutual annotator agreement.
+Next, we could repeat the recent and relevant SemEval-2023 experiments to begin the endeavour to research framing concept generalization with few-shot learning.
+
+\section{Additional Areas for News Analysis Applied Solutions}
+
+In addition to past NER and initial CFA research, we intend to broaden the area of advanced applied solutions to news analysis through follow-up studies.
+
+\subsection{Extreme Multi-label Hierarchical Classification}
+
+There is also a potential to improve general multi-label text classification by leveraging prior and additional CFA work. 
+The research to develop concrete applied solutions for media monitoring, capable of extreme multi-label hierarchical classification handling of >1,000 topics, led to tools for automatically classifying documents into industry-standard IPTC categories across languages.
+Another challenge lies in addressing the automatic classification of a ten times larger number of customized, client-tailored topics.
+
+\subsection{Multi-level Online Clustering}
+
+Media monitoring needs to be performed in real-time: grouping articles by their content, adding several categories of meta-information, performing analyses, and reporting from the perspective of a particular client before distributing the content.
+Grouping articles by their content on a small daily scale can be achieved efficiently with an appropriate document representation and additional meta-information.
+The challenge emerges when a news archive expands to millions of documents, necessitating the pre-calculation of various clustering levels to accommodate the constant influx of new articles.
+Various approaches have been suggested~\parencite{Miranda2018MultilingualCO, jiang2021topic, Santos2022SimplifyingMN}, but the subject remains an open research question.
+
+\subsection{Extractive and Abstractive Summarisation}
+
+Methods for media monitoring tasks must be capable of summarizing single documents and multiple news articles or streams of social media posts and producing output specific to a given client. 
+An open research question is how to handle these different summarisation scenarios using extractive and abstractive summarisation methods. 
+Extractive models select significant sentences and must do this across different media and different languages.
+Abstractive models must then generate text summaries from these sentences in less-resourced languages, e.g. Slovene. 
+From the applied perspective, summarisation is currently manually performed or using a very simplistic extraction of words surrounding the target.
+Significant advancements have been made with T5~\parencite{raffel2020exploring}, GPT-3~\parencite{brown2020language}, PaLM~\parencite{chowdhery2022palm}, LLama~\parencite{touvron2023llama} models and summarisation, but ``model hallucination'' still poses a challenge, especially where factual information presented is essential.
+\renewcommand{\arraystretch}{1.3}
+\begin{table}[htb]
+    \caption{Example state-of-the-art GPT derivative ChatGPT (GPT-4) model hallucinations.}
+	\label{tab:frames}
+	\centering
+    \resizebox{\textwidth}{!}{
+		\begin{tabular}[t]{ll}
+            \hline
+            \textbf{Q}:& \shortstack[l]{I want you to act as a natural language processing scientist. I will provide you with details about the topic. \\
+            You should be knowledgeable of natural language processing terminology and metrics. You will answer as a scientist and use only facts. \\
+            My first request is: can you write about some examples of news framing studies but skip writing descriptions of news framing \\
+            and write more about large pre-trained multilingual models like XLM-RoBERTa or multilingual BERT and how they are used. \\
+            Try not to make an introduction and also include scientific papers.}\\
+            \hline
+            \textbf{A}:&\shortstack[l]{\dots XLM-RoBERTa, proposed by Conneau et al. (2020), is another large pre-trained multilingual model. It builds upon RoBERTa \\
+            (Liu et al., 2019) and is pre-trained on a corpus of 100 languages. This model has been successfully used in news framing studies, \\
+            such as the work of Kardas et al. (2021), which explored the framing of the COVID-19 pandemic in Polish news. By \dots}\\
+            \hline
+            \textbf{Q}:&\shortstack[l]{Tell me which paper was written by Kardas et al. (2021), which explored the framing of the COVID-19 pandemic in Polish news.}\\
+            \hline
+            \textbf{A}:&\shortstack[l]{I apologize for the confusion in my previous response. Upon further review,  I could not find a paper by Kardas et al. (2021) that\\
+            explored the framing of the COVID-19 pandemic in Polish news. The information provided in my earlier response was incorrect,\\
+            and I apologize for any confusion this may have caused.}\\
+            \hline
+		\end{tabular}
+  }
+\end{table}
+
+\section{Summary}
+
+We presented two traditional news analyses NLP tasks with our ongoing research.
+The NLP research community increasingly gravitates towards multilingual models, utilizing Few-shot and Zero-shot learning techniques.
+In this context, Few- and Zero-shot learning refers to the learner handling not only ``unseen'' training data but also ``unseen'' tasks.
+Advancements in this field significantly benefit low-resource languages, which often suffer from a scarcity of training data.
+The great research potential lies in large language, text-to-text transformer models trained on many languages and tasks, with the ability to solve arbitrary NLP problems.
+Leveraging these emerging paradigms, we plan to continue our research focusing on applied solutions for news analysis.
+% traditional tasks
+% more unseen labels
+% potential in new large language models

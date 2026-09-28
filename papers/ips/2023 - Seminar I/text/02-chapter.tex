@@ -1,0 +1,127 @@
+%--------------------------------------------------------------------------------------------------
+% 
+\chapter{Named Entity Recognition}
+\label{ch:ner}
+%--------------------------------------------------------------------------------------------------
+
+Named Entity Recognition (NER) is one of the cornerstones of the NLP tasks and is widely used in many real-life applications, including in the news industry.
+Named entities, like persons (PER), places (LOC), organizations (ORG), and others (MISC), provide a context to the news story. 
+They often directly answer some of the ``Five Ws'' questions (Who, What, When, Where, Why) that are considered basic questions of information gathering and journalism.
+
+In the scope of Machine Learning, NER is usually considered a multi-class token classification problem, where each token in the text belongs to a specific NER class.
+Persons, locations, organizations, and others, which are considered traditional labels used in news corpora and most comparison benchmarks, were first presented in CoNLL-2003 shared task~\parencite{CoNLL2003}.
+In various corpora, it is not unusual to find additional labels, such as labels for events and products~\parencite{piskorski-etal-2017-first}, while some corpora possess highly intricate or even hierarchical NER labelling systems~\parencite{sevickova2007named}.
+
+\section{Traditional NER Approaches}
+
+The history of NER research dates back to the 1990s, with initial studies conducted by researchers such as \textcite{grishman1996message}, and followed by \textcite{sang2003introduction,segura2013semeval}, among others. 
+During this period, the first rule-based models were developed \parencite{yu2020named}.
+Those models were based on pre-defined patterns and hand-crafted rules (e.g., LTG, NetOwl) and could include regular expressions, gazetteers (lists of known named entities), and morphological patterns.
+These approaches were followed by the unsupervised methods \parencite{collins1999unsupervised,nadeau2006unsupervised}, where no annotated data were required. 
+
+The advent of machine learning algorithms opened a novel direction for NER tasks. 
+Various classification techniques, such as Support Vector Machines (SVM), Decision Trees, or Maximum Entropy classifiers, were used along with feature engineering, which used word information like capitalisation patterns, word shape, Part-Of-Speech tagging (POS), chunking, prefixes, suffixes, and even dictionaries \parencite{florian2003named,krishnan2006effective}.
+
+Later, statistical, probabilistic graph models like Conditional Markov Models \parencite{Leek1997InformationEU, Borthwick1999Maximum, mccallum2000MaximumEM} (CMMs) and Conditional Random Fields (CRFs), introduced by \textcite{lafferty2001ConditionalRF} were applied to address the NER problem~\parencite{finkel2005incorporating}.
+CMMs are generative, while CRFs are graphical probabilistic models that can be used for such sequence labelling tasks.
+CRFs model the conditional probability of the label sequence given the input sequence while considering the dependencies between adjacent labels. 
+CRFs were considered state-of-the-art for NER tasks before the emergence of neural network-based techniques. 
+These models were successfully used in the Slovene language projects~\parencite{ReLDI} and research studies~\parencite{stajner2013razpoz}.
+
+\section{Neural Network Approaches}
+One of the early neural network-based approaches for NER was introduced by \textcite{collobert2011natural}. 
+They proposed a Convolutional Neural Network (CNN) and a deep learning architecture called SENNA (Semantic/Syntactic Extraction using a Neural Network Architecture) for several NLP tasks: POS, chunking, NER and Semantic Role Labelling. 
+The SENNA model used a lookup table for pre-computed word embedding and a sliding window approach with CNN to capture the local context around each word.
+
+Subsequently, RNN-based models became popular for NER tasks.
+For example, \textcite{lample2016neural} proposed a bidirectional LSTM~\parencite{hochreiter1997lstm, graves2013bilstm} (Bi-LSTM) model with a Conditional Random Field (CRF) layer on top for NER. 
+This approach combined the strengths of both sequence labelling (using Bi-LSTM) and structured prediction (using CRF) to achieve state-of-the-art performance at the time.
+An example implementation can be found in Stanza library~\parencite{qi2020stanza} and CLASSLA derivative for Slovene language~\parencite{ljubesic-dobrovoljc-2019-neural}.
+
+Later, it was shown that the multilingual BERT (mBERT) transformer model outperforms the Bi-LSTM-CRF model for the NER task, and the performance can be even further improved with a word-level CRF layer~\parencite{arkhipov2019tuning}. 
+
+\section{Multilingual Models}
+Besides rich-resourced languages (e.g. English), there is a shift to several less-resourced ones, including the Slavic family (see several organized shared tasks \parencite{piskorski-etal-2017-first,piskorski-etal-2019-second,piskorski-etal-2021-slav}).
+Large pre-trained multilingual models (LPMLMs) have been used in a large number of tasks, including cross-lingual hate-speech detection \textcite{pelicon2021offensive}, zero-shot sentiment analysis~\parencite{pelicon2020zero} as well as for NER~\parencite{arkhipov2019tuning,suppa2021benchmarking}.
+
+Nevertheless, it is also evident that XLM-RoBERTa outperforms BERT~\parencite{suppa2021benchmarking} in such tasks. 
+\textcite{prelevikj-zitnik-2021-multilingual} showed that the monolingual NER model performance for the Slovene language is practically equal to that of a multilingual one and has achieved state-of-the-art performance on the NER task.
+
+\section{Datasets and Resources for South-Slavic NER}
+NER corpora are usually presented as an additional annotation in larger corpora like dependency treebanks. 
+For such corpora, the CoNLL format is the most widely used.
+In the CoNLL format, a text corpus is presented with sentences separated by a blank line, and each line contains a single word token with its attributes separated by a tab character (see Listing~\ref{lst:conll2003}).
+
+\begin{lstlisting}[basicstyle=\tiny,caption=Example original CoNLL-2003 format,label=lst:conll2003]
+U.N. NNP I-NP I-ORG
+official NN I-NP O
+Ekeus NNP I-NP I-PER
+heads VBZ I-VP O
+for IN I-PP O
+Baghdad NNP I-NP I-LOC
+. . O O
+\end{lstlisting}
+
+CoNLL2003 format was further developed to CoNLL-U, which supports additional word (token) level annotations like POS, lemmas, and dependencies, to name a few \parencite{marneffe2021universal}.
+NER is usually annotated in IOB2~\parencite{IOB2} format, which uses B and I prefixes for NER labels to mark the beginning and the inside of NER annotated text spans.
+
+\begin{lstlisting}[inputencoding=utf8,extendedchars=true,basicstyle=\tiny,caption=Example CoNLL-U format,label=lst:conllu]
+# sent_id = ssj12.45.201
+# text = Igralni oddelek One Toucha 557.
+1 Igralni igralen ADJ Agpmsny Case=Nom|Definite=Def|Degree=Pos|Gender=Masc|Number=Sing 2 amod _ NER=O
+2 oddelek oddelek NOUN Ncmsn Case=Nom|Gender=Masc|Number=Sing 0 root _ NER=O
+3 One One PROPN Npmsn Case=Nom|Gender=Masc|Number=Sing 4 nmod _ NER=B-misc
+4 Toucha Touch PROPN Npmsg Case=Gen|Gender=Masc|Number=Sing 2 nmod _ NER=I-misc
+5 557 557 NUM Mdc NumForm=Digit|NumType=Card 4 nummod _ NER=I-misc|SpaceAfter=No
+6 . . PUNCT Z _ 2 punct _ NER=O
+\end{lstlisting}
+
+We present the most common and established NER corpora for the South-Slavic languages in Table~\ref{tab:corpora}.
+The Slovene language has a newly published combined Training corpus {SUK} 1.0~\parencite{SUK-1.0}, which consists of ssj500k, ELEXIS-WSD and SentiCoref corpora.
+Unfortunately, only the WikiANN\parencite{rahimi-etal-2019-massively} automatic corpora are available for Bosnian and Macedonian languages.
+\begin{table}[htb]
+	\caption{List of South-Slavic NER Corpora, which shows each corpus with the number of sentences, the number of tokens it contains, and its long name.}
+	\label{tab:corpora}
+	\centering
+		\begin{tabular}{rrlr}
+			\hline
+			Sentences&Tokens&Long Name&\\
+			\hline
+            \hline
+			\multicolumn{4}{c}{Slovene} \\
+			\hline
+            18106&400291&BSNLP 2017/21&\parencite{piskorski-etal-2021-slav}\\
+            9483&193611&ssj500k 2.3&\parencite{ssj500k-23}\\
+            2024&31233&{ELEXIS}-{WSD} 1.0&\parencite{ELEXIS-WSD-10}\\
+            18139&391526&{SentiCoref} 1.0&\parencite{SentiCoref-10}\\
+            \hline
+			\multicolumn{4}{c}{Croatian} \\
+			\hline
+            820&18704&BSNLP 2017/21&\parencite{piskorski-etal-2021-slav}\\
+            24780&504227&hr500k 1.0&\parencite{hr500k-10}\\
+            \hline
+            \multicolumn{4}{c}{Serbian} \\
+            \hline
+            3891&86726&{SETimes}.{SR} 1.0&\parencite{SETimes-SR-1.0}\\
+            \hline
+            \multicolumn{4}{c}{Bulgarian} \\
+            \hline
+            18168&425438&BSNLP 2017/21&\parencite{piskorski-etal-2021-slav}\\
+            \hline
+		\end{tabular}
+\end{table}
+
+\section{Cross-lingual Transfer Learning}
+
+Following the work of \textcite{prelevikj-zitnik-2021-multilingual}, we wanted to explore if fine-tuning the LPMLMs with related language data improves model performance for the NER task~\parencite{ivacic2023analysis}. 
+We examined the impact of providing additional training data on model performance for three related languages, namely Slovene, Croatian, and Serbian.
+We demonstrated that LPMLMs performance enhancement is most significant when the target language has a limited training corpus. 
+Furthermore, we revealed that introducing additional language training data does not negatively affect the model's performance for the target language.
+In every experiment we conducted, XLM-RoBERTa outperformed mBERT, and we also attained a state-of-the-art F1 score for the Slovene language NER model.
+
+Recently, the GPT-derived ChatGPT model has demonstrated the potential for state-of-the-art performance in NER by employing zero-shot transfer learning.
+Although, most likely, the model hasn't been trained on Slovene language NER datasets, it still manages to classify arbitrary text accurately.
+The ability to accurately classify even arbitrary ``unseen'' NER labels demonstrates the potential for new research avenues. 
+These new approaches markedly differ from our traditional single-task supervised systems. 
+Instead of focusing on a single problem, the model is trained across multiple languages, diverse NLP tasks, and various objectives.
+This potential is discussed in more detail in Chapter~\ref{ch:trends}.
