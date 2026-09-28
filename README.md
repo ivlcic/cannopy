@@ -8,9 +8,9 @@ Simple ML research framework/shell that focuses on repeatability and supports fl
 
 ### Project structure
 - `src/app/`: CLI machinery (arg parsing, config stacking, logging, discovery utilities).
-- `src/data/`, `src/train/`, `src/eval/`, `src/test/`: command-specific task modules discovered by the entrypoint.
+- `src/data/`, `src/train/`, `src/eval/`, `src/test/`: command-specific task modules discovered by the entry point.
 - `conf/`: layered YAML configs; data source docs and defaults live here.
-- `data/`, `result/`, `log/`, `tmp/`: runtime assets and artifacts (keep large files out of git).
+- `data/`, `result/`, `log/`, `tmp/`: runtime assets and artefacts (keep large files out of git).
 - `train/`, `eval/`: notebooks/scripts for experiments; adjust configs via `-c` to stack overrides.
 - `pyproject.toml`: uv-managed dependencies, package metadata, and script entrypoints.
 
@@ -18,7 +18,7 @@ Simple ML research framework/shell that focuses on repeatability and supports fl
 uv sync
 ```
 
-Oneliner to reinitialize:
+Oneliner to reinitialise:
 ```shell
 
 rm -Rf .venv && uv sync
@@ -36,20 +36,20 @@ set -a; source .env; set +a
 The default environment uses Torch 2.11, CUDA 13, and FlashAttention-2 via
 custom third-party Linux wheels for Python 3.13 and 3.14.
 
-## 1. Dataset mining / creation tasks
+## 1. Dataset mining/creation tasks
 
 Prerequisites:
 - Access to archive servers.
 - The `CPTM_SPASS` environment variable is needed in `.env` file. 
 
 ### 1.1 ESG Slovene News Dataset
-Create environmental, social, and governance dataset from the Slovene news data source:
+Create an environmental, social, and governance dataset from the Slovene news data source:
 ```shell
 ./data create esg
 ```
 
 ### 1.2 Multilingual Keyword Match Slovene News Dataset
-Create a dataset from a multilingual keywords matching data source:
+Create a dataset from a multilingual keyword matching data source:
 ```shell
 ./data create ml-kw-match
 ```
@@ -65,7 +65,7 @@ Create a dataset from Slovene news articles tagged with fourteen selected IPTC c
 ### 2.1 Dataset preparation
 
 Download and prepare Slavic NER dataset:
-- After the split deduplication is performed (you can switch it off with `-s data.split.dedup=False`)
+- After the split, deduplication is performed (you can switch it off with `-s data.split.dedup=False`)
 ```shell
 ./data download ner
 ./data prepare ner
@@ -103,7 +103,7 @@ Now we can also run evaluation:
 Sweep runs (to determine learning rate and dropout):
 ```shell
 ./data split ner -s data.split.seed=2611
-./data analyze ner -s data.split.seed=2611
+./data analyse ner -s data.split.seed=2611
 # split seed is used to load the data for sampling from the correct split directory 
 ./data resample ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
 ./data analyze ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
@@ -124,14 +124,14 @@ before validation and training, and writes its audit files under
 `result/data/analyze/ner`. The SDJT resampling step consumes these deduplicated
 split files without running a second deduplication pass.
 
-Resampled snapshots and their dataset-analysis artifacts are retained under
+Resampled snapshots and their dataset-analysis artefacts are retained under
 seed-scoped directories such as `result/data/split/ner-sdjt.s2611` and
 `result/data/analyze/ner-sdjt.s2611`. Training resolves the split suffix from
 `train.seed`. Test evaluation discovers all matching trained model seeds and
 evaluates every model against the split with the same seed before computing the
 reported mean and standard deviation.
 
-Finally compute best option and set configuration in yaml manually:
+Finally, compute the best option and set the configuration in YAML manually:
 ```shell
 ./eval token ner-sdjt sweep -c mm-bert
 ```
@@ -143,14 +143,14 @@ for sweep selection.
 
 Main experiment runs:
 - Repeat split/resample/training for each seed; seed-scoped split directories are retained.
-- Although where split seed seems unnecessary it is used to load the data from the correct split directory.
-- For training same seed value is used as for split. It's unrelated but handy also to load the data from the relevant split directory.
+- Although the split seed seems unnecessary, it is used to load the data from the correct split directory.
+- For training, the same seed value is used as for the split. It's unrelated but handy to load the data from the relevant split directory.
 - After all trained model seeds and matching split directories are available, run evaluation and result analysis once.
 
 ```shell
 # 
 ./data split ner -s data.split.seed=2611
-./data analyze ner -s data.split.seed=2611
+./data analyse ner -s data.split.seed=2611
 # split seed is used to load the data for sampling from the correct split directory
 ./data resample ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
 ./data analyze ner-sdjt -s data.split.seed=2611 -s data.sampling.seed=2611
@@ -384,7 +384,7 @@ GGUF file from Hugging Face on first use.
 ./data embed newsmon -c stories -c arctic-ebd-l-v2-256
 ```
 
-We select a desired clustering model at specific threshold ("gold standard") and fit others to best match the selected model:
+We select a desired clustering model at a specific threshold ("gold standard") and fit others to best match the selected model:
 ```shell
 ./data cluster newsmon fit -c stories -c oai-ada_002
 ./data cluster newsmon fit -c stories -c oai-txt_ebd_3s
@@ -407,7 +407,7 @@ We select a desired clustering model at specific threshold ("gold standard") and
 ./data cluster newsmon fit -c stories -c arctic-ebd-l-v2-256
 ```
 
-Now, that we have adjusted the individual thresholds, we can cluster the dataset with Louvain communities algorithm:   
+Now that we have adjusted the individual thresholds, we can cluster the dataset with the Louvain communities algorithm:   
 (see conf/task/cluster)
 
 ```shell
