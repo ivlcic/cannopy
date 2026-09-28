@@ -226,6 +226,7 @@ Main experiment runs:
 # annotate the data
 ./eval token ner-slobench -c mm-bert
 ./eval token ner-slobench -c xlmr
+./eval token ner-slobench -c ivl-snerta-8l
 ```
 
 ## 3. Multilingual Slavic Retrieval task
