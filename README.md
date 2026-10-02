@@ -83,12 +83,6 @@ Download and prepare Slavic NER dataset:
 ./train token ner -c mm-bert
 # train the microsoft/mdeberta-v3-base
 ./train token ner -c mdeberta3
-# not implemented yet
-./train token ner -c gemma3-270m
-# not implemented yet
-./train token ner -c gemma3-1b-pt
-# not implemented yet
-./train token ner -c qwen3-1.7b
 ```
 Now we can also run evaluation:
 ```shell
@@ -97,8 +91,42 @@ Now we can also run evaluation:
 ./eval token ner -c mm-bert
 ```
 
+### 2.3 Decoder NER experiments
 
-### 2.3 SDTJ Paper Experiments
+`ner-dec` reuses `result/data/split/ner` from `./data split ner`. Qwen3 Instruct
+and Base train as causal language models with one sample per sentence (long
+sentences are split to fit the token limit):
+```
+BIO-NER:
+Janez Novak živi v Ljubljani.
+Janez      B-PER
+Novak      I-PER
+živi       O
+v          O
+Ljubljani  B-LOC
+.          O
+```
+The heading and sentence are masked from the loss; only the token/label rows and EOS
+are trained. Validation selects the checkpoint by teacher-forced loss. Test
+evaluation generates one label per source word, rejoins long sentences, and
+reports invalid outputs separately. The decoder settings live under
+`conf/data/ner-dec/`.
+
+```shell
+./train token ner-dec -c qwen3-4b-instruct-2507
+./eval token ner-dec -c qwen3-4b-instruct-2507
+./test token ner-dec -c qwen3-4b-instruct-2507 -s 'data.attributes.text=Janez Novak živi v Ljubljani.'
+
+# Compare with the base checkpoint.
+./train token ner-dec -c qwen3-4b-base
+./eval token ner-dec -c qwen3-4b-base
+```
+
+`google/gemma-4-E4B-it` is not configured for this experiment. Its multimodal
+architecture needs separate integration and compatible Transformers support.
+
+
+### 2.4 SDTJ Paper Experiments
 
 Sweep runs (to determine learning rate and dropout):
 ```shell

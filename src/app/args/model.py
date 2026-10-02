@@ -19,6 +19,7 @@ class ModelArguments:
     attn_implementation: str = None
     dtype: str = None
     classifier_dropout: Optional[float] = None
+    use_chat_template: bool = False
 
     def validate_training_parameter_dtypes(self, model: Module) -> None:
         trainable_dtypes = {

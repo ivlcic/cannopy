@@ -1,0 +1,16 @@
+data:
+  dataset_name: ner-dec
+  # Reuse the sentence-level CSVs from result/data/split/ner.
+  subdata_order:
+    - sl
+    - hr
+    - sr
+    - bs
+    - mk
+    - sq
+    - cs
+    - bg
+    - pl
+    - ru
+    - sk
+    - uk
