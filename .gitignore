@@ -219,6 +219,7 @@ result/**/*.xlsx
 result/**/*.zip
 result/**/*.svg
 result/**/*.png
+result/**/*.md
 result/**/*.npz
 result/train/**/*.bin
 result/train/**/*.pt
