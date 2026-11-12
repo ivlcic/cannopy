@@ -75,6 +75,7 @@ class MLKNN:
         return torch.topk(distances, k=self.n_neighbors, largest=False, dim=1).indices
 
     def fit(self, x: InputArray, y: InputArray) -> "MLKNN":
+        self.is_fitted = False
         self.x_train = self._as_feature_tensor(x)
         self.y_train = self._as_target_tensor(y, n_samples=self.x_train.shape[0])
         self._validate_hyperparameters(n_samples=self.x_train.shape[0])
@@ -116,7 +117,16 @@ class MLKNN:
                 self.smoothing + negative_histogram
             ) / (self.smoothing * (self.n_neighbors + 1) + negative_histogram.sum())
 
+        self.is_fitted = True
         return self
+
+    @property
+    def posterior_positive_(self) -> torch.Tensor:
+        return self.posterior_positive
+
+    @property
+    def posterior_negative_(self) -> torch.Tensor:
+        return self.posterior_negative
 
     def _query_neighbor_indices(self, x_query: torch.Tensor) -> torch.Tensor:
         distances = self._pairwise_distances(x_query, self.x_train)

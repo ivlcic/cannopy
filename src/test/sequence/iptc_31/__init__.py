@@ -5,7 +5,9 @@ from logging import Logger
 from pathlib import Path
 
 import numpy as np
+from scipy.sparse import spmatrix
 
+from .features import load_tfidf_splits
 from .methods import METHODS
 from ....app.args.data import DataArguments
 from ....app.args.model import ModelArguments
@@ -22,7 +24,7 @@ paths: Paths
 @dataclass
 class EmbeddedSplit:
     ids: np.ndarray
-    embeddings: np.ndarray
+    embeddings: np.ndarray | spmatrix
     labels: np.ndarray
 
 
@@ -70,10 +72,27 @@ def _evaluate_subset(data_args: DataArguments, model_args: ModelArguments, metho
     embed_dir = paths.get_script_ctx_path('data', 'embed')
     labels_file = paths.get_script_ctx_path('data', 'prepare') / f'{subset}.labels.csv'
     labeler = load_multilabel_labeler(labels_file)
-    train_file = embed_dir / get_sidecar_name(data_args, model_args, 'train')
-    test_file = embed_dir / get_sidecar_name(data_args, model_args, 'test')
-    train = _load_split(train_file, labeler)
-    test = _load_split(test_file, labeler)
+    feature_options = options.get('features', {})
+    feature_type = feature_options.get('type', 'embeddings')
+    if feature_type == 'tfidf':
+        prepare_dir = paths.get_script_ctx_path('data', 'prepare')
+        train_file = prepare_dir / f'{subset}.train.jsonl'
+        test_file = prepare_dir / f'{subset}.test.jsonl'
+        feature_started = time.perf_counter()
+        train_values, test_values, vectorizer = load_tfidf_splits(train_file, test_file, labeler, feature_options)
+        train, test = EmbeddedSplit(*train_values), EmbeddedSplit(*test_values)
+        source_metadata = {
+            'train_data': str(train_file), 'test_data': str(test_file),
+            'feature_parameters': feature_options,
+            'vocabulary_size': len(vectorizer.vocabulary_),
+            'feature_seconds': time.perf_counter() - feature_started,
+        }
+    else:
+        train_file = embed_dir / get_sidecar_name(data_args, model_args, 'train')
+        test_file = embed_dir / get_sidecar_name(data_args, model_args, 'test')
+        train = _load_split(train_file, labeler)
+        test = _load_split(test_file, labeler)
+        source_metadata = {'train_sidecar': str(train_file), 'test_sidecar': str(test_file)}
     if train.embeddings.shape[1] != test.embeddings.shape[1]:
         raise ValueError('Train and test embedding dimensions differ')
     if set(train.ids) & set(test.ids):
@@ -104,9 +123,9 @@ def _evaluate_subset(data_args: DataArguments, model_args: ModelArguments, metho
         'batch_size': batch_size,
         'threshold': threshold,
         'parameters': parameters,
-        'prediction_seconds': duration,
-        'train_sidecar': str(train_file),
-        'test_sidecar': str(test_file),
+        'method_seconds': duration,
+        'feature_type': feature_type,
+        **source_metadata,
     }
     return EvaluationResult(result, test.ids, test.labels, scores)
 
@@ -154,12 +173,19 @@ def _pool_evaluations(evaluations: list[EvaluationResult], dataset_name: str) ->
         'num_test': len(ids),
         'num_labels': len(label_order),
         'label_order': label_order,
-        'prediction_seconds': sum(evaluation.metadata['prediction_seconds'] for evaluation in evaluations),
-        'train_sidecars': [evaluation.metadata['train_sidecar'] for evaluation in evaluations],
-        'test_sidecars': [evaluation.metadata['test_sidecar'] for evaluation in evaluations],
-        'aggregation': 'pooled test samples; retrieval uses each language training set',
+        'method_seconds': sum(evaluation.metadata['method_seconds'] for evaluation in evaluations),
+        'aggregation': 'pooled test samples; each language uses its own training set',
     }
-    del result['train_sidecar'], result['test_sidecar']
+    for kind in ['sidecar', 'data']:
+        if f'train_{kind}' in result:
+            for split in ['train', 'test']:
+                plural = 'sidecars' if kind == 'sidecar' else 'data_files'
+                result[f'{split}_{plural}'] = [evaluation.metadata[f'{split}_{kind}'] for evaluation in evaluations]
+                del result[f'{split}_{kind}']
+    if 'vocabulary_size' in result:
+        result['vocabulary_sizes'] = {evaluation.metadata['subset']: evaluation.metadata['vocabulary_size'] for evaluation in evaluations}
+        result['feature_seconds'] = sum(evaluation.metadata['feature_seconds'] for evaluation in evaluations)
+        del result['vocabulary_size']
     return EvaluationResult(result, ids, np.concatenate(true_rows), np.concatenate(score_rows))
 
 
@@ -167,7 +193,12 @@ def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str)
     if method not in METHODS:
         raise ValueError(f'Unknown classification method {method!r}; available: {", ".join(METHODS)}')
     if not model_args.short_name:
-        raise ValueError('Select the embedding model configuration, for example -c bge-m3')
+        raise ValueError('Select a feature/model configuration, for example -c bge-m3 or -c tfidf-word')
+    feature_type = data_args.attributes.get('sequence', {}).get('features', {}).get('type', 'embeddings')
+    if feature_type not in ('embeddings', 'tfidf'):
+        raise ValueError(f'Unsupported feature type: {feature_type}')
+    if feature_type == 'tfidf' and method not in ('svm', 'log_reg'):
+        raise ValueError('TF-IDF features are supported for svm and log_reg')
     if data_args.source.select.subset:
         _write_evaluation(_evaluate_subset(data_args, model_args, method))
         return
@@ -175,10 +206,11 @@ def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str)
     embed_dir = paths.get_script_ctx_path('data', 'embed')
     prepare_dir = paths.get_script_ctx_path('data', 'prepare')
     prefix = f'{data_args.dataset_name}.'
-    suffixes = [f'.{model_args.short_name}.{split}.npz' for split in ['train', 'test']]
+    source_dir = prepare_dir if feature_type == 'tfidf' else embed_dir
+    suffixes = [f'.{split}.jsonl' if feature_type == 'tfidf' else f'.{model_args.short_name}.{split}.npz' for split in ['train', 'test']]
     languages = {
         file.name[len(prefix):-len(suffix)]
-        for file in embed_dir.glob('*.npz')
+        for file in source_dir.glob('*.jsonl' if feature_type == 'tfidf' else '*.npz')
         for suffix in suffixes
         if file.name.startswith(prefix) and file.name.endswith(suffix)
     }
@@ -187,7 +219,7 @@ def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str)
         if not lang or '.' in lang:
             continue
         subset = f'{data_args.dataset_name}.{lang}'
-        required = [embed_dir / f'{subset}{suffix}' for suffix in suffixes]
+        required = [source_dir / f'{subset}{suffix}' for suffix in suffixes]
         required.append(prepare_dir / f'{subset}.labels.csv')
         missing = [str(file) for file in required if not file.is_file()]
         if missing:
@@ -198,7 +230,7 @@ def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str)
         )))
     if not selected:
         raise FileNotFoundError(
-            f'No complete language train/test sidecars with label CSVs for {model_args.short_name} in {embed_dir}'
+            f'No complete language train/test inputs with label CSVs for {model_args.short_name} in {source_dir}'
         )
     logger.info('Evaluating %s for available languages: %s', method, ', '.join(
         get_subset_name(args) for args in selected
@@ -213,6 +245,18 @@ def zero_shot(data_args: DataArguments, model_args: ModelArguments) -> None:
 
 def rae_xmc(data_args: DataArguments, model_args: ModelArguments) -> None:
     _evaluate(data_args, model_args, 'rae_xmc')
+
+
+def log_reg(data_args: DataArguments, model_args: ModelArguments) -> None:
+    _evaluate(data_args, model_args, 'log_reg')
+
+
+def mlknn(data_args: DataArguments, model_args: ModelArguments) -> None:
+    _evaluate(data_args, model_args, 'mlknn')
+
+
+def svm(data_args: DataArguments, model_args: ModelArguments) -> None:
+    _evaluate(data_args, model_args, 'svm')
 
 
 def main(data_args: DataArguments, model_args: ModelArguments) -> None:

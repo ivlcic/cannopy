@@ -1,0 +1,13 @@
+model:
+  short_name: tfidf-char
+data:
+  attributes:
+    sequence:
+      features:
+        type: tfidf
+        analyzer: char_wb
+        ngram_range: [3, 5]
+        min_df: 2
+        max_features: 100000
+        sublinear_tf: true
+        norm: l2

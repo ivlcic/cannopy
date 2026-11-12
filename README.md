@@ -130,6 +130,62 @@ use continuous scores. Results use the `.rae_xmc.metrics.json` and `.rae_xmc.pre
 Method defaults live under `data.attributes.sequence.methods`; `sequence.parameters` overrides them
 for the current run. No parameters are fitted using test labels.
 
+Fit one-vs-rest (OVA) logistic regression on the existing normalized embeddings:
+```shell
+./test sequence iptc-31 log_reg -c sl -c qwen3-ebd-8b
+./test sequence iptc-31 log_reg -c qwen3-ebd-8b
+```
+Each label gets an independent binary classifier fitted only on that language's training split.
+Defaults use L2 regularization (`C=1.0`), the `liblinear` solver, `max_iter=1000`, and no class
+weighting. Labels constant in training receive constant probabilities. Probability scores use the
+shared threshold and metrics API; omitting the language pools the test predictions as above.
+Override settings with, for example, `-s data.attributes.sequence.parameters.C=10` or
+`-s data.attributes.sequence.parameters.class_weight=balanced`. Results use the
+`.log_reg.metrics.json` and `.log_reg.predictions.npz` suffixes.
+The `method_seconds` field includes classifier fitting and prediction for this supervised baseline.
+
+Evaluate ML-kNN using the same embedding sidecars:
+```shell
+./test sequence iptc-31 mlknn -c sl -c qwen3-ebd-8b
+./test sequence iptc-31 mlknn -c qwen3-ebd-8b
+```
+This reuses `src/app/model/mlknn.py` to estimate Laplace-smoothed label priors and neighbor-count
+conditional probabilities from training data only. Each training sample is excluded from its own
+neighbors. Defaults are 10 Euclidean neighbors, smoothing 1.0, CPU execution, and the shared 0.5
+threshold. Override these through `data.attributes.sequence.parameters`, for example
+`-s data.attributes.sequence.parameters.n_neighbors=20`. The output suffix is `.mlknn`.
+Omitting the language produces pooled test metrics, with a separate fitted model per language.
+
+Evaluate OVA linear SVM classification on the existing embeddings:
+```shell
+./test sequence iptc-31 svm -c sl -c qwen3-ebd-8b
+./test sequence iptc-31 svm -c qwen3-ebd-8b
+```
+Each label gets a binary SVM with `C=1.0` and no class weighting. The linear kernel matrix is
+computed once per language and reused across labels. `SVC(probability=True)` uses training-only
+Platt calibration, producing continuous scores for ranking metrics and the shared 0.5 threshold.
+Labels constant in training get constant probabilities. `max_iter=-1` means no iteration limit.
+Override settings with `-s data.attributes.sequence.parameters.C=10` or
+`-s data.attributes.sequence.parameters.class_weight=balanced`. Results use the `.svm` suffix;
+`method_seconds` includes fitting, calibration, and prediction. Omitting the language pools the
+test predictions from separate language-specific models.
+
+Compare SVM and logistic regression with sparse TF-IDF features directly from prepared text:
+```shell
+./test sequence iptc-31 svm -c tfidf-word
+./test sequence iptc-31 log_reg -c tfidf-word
+./test sequence iptc-31 svm -c tfidf-char
+./test sequence iptc-31 log_reg -c tfidf-char
+```
+Add `-c sl` (or another language) for an individual result. Word TF-IDF uses unigrams/bigrams;
+character TF-IDF uses `char_wb` 3–5-grams. Both use sublinear term frequencies, L2 normalization,
+`min_df=2`, and up to 100,000 features. Vocabulary, IDF, and feature selection are fitted on each
+language's training text only; test text is transformed with that fitted vectorizer.
+No embedding sidecars are required. Logistic regression consumes sparse matrices directly, and
+SVM computes its shared linear kernel from sparse matrices. Output model names are `tfidf-word`
+and `tfidf-char`; classifier defaults, calibration, and pooled metrics match the embedding runs.
+Metrics files record feature settings, vocabulary sizes, and vectorization time separately.
+
 ## 2. Multilingual Slavic NER task
 
 ### 2.1 Dataset preparation

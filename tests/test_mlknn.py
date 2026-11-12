@@ -31,16 +31,18 @@ def test_mlknn_fit_estimates_smoothed_priors_and_posteriors():
 
     expected_prior_positive = np.array([0.5, 0.5])
     expected_prior_negative = np.array([0.5, 0.5])
+    # For either label, every positive training sample has two positive
+    # neighbors, and every negative sample has zero positive neighbors.
     expected_posterior_positive = np.array(
         [
             [1 / 6, 1 / 6, 4 / 6],
-            [4 / 6, 1 / 6, 1 / 6],
+            [1 / 6, 1 / 6, 4 / 6],
         ]
     )
     expected_posterior_negative = np.array(
         [
             [4 / 6, 1 / 6, 1 / 6],
-            [1 / 6, 1 / 6, 4 / 6],
+            [4 / 6, 1 / 6, 1 / 6],
         ]
     )
 
@@ -63,14 +65,15 @@ def test_mlknn_predict_prefers_labels_supported_by_neighbor_counts():
         [
             [0.8, 0.2],
             [0.2, 0.8],
-            [0.2, 0.8],
+            # The middle query has one neighbor from each class.
+            [0.5, 0.5],
         ]
     )
     expected_predictions = np.array(
         [
             [1, 0],
             [0, 1],
-            [0, 1],
+            [1, 1],
         ],
         dtype=np.int8,
     )
