@@ -1,0 +1,4 @@
+model:
+  short_name: qwen3-ebd-8b
+  model_name_or_path: 'Qwen/Qwen3-Embedding-8B'
+  max_seq_length: 32768

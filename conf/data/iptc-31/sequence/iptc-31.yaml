@@ -1,0 +1,12 @@
+data:
+  attributes:
+    sequence:
+      method: zero_shot
+      batch_size: 256
+      threshold: 0.5
+      parameters: {}
+      methods:
+        rae_xmc:
+          top_k: 50
+          temperature: 0.04
+          metric: l2

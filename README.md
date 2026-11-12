@@ -88,6 +88,43 @@ Each command reads the prepared train/test files and language label CSV, and wri
 files under `result/data/embed/iptc-31/`. Language configs also select that language for
 download and prepare commands.
 
+Evaluate nearest-neighbor zero-shot classification from the existing embedding sidecars:
+```shell
+./test sequence iptc-31 zero_shot -c sl -c bge-m3
+./test sequence iptc-31 zero_shot -c sl -c qwen3-ebd-4b
+```
+
+Omit the language config to evaluate all languages with complete train/test sidecars and label CSVs
+for the selected model. Results remain separate for each language:
+```shell
+./test sequence iptc-31 zero_shot -c bge-m3
+./test sequence iptc-31 rae_xmc -c bge-m3
+```
+Incomplete language inputs are skipped with a warning. A run with no complete language inputs fails.
+
+The method transfers the closest training document's labels to each test document using exact L2
+search on normalized embeddings, following EMMA's `fa_test_zshot`. It loads the existing train/test
+`.npz` files and language label CSV without loading an embedding model. Metrics from `src/app/metrics.py`
+and predictions are written to `result/test/sequence/iptc-31/` as
+`iptc-31.<lang>.<model>.zero_shot.metrics.json` and `.predictions.npz`.
+Prediction files contain sample IDs, label codes, true labels, scores, and thresholded predictions.
+The method registry is in `src/test/sequence/iptc_31/methods/`; additional methods
+can implement the same score-matrix interface and be selected through `data.attributes.sequence.method`.
+Options live in `conf/data/iptc-31/sequence/iptc-31.yaml` and can be overridden with `-s`.
+
+Evaluate our RAE-XMC variant using a softmax-weighted average of retrieved training label vectors:
+```shell
+./test sequence iptc-31 rae_xmc -c sl -c bge-m3
+./test sequence iptc-31 rae_xmc -c sl -c bge-m3 -s data.attributes.sequence.parameters.top_k=20 -s data.attributes.sequence.parameters.temperature=0.1
+```
+Defaults are `top_k=50`, `temperature=0.04`, and `metric=l2`, matching EMMA's distance variant
+with lambda fixed at 1. L2 uses `softmax(-sqrt(squared_distance) / temperature)`;
+`metric=ip` uses `softmax(cosine_similarity / temperature)` on normalized vectors.
+The weighted label scores are passed to the metrics API before thresholding, so ranking metrics
+use continuous scores. Results use the `.rae_xmc.metrics.json` and `.rae_xmc.predictions.npz` suffixes.
+Method defaults live under `data.attributes.sequence.methods`; `sequence.parameters` overrides them
+for the current run. No parameters are fitted using test labels.
+
 ## 2. Multilingual Slavic NER task
 
 ### 2.1 Dataset preparation
