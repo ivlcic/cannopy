@@ -1,6 +1,28 @@
+# IPTC-31 multilingual, multilabel news dataset.
+# Languages: hr (Croatian), mk (Macedonian), sr (Serbian), sl (Slovene).
+#
+# Download preserves the archive's eight <lang>_<train|test>.jsonl files under
+# result/data/download/iptc-31/ with their original records and filenames.
+# Preparation writes iptc-31.<lang>.<train|test>.jsonl and
+# iptc-31.<lang>.labels.csv under result/data/prepare/iptc-31/.
+# Prepared labels are IPTC code strings; sample IDs are prefixed with language
+# to avoid collisions. Original annotations and train/test assignments remain.
+# Label counts and optional source.select.filter.min_label_count filtering
+# are computed per language across its train and test splits.
+#
+# Embedding requires a language config (-c hr/mk/sr/sl) and a model config.
+# Outputs under result/data/embed/iptc-31/ use the stem
+# iptc-31.<lang>.<model>.<train|test>, with .jsonl vectors, normalized .npz
+# sidecars, and .stats.jsonl performance measurements. Sidecars contain IDs,
+# embeddings, label code lists, and encoded label vectors in CSV label order.
+# Language configs also restrict download and prepare to that language.
+#
+# Classification settings and implementation notes: sequence/iptc-31.yaml.
 data:
   dataset_name: iptc-31
   split:
+    # Download and prepare retain the archive splits; these ratios do not
+    # resplit the dataset or create an evaluation split during preparation.
     train: 0.8
     eval: 0.1
     test: 0.1

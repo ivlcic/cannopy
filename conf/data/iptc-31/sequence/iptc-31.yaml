@@ -1,3 +1,31 @@
+# IPTC-31 sequence evaluation: ./test sequence iptc-31 <method> -c <model>.
+# Add -c hr/mk/sr/sl to evaluate a single language. Without a language config,
+# discover complete train/test inputs and label CSVs for the selected features.
+# Incomplete languages are skipped with a warning; no complete inputs is an error.
+# Each language uses its own training set. Test predictions are aligned by IPTC
+# code and concatenated before metrics are computed through src/app/metrics.py.
+# Pooled micro-F1 uses global TP/FP/FN counts, not mean language-level F1.
+#
+# Embedding inputs come from result/data/embed/iptc-31/; TF-IDF inputs come
+# directly from prepared text and need no embedding sidecars. tfidf-word.yaml
+# and tfidf-char.yaml set the feature representation and output model name.
+# Vocabulary, IDF, and feature selection are learned on training text only.
+# Logistic regression uses sparse features directly; SVM shares a linear
+# kernel matrix across all label classifiers and calibration folds.
+#
+# Outputs under result/test/sequence/iptc-31/:
+#   iptc-31.<lang>.<model>.<method>.metrics.json / .predictions.npz
+#   iptc-31.<model>.<method>.metrics.json / .predictions.npz (pooled run)
+# Prediction arrays contain ids, label_codes, y_true, y_score, and y_pred.
+# Metadata records effective parameters and input paths. method_seconds covers
+# method fitting/prediction; TF-IDF feature_seconds records vectorization
+# separately, with vocabulary sizes per language in pooled reports.
+#
+# Methods implement a shared score-matrix interface and are registered in
+# src/test/sequence/iptc_31/methods/. Select the positional method or set
+# data.attributes.sequence.method. Per-run sequence.parameters overrides the
+# selected method's defaults below, e.g. -s data.attributes.sequence.parameters.C=10.
+# Model fitting and probability calibration use training data only.
 data:
   attributes:
     sequence:
@@ -6,21 +34,37 @@ data:
       threshold: 0.5
       parameters: {}
       methods:
+        # zero_shot has no method parameters: exact normalized L2 search,
+        # copying the nearest training document's full label vector.
         rae_xmc:
+          # Softmax-weighted mean of retrieved label vectors; lambda is 1.
+          # l2: softmax(-sqrt(squared_distance) / temperature).
+          # ip: softmax(cosine_similarity / temperature).
+          # Continuous scores reach the metrics API before thresholding.
           top_k: 50
           temperature: 0.04
           metric: l2
         log_reg:
+          # Independent L2-regularized binary classifiers (liblinear solver).
+          # C is inverse regularization strength; larger C weakens the penalty.
+          # class_weight: balanced is available for class imbalance.
+          # Labels constant in training receive constant probabilities.
           C: 1.0
           max_iter: 1000
           class_weight: null
           seed: 2611
         mlknn:
+          # Laplace-smoothed label priors and neighbor-count conditionals.
+          # Training samples are excluded from their own neighborhoods.
+          # n_neighbors must be smaller than the training sample count.
           n_neighbors: 10
           smoothing: 1.0
           metric: euclidean
           device: cpu
         svm:
+          # Independent linear-kernel SVCs with training-only Platt calibration.
+          # C and class_weight have the same roles as in logistic regression.
+          # max_iter=-1 means no iteration limit; constant labels stay constant.
           C: 1.0
           max_iter: -1
           class_weight: null

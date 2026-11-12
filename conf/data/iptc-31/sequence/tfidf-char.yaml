@@ -1,3 +1,5 @@
+# Character 3-5-grams within word boundaries. Fit vocabulary and IDF on each
+# language's training text, then transform test text. Methods: svm and log_reg.
 model:
   short_name: tfidf-char
 data:

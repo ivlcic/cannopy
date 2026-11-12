@@ -61,130 +61,51 @@ Create a dataset from Slovene news articles tagged with fourteen selected IPTC c
 ```
 
 ### 1.4 IPTC-31 Multilingual News Dataset
-Download the Croatian, Macedonian, Slovenian, and Serbian news dataset with 31 IPTC labels:
+
+News classification with 31 IPTC labels in Croatian (`hr`), Macedonian (`mk`), Serbian (`sr`), and Slovene (`sl`).
+
+Download and prepare the original train/test splits:
 ```shell
 ./data download iptc-31
 ./data prepare iptc-31
 ```
-The downloader preserves the eight original `<lang>_<train|test>.jsonl` files under
-`result/data/download/iptc-31/`. Label IDs, names, and IPTC Media Topics mappings are embedded in
-`conf/data/iptc-31/iptc-31.yaml` under `data.attributes.labels`.
-Preparation writes eight `iptc-31.<lang>.<train|test>.jsonl` files in the prepared format,
-plus `iptc-31.<lang>.labels.csv` per language under `result/data/prepare/iptc-31/`,
-using IPTC codes as labels and language-prefixed document IDs. Original annotations and train/test
-assignments are preserved; no evaluation split is created during preparation.
-Label counts and optional `min_label_count` filtering are computed separately for each language
-across its train and test splits.
 
-Embed one language using its configuration and an embedding model:
+Embed each language; replace `bge-m3` with another model config as needed:
 ```shell
-./data embed iptc-31 -c hr -c bge-m3
-./data embed iptc-31 -c mk -c bge-m3
-./data embed iptc-31 -c sl -c bge-m3
-./data embed iptc-31 -c sr -c bge-m3
-```
-Each command reads the prepared train/test files and language label CSV, and writes
-`iptc-31.<lang>.<model>.<train|test>.jsonl` plus matching `.npz` sidecars and `.stats.jsonl`
-files under `result/data/embed/iptc-31/`. Language configs also select that language for
-download and prepare commands.
-
-Evaluate nearest-neighbor zero-shot classification from the existing embedding sidecars:
-```shell
-./test sequence iptc-31 zero_shot -c sl -c bge-m3
-./test sequence iptc-31 zero_shot -c sl -c qwen3-ebd-4b
+for lang in hr mk sr sl; do
+  ./data embed iptc-31 -c "$lang" -c bge-m3
+done
 ```
 
-Omit the language config to evaluate all languages with complete train/test sidecars and label CSVs
-for the selected model and compute pooled metrics over all test samples:
+Evaluate existing embeddings. Omit the language to pool all available test sets, or add `-c sl` (or another language) for an individual result:
 ```shell
 ./test sequence iptc-31 zero_shot -c bge-m3
 ./test sequence iptc-31 rae_xmc -c bge-m3
+./test sequence iptc-31 log_reg -c bge-m3
+./test sequence iptc-31 mlknn -c bge-m3
+./test sequence iptc-31 svm -c bge-m3
 ```
-Incomplete language inputs are skipped with a warning. A run with no complete language inputs fails.
-Each test document still retrieves from its own language's training set. Label columns are aligned
-by IPTC code before combining predictions. Combined results are saved as
-`iptc-31.<model>.<method>.metrics.json` and `.predictions.npz`, without a language suffix.
-Micro-F1 is computed from pooled TP, FP, and FN counts, rather than averaged language F1 scores.
-Using a language config continues to write that language's individual results.
 
-The method transfers the closest training document's labels to each test document using exact L2
-search on normalized embeddings, following EMMA's `fa_test_zshot`. It loads the existing train/test
-`.npz` files and language label CSV without loading an embedding model. Metrics from `src/app/metrics.py`
-and predictions are written to `result/test/sequence/iptc-31/` as
-`iptc-31.<lang>.<model>.zero_shot.metrics.json` and `.predictions.npz`.
-Prediction files contain sample IDs, label codes, true labels, scores, and thresholded predictions.
-The method registry is in `src/test/sequence/iptc_31/methods/`; additional methods
-can implement the same score-matrix interface and be selected through `data.attributes.sequence.method`.
-Options live in `conf/data/iptc-31/sequence/iptc-31.yaml` and can be overridden with `-s`.
+| Method | Description | Default parameters |
+| --- | --- | --- |
+| `zero_shot` | Copy the nearest training document's labels | 1 neighbor, normalized L2 distance |
+| `rae_xmc` | Temperature-weighted neighbor labels | `top_k=50`, `temperature=0.04`, `metric=l2` |
+| `log_reg` | OVA logistic regression | L2 penalty, `C=1.0`, `max_iter=1000`, `liblinear` solver |
+| `mlknn` | Bayesian multilabel k-nearest neighbors | `n_neighbors=10`, `smoothing=1.0`, Euclidean distance, CPU |
+| `svm` | OVA linear SVM with probability calibration | `C=1.0`, `max_iter=-1` (unlimited) |
 
-Evaluate our RAE-XMC variant using a softmax-weighted average of retrieved training label vectors:
-```shell
-./test sequence iptc-31 rae_xmc -c sl -c bge-m3
-./test sequence iptc-31 rae_xmc -c sl -c bge-m3 -s data.attributes.sequence.parameters.top_k=20 -s data.attributes.sequence.parameters.temperature=0.1
-```
-Defaults are `top_k=50`, `temperature=0.04`, and `metric=l2`, matching EMMA's distance variant
-with lambda fixed at 1. L2 uses `softmax(-sqrt(squared_distance) / temperature)`;
-`metric=ip` uses `softmax(cosine_similarity / temperature)` on normalized vectors.
-The weighted label scores are passed to the metrics API before thresholding, so ranking metrics
-use continuous scores. Results use the `.rae_xmc.metrics.json` and `.rae_xmc.predictions.npz` suffixes.
-Method defaults live under `data.attributes.sequence.methods`; `sequence.parameters` overrides them
-for the current run. No parameters are fitted using test labels.
+Shared defaults: batch size 256 and probability threshold 0.5. Logistic regression and SVM use no class weighting and seed 2611. Override parameters with `-s`, for example `-s data.attributes.sequence.parameters.C=10`.
 
-Fit one-vs-rest (OVA) logistic regression on the existing normalized embeddings:
-```shell
-./test sequence iptc-31 log_reg -c sl -c qwen3-ebd-8b
-./test sequence iptc-31 log_reg -c qwen3-ebd-8b
-```
-Each label gets an independent binary classifier fitted only on that language's training split.
-Defaults use L2 regularization (`C=1.0`), the `liblinear` solver, `max_iter=1000`, and no class
-weighting. Labels constant in training receive constant probabilities. Probability scores use the
-shared threshold and metrics API; omitting the language pools the test predictions as above.
-Override settings with, for example, `-s data.attributes.sequence.parameters.C=10` or
-`-s data.attributes.sequence.parameters.class_weight=balanced`. Results use the
-`.log_reg.metrics.json` and `.log_reg.predictions.npz` suffixes.
-The `method_seconds` field includes classifier fitting and prediction for this supervised baseline.
-
-Evaluate ML-kNN using the same embedding sidecars:
-```shell
-./test sequence iptc-31 mlknn -c sl -c qwen3-ebd-8b
-./test sequence iptc-31 mlknn -c qwen3-ebd-8b
-```
-This reuses `src/app/model/mlknn.py` to estimate Laplace-smoothed label priors and neighbor-count
-conditional probabilities from training data only. Each training sample is excluded from its own
-neighbors. Defaults are 10 Euclidean neighbors, smoothing 1.0, CPU execution, and the shared 0.5
-threshold. Override these through `data.attributes.sequence.parameters`, for example
-`-s data.attributes.sequence.parameters.n_neighbors=20`. The output suffix is `.mlknn`.
-Omitting the language produces pooled test metrics, with a separate fitted model per language.
-
-Evaluate OVA linear SVM classification on the existing embeddings:
-```shell
-./test sequence iptc-31 svm -c sl -c qwen3-ebd-8b
-./test sequence iptc-31 svm -c qwen3-ebd-8b
-```
-Each label gets a binary SVM with `C=1.0` and no class weighting. The linear kernel matrix is
-computed once per language and reused across labels. `SVC(probability=True)` uses training-only
-Platt calibration, producing continuous scores for ranking metrics and the shared 0.5 threshold.
-Labels constant in training get constant probabilities. `max_iter=-1` means no iteration limit.
-Override settings with `-s data.attributes.sequence.parameters.C=10` or
-`-s data.attributes.sequence.parameters.class_weight=balanced`. Results use the `.svm` suffix;
-`method_seconds` includes fitting, calibration, and prediction. Omitting the language pools the
-test predictions from separate language-specific models.
-
-Compare SVM and logistic regression with sparse TF-IDF features directly from prepared text:
+Run TF-IDF baselines directly from prepared text:
 ```shell
 ./test sequence iptc-31 svm -c tfidf-word
 ./test sequence iptc-31 log_reg -c tfidf-word
 ./test sequence iptc-31 svm -c tfidf-char
 ./test sequence iptc-31 log_reg -c tfidf-char
 ```
-Add `-c sl` (or another language) for an individual result. Word TF-IDF uses unigrams/bigrams;
-character TF-IDF uses `char_wb` 3–5-grams. Both use sublinear term frequencies, L2 normalization,
-`min_df=2`, and up to 100,000 features. Vocabulary, IDF, and feature selection are fitted on each
-language's training text only; test text is transformed with that fitted vectorizer.
-No embedding sidecars are required. Logistic regression consumes sparse matrices directly, and
-SVM computes its shared linear kernel from sparse matrices. Output model names are `tfidf-word`
-and `tfidf-char`; classifier defaults, calibration, and pooled metrics match the embedding runs.
-Metrics files record feature settings, vocabulary sizes, and vectorization time separately.
+Word TF-IDF uses 1–2-grams; character TF-IDF uses `char_wb` 3–5-grams. Both default to `min_df=2`, `max_features=100000`, sublinear term frequencies, and L2 normalization.
+
+Results are saved under `result/test/sequence/iptc-31/`. See the [dataset config](conf/data/iptc-31/iptc-31.yaml) and [evaluation config](conf/data/iptc-31/sequence/iptc-31.yaml) for file layouts, pooling rules, and implementation details.
 
 ## 2. Multilingual Slavic NER task
 

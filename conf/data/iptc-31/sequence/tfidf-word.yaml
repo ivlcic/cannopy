@@ -1,3 +1,5 @@
+# Word unigrams/bigrams. Fit vocabulary and IDF on each language's training
+# text, then transform test text. Supported methods: svm and log_reg.
 model:
   short_name: tfidf-word
 data:
