@@ -60,6 +60,34 @@ Create a dataset from Slovene news articles tagged with fourteen selected IPTC c
 ./data create iptc-14
 ```
 
+### 1.4 IPTC-31 Multilingual News Dataset
+Download the Croatian, Macedonian, Slovenian, and Serbian news dataset with 31 IPTC labels:
+```shell
+./data download iptc-31
+./data prepare iptc-31
+```
+The downloader preserves the eight original `<lang>_<train|test>.jsonl` files under
+`result/data/download/iptc-31/`. Label IDs, names, and IPTC Media Topics mappings are embedded in
+`conf/data/iptc-31/iptc-31.yaml` under `data.attributes.labels`.
+Preparation writes eight `iptc-31.<lang>.<train|test>.jsonl` files in the prepared format,
+plus `iptc-31.<lang>.labels.csv` per language under `result/data/prepare/iptc-31/`,
+using IPTC codes as labels and language-prefixed document IDs. Original annotations and train/test
+assignments are preserved; no evaluation split is created during preparation.
+Label counts and optional `min_label_count` filtering are computed separately for each language
+across its train and test splits.
+
+Embed one language using its configuration and an embedding model:
+```shell
+./data embed iptc-31 -c hr -c bge-m3
+./data embed iptc-31 -c mk -c bge-m3
+./data embed iptc-31 -c sl -c bge-m3
+./data embed iptc-31 -c sr -c bge-m3
+```
+Each command reads the prepared train/test files and language label CSV, and writes
+`iptc-31.<lang>.<model>.<train|test>.jsonl` plus matching `.npz` sidecars and `.stats.jsonl`
+files under `result/data/embed/iptc-31/`. Language configs also select that language for
+download and prepare commands.
+
 ## 2. Multilingual Slavic NER task
 
 ### 2.1 Dataset preparation

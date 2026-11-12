@@ -1,0 +1,8 @@
+data:
+  source:
+    select:
+      subset: iptc-31.sl
+      filter:
+        lang: sl
+    attributes:
+      languages: [sl]

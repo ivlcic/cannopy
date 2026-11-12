@@ -1,0 +1,8 @@
+data:
+  source:
+    select:
+      subset: iptc-31.hr
+      filter:
+        lang: hr
+    attributes:
+      languages: [hr]

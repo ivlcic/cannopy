@@ -1,0 +1,178 @@
+data:
+  dataset_name: iptc-31
+  split:
+    train: 0.8
+    eval: 0.1
+    test: 0.1
+    seed: 2611
+  sampling:
+    attributes:
+      dist_metric: ip
+      hnsw_m: 32
+      hnsw_ef_construction: 200
+      hnsw_ef_search: 128
+  source:
+    links:
+      - url: https://kt-cloud.ijs.si/index.php/s/9NiTfGpDb92NWs3/download?path=%2F&files=news_class_dataset.zip
+    attributes:
+      languages: [hr, mk, sl, sr]
+  attributes:
+    # Original train/test files are preserved by the downloader.
+    # IPTC Media Topics: https://cv.iptc.org/newscodes/mediatopic/
+    # Codes must remain strings to preserve leading zeros.
+    labels:
+      - label_id: 1
+        label_name: "arts, culture, entertainment and media"
+        iptc_code: "01000000"
+        iptc_qcode: "medtop:01000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/01000000"
+      - label_id: 2
+        label_name: "arts and entertainment"
+        iptc_code: "20000002"
+        iptc_qcode: "medtop:20000002"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000002"
+      - label_id: 3
+        label_name: "culture"
+        iptc_code: "20000038"
+        iptc_qcode: "medtop:20000038"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000038"
+      - label_id: 4
+        label_name: "conflict, war and peace"
+        iptc_code: "16000000"
+        iptc_qcode: "medtop:16000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/16000000"
+      - label_id: 5
+        label_name: "crime, law and justice"
+        iptc_code: "02000000"
+        iptc_qcode: "medtop:02000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/02000000"
+      - label_id: 6
+        label_name: "crime"
+        iptc_code: "20000082"
+        iptc_qcode: "medtop:20000082"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000082"
+      - label_id: 7
+        label_name: "judiciary"
+        iptc_code: "20000106"
+        iptc_qcode: "medtop:20000106"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000106"
+      - label_id: 8
+        label_name: "law"
+        iptc_code: "20000121"
+        iptc_qcode: "medtop:20000121"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000121"
+      - label_id: 9
+        label_name: "disaster, accident and emergency incident"
+        iptc_code: "03000000"
+        iptc_qcode: "medtop:03000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/03000000"
+      - label_id: 10
+        label_name: "economy, business and finance"
+        iptc_code: "04000000"
+        iptc_qcode: "medtop:04000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/04000000"
+      - label_id: 11
+        label_name: "agriculture"
+        iptc_code: "20000210"
+        iptc_qcode: "medtop:20000210"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000210"
+      - label_id: 12
+        label_name: "telecommunication service"
+        iptc_code: "20000233"
+        iptc_qcode: "medtop:20000233"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000233"
+      - label_id: 13
+        label_name: "construction and property"
+        iptc_code: "20000235"
+        iptc_qcode: "medtop:20000235"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000235"
+      - label_id: 14
+        label_name: "consumer goods"
+        iptc_code: "20000243"
+        iptc_qcode: "medtop:20000243"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000243"
+      - label_id: 15
+        label_name: "energy and resource"
+        iptc_code: "20000256"
+        iptc_qcode: "medtop:20000256"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000256"
+      - label_id: 16
+        label_name: "banking"
+        iptc_code: "20000274"
+        iptc_qcode: "medtop:20000274"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000274"
+      - label_id: 17
+        label_name: "insurance"
+        iptc_code: "20000279"
+        iptc_qcode: "medtop:20000279"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000279"
+      - label_id: 18
+        label_name: "healthcare industry"
+        iptc_code: "20001354"
+        iptc_qcode: "medtop:20001354"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20001354"
+      - label_id: 19
+        label_name: "manufacturing and engineering"
+        iptc_code: "20000294"
+        iptc_qcode: "medtop:20000294"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000294"
+      - label_id: 20
+        label_name: "automotive"
+        iptc_code: "20000296"
+        iptc_qcode: "medtop:20000296"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000296"
+      - label_id: 21
+        label_name: "defence equipment"
+        iptc_code: "20000297"
+        iptc_qcode: "medtop:20000297"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000297"
+      - label_id: 22
+        label_name: "retail"
+        iptc_code: "20000252"
+        iptc_qcode: "medtop:20000252"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000252"
+      - label_id: 23
+        label_name: "tourism and leisure industry"
+        iptc_code: "20000331"
+        iptc_qcode: "medtop:20000331"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000331"
+      - label_id: 24
+        label_name: "transport"
+        iptc_code: "20000337"
+        iptc_qcode: "medtop:20000337"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/20000337"
+      - label_id: 25
+        label_name: "education"
+        iptc_code: "05000000"
+        iptc_qcode: "medtop:05000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/05000000"
+      - label_id: 26
+        label_name: "environment"
+        iptc_code: "06000000"
+        iptc_qcode: "medtop:06000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/06000000"
+      - label_id: 27
+        label_name: "health"
+        iptc_code: "07000000"
+        iptc_qcode: "medtop:07000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/07000000"
+      - label_id: 28
+        label_name: "politics and government"
+        iptc_code: "11000000"
+        iptc_qcode: "medtop:11000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/11000000"
+      - label_id: 29
+        label_name: "religion"
+        iptc_code: "12000000"
+        iptc_qcode: "medtop:12000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/12000000"
+      - label_id: 30
+        label_name: "science and technology"
+        iptc_code: "13000000"
+        iptc_qcode: "medtop:13000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/13000000"
+      - label_id: 31
+        label_name: "sport"
+        iptc_code: "15000000"
+        iptc_qcode: "medtop:15000000"
+        iptc_uri: "http://cv.iptc.org/newscodes/mediatopic/15000000"

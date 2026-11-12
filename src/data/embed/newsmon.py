@@ -145,11 +145,12 @@ def _build_stats_dict(measurements: EmbedMeasurements) -> Dict[str, Any]:
 
 
 def embed_prepared_dataset(path: Paths, data_args: DataArguments, model_args: ModelArguments,
-                           log: Logger) -> Dict[str, EmbeddingRecord]:
+                           log: Logger, split: Optional[str] = None) -> Dict[str, EmbeddingRecord]:
     subset = get_subset_name(data_args)
 
-    source_dir = paths.get_ctx_path('prepare')
-    source_file = source_dir / f'{subset}.jsonl'
+    source_dir = path.get_ctx_path('prepare')
+    source_name = f'{subset}.{split}' if split else subset
+    source_file = source_dir / f'{source_name}.jsonl'
     if not source_file.exists():
         raise FileNotFoundError(f'Prepared subset file not found: {source_file}')
 
@@ -159,6 +160,8 @@ def embed_prepared_dataset(path: Paths, data_args: DataArguments, model_args: Mo
 
     labeler = load_multilabel_labeler(source_labels_file)
     target_name = f'{subset}.{model_args.short_name}'
+    if split:
+        target_name = f'{target_name}.{split}'
     target_file = path.context / f'{target_name}.jsonl'
     target_stats_file = path.context / f'{target_name}.stats.jsonl'
     tmp_target_file = path.context / f'tmp.{target_name}'

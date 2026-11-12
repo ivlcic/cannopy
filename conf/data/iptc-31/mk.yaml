@@ -1,0 +1,8 @@
+data:
+  source:
+    select:
+      subset: iptc-31.mk
+      filter:
+        lang: mk
+    attributes:
+      languages: [mk]
