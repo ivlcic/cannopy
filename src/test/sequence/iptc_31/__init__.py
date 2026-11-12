@@ -26,6 +26,14 @@ class EmbeddedSplit:
     labels: np.ndarray
 
 
+@dataclass
+class EvaluationResult:
+    metadata: dict
+    ids: np.ndarray
+    y_true: np.ndarray
+    scores: np.ndarray
+
+
 def _load_split(path: Path, labeler: MultilabelLabeler) -> EmbeddedSplit:
     if not path.is_file():
         raise FileNotFoundError(f'Embedding sidecar not found: {path}. Run ./data embed iptc-31 first.')
@@ -51,7 +59,7 @@ def _load_split(path: Path, labeler: MultilabelLabeler) -> EmbeddedSplit:
     return EmbeddedSplit(ids, np.ascontiguousarray(normalize_embeddings(embeddings)), labels)
 
 
-def _evaluate_subset(data_args: DataArguments, model_args: ModelArguments, method: str) -> None:
+def _evaluate_subset(data_args: DataArguments, model_args: ModelArguments, method: str) -> EvaluationResult:
     options = data_args.attributes.get('sequence', {})
     batch_size = int(options.get('batch_size', 256))
     threshold = float(options.get('threshold', 0.5))
@@ -84,9 +92,6 @@ def _evaluate_subset(data_args: DataArguments, model_args: ModelArguments, metho
     duration = time.perf_counter() - started
     if scores.shape != test.labels.shape or not np.isfinite(scores).all():
         raise ValueError(f'{method} returned invalid classification scores')
-    metrics = Metrics(model_name=model_args.short_name, prob_type='multilabel').compute_metrics(
-        test.labels, scores, prefix='test/', prob_threshold=threshold,
-    )
     result = {
         'dataset': data_args.dataset_name,
         'subset': subset,
@@ -102,18 +107,60 @@ def _evaluate_subset(data_args: DataArguments, model_args: ModelArguments, metho
         'prediction_seconds': duration,
         'train_sidecar': str(train_file),
         'test_sidecar': str(test_file),
-        'metrics': {key: float(value) for key, value in metrics.items()},
     }
-    target_name = f'{subset}.{model_args.short_name}.{method}'
+    return EvaluationResult(result, test.ids, test.labels, scores)
+
+
+def _write_evaluation(evaluation: EvaluationResult) -> None:
+    result = evaluation.metadata
+    threshold = result['threshold']
+    metrics = Metrics(model_name=result['model'], prob_type='multilabel').compute_metrics(
+        evaluation.y_true, evaluation.scores, prefix='test/', prob_threshold=threshold,
+    )
+    result['metrics'] = {key: float(value) for key, value in metrics.items()}
+    target_name = f"{result['subset']}.{result['model']}.{result['method']}"
     result_file = paths.context / f'{target_name}.metrics.json'
     prediction_file = paths.context / f'{target_name}.predictions.npz'
     np.savez_compressed(
-        prediction_file, ids=test.ids, label_codes=np.asarray(labeler.classes, dtype=str),
-        y_true=test.labels, y_score=scores, y_pred=(scores > threshold).astype(np.int64),
+        prediction_file, ids=evaluation.ids, label_codes=np.asarray(result['label_order'], dtype=str),
+        y_true=evaluation.y_true, y_score=evaluation.scores,
+        y_pred=(evaluation.scores > threshold).astype(np.int64),
     )
     result_file.write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     logger.info('Metrics: %s', result['metrics'])
     logger.info('Saved %s and %s', result_file, prediction_file)
+
+
+def _pool_evaluations(evaluations: list[EvaluationResult], dataset_name: str) -> EvaluationResult:
+    label_order = sorted({code for evaluation in evaluations for code in evaluation.metadata['label_order']})
+    label_columns = {code: index for index, code in enumerate(label_order)}
+    true_rows, score_rows = [], []
+    for evaluation in evaluations:
+        columns = [label_columns[code] for code in evaluation.metadata['label_order']]
+        y_true = np.zeros((len(evaluation.ids), len(label_order)), dtype=np.float32)
+        scores = np.zeros_like(y_true)
+        y_true[:, columns] = evaluation.y_true
+        scores[:, columns] = evaluation.scores
+        true_rows.append(y_true)
+        score_rows.append(scores)
+    ids = np.concatenate([evaluation.ids for evaluation in evaluations])
+    if len(set(ids)) != len(ids):
+        raise ValueError('Sample IDs overlap across language test sets')
+    result = {
+        **evaluations[0].metadata,
+        'subset': dataset_name,
+        'subsets': [evaluation.metadata['subset'] for evaluation in evaluations],
+        'num_train': sum(evaluation.metadata['num_train'] for evaluation in evaluations),
+        'num_test': len(ids),
+        'num_labels': len(label_order),
+        'label_order': label_order,
+        'prediction_seconds': sum(evaluation.metadata['prediction_seconds'] for evaluation in evaluations),
+        'train_sidecars': [evaluation.metadata['train_sidecar'] for evaluation in evaluations],
+        'test_sidecars': [evaluation.metadata['test_sidecar'] for evaluation in evaluations],
+        'aggregation': 'pooled test samples; retrieval uses each language training set',
+    }
+    del result['train_sidecar'], result['test_sidecar']
+    return EvaluationResult(result, ids, np.concatenate(true_rows), np.concatenate(score_rows))
 
 
 def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str) -> None:
@@ -122,7 +169,7 @@ def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str)
     if not model_args.short_name:
         raise ValueError('Select the embedding model configuration, for example -c bge-m3')
     if data_args.source.select.subset:
-        _evaluate_subset(data_args, model_args, method)
+        _write_evaluation(_evaluate_subset(data_args, model_args, method))
         return
 
     embed_dir = paths.get_script_ctx_path('data', 'embed')
@@ -156,8 +203,8 @@ def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str)
     logger.info('Evaluating %s for available languages: %s', method, ', '.join(
         get_subset_name(args) for args in selected
     ))
-    for args in selected:
-        _evaluate_subset(args, model_args, method)
+    evaluations = [_evaluate_subset(args, model_args, method) for args in selected]
+    _write_evaluation(_pool_evaluations(evaluations, data_args.dataset_name))
 
 
 def zero_shot(data_args: DataArguments, model_args: ModelArguments) -> None:

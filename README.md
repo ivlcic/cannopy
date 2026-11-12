@@ -95,12 +95,17 @@ Evaluate nearest-neighbor zero-shot classification from the existing embedding s
 ```
 
 Omit the language config to evaluate all languages with complete train/test sidecars and label CSVs
-for the selected model. Results remain separate for each language:
+for the selected model and compute pooled metrics over all test samples:
 ```shell
 ./test sequence iptc-31 zero_shot -c bge-m3
 ./test sequence iptc-31 rae_xmc -c bge-m3
 ```
 Incomplete language inputs are skipped with a warning. A run with no complete language inputs fails.
+Each test document still retrieves from its own language's training set. Label columns are aligned
+by IPTC code before combining predictions. Combined results are saved as
+`iptc-31.<model>.<method>.metrics.json` and `.predictions.npz`, without a language suffix.
+Micro-F1 is computed from pooled TP, FP, and FN counts, rather than averaged language F1 scores.
+Using a language config continues to write that language's individual results.
 
 The method transfers the closest training document's labels to each test document using exact L2
 search on normalized embeddings, following EMMA's `fa_test_zshot`. It loads the existing train/test
