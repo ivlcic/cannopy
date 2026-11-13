@@ -61,10 +61,29 @@ def _load_split(path: Path, labeler: MultilabelLabeler) -> EmbeddedSplit:
     return EmbeddedSplit(ids, np.ascontiguousarray(normalize_embeddings(embeddings)), labels)
 
 
+def _filter_test_split(test: EmbeddedSplit, excluded_ids: list[str]) -> tuple[EmbeddedSplit, list[str]]:
+    if not isinstance(excluded_ids, list) or any(
+        not isinstance(sample_id, str) or not sample_id.strip() for sample_id in excluded_ids
+    ):
+        raise ValueError('sequence.exclude_test_ids must be a list of non-empty sample ID strings')
+    keep = ~np.isin(test.ids, excluded_ids)
+    removed_ids = test.ids[~keep].tolist()
+    if not keep.any():
+        raise ValueError('sequence.exclude_test_ids excludes every test document')
+    return EmbeddedSplit(test.ids[keep], test.embeddings[keep], test.labels[keep]), removed_ids
+
+
+def _method_settings(options: dict, method: str) -> tuple[dict, float]:
+    parameters = dict(options.get('methods', {}).get(method, {}))
+    method_threshold = parameters.pop('threshold', 0.5)
+    threshold = float(options.get('threshold', method_threshold))
+    return {**parameters, **options.get('parameters', {})}, threshold
+
+
 def _evaluate_subset(data_args: DataArguments, model_args: ModelArguments, method: str) -> EvaluationResult:
     options = data_args.attributes.get('sequence', {})
     batch_size = int(options.get('batch_size', 256))
-    threshold = float(options.get('threshold', 0.5))
+    parameters, threshold = _method_settings(options, method)
     if batch_size <= 0 or not 0 <= threshold <= 1:
         raise ValueError('sequence.batch_size must be positive and sequence.threshold must be in [0, 1]')
 
@@ -93,16 +112,16 @@ def _evaluate_subset(data_args: DataArguments, model_args: ModelArguments, metho
         train = _load_split(train_file, labeler)
         test = _load_split(test_file, labeler)
         source_metadata = {'train_sidecar': str(train_file), 'test_sidecar': str(test_file)}
+    num_test_before_filter = len(test.ids)
+    test, excluded_test_ids = _filter_test_split(test, options.get('exclude_test_ids', []))
+    logger.info('Excluded %s of %s test documents from %s by sample ID',
+                len(excluded_test_ids), num_test_before_filter, subset)
     if train.embeddings.shape[1] != test.embeddings.shape[1]:
         raise ValueError('Train and test embedding dimensions differ')
     if set(train.ids) & set(test.ids):
         raise ValueError('Train and test sample IDs overlap')
 
     logger.info('Evaluating %s on %s: %s reference and %s test samples', method, subset, len(train.ids), len(test.ids))
-    parameters = {
-        **options.get('methods', {}).get(method, {}),
-        **options.get('parameters', {}),
-    }
     started = time.perf_counter()
     scores = np.asarray(METHODS[method](
         train.embeddings, train.labels, test.embeddings,
@@ -118,6 +137,9 @@ def _evaluate_subset(data_args: DataArguments, model_args: ModelArguments, metho
         'method': method,
         'num_train': len(train.ids),
         'num_test': len(test.ids),
+        'num_test_before_filter': num_test_before_filter,
+        'num_test_excluded': len(excluded_test_ids),
+        'excluded_test_ids': excluded_test_ids,
         'num_labels': labeler.num_labels,
         'label_order': labeler.classes,
         'batch_size': batch_size,
@@ -171,6 +193,9 @@ def _pool_evaluations(evaluations: list[EvaluationResult], dataset_name: str) ->
         'subsets': [evaluation.metadata['subset'] for evaluation in evaluations],
         'num_train': sum(evaluation.metadata['num_train'] for evaluation in evaluations),
         'num_test': len(ids),
+        'num_test_before_filter': sum(evaluation.metadata['num_test_before_filter'] for evaluation in evaluations),
+        'num_test_excluded': sum(evaluation.metadata['num_test_excluded'] for evaluation in evaluations),
+        'excluded_test_ids': [sample_id for evaluation in evaluations for sample_id in evaluation.metadata['excluded_test_ids']],
         'num_labels': len(label_order),
         'label_order': label_order,
         'method_seconds': sum(evaluation.metadata['method_seconds'] for evaluation in evaluations),
@@ -199,15 +224,35 @@ def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str)
         raise ValueError(f'Unsupported feature type: {feature_type}')
     if feature_type == 'tfidf' and method not in ('svm', 'log_reg'):
         raise ValueError('TF-IDF features are supported for svm and log_reg')
+    if 'trials' in data_args.attributes.get('sequence', {}).get('optuna', {}):
+        from .tuning import tune
+
+        if method not in ('rae_xmc', 'log_reg', 'svm'):
+            raise ValueError('Optuna supports rae_xmc, log_reg and svm')
+        tune(data_args, model_args, method, paths, logger)
+        return
     if data_args.source.select.subset:
         _write_evaluation(_evaluate_subset(data_args, model_args, method))
         return
 
+    selected = _select_subsets(data_args, model_args)
+    logger.info('Evaluating %s for available languages: %s', method, ', '.join(
+        get_subset_name(args) for args in selected
+    ))
+    evaluations = [_evaluate_subset(args, model_args, method) for args in selected]
+    _write_evaluation(_pool_evaluations(evaluations, data_args.dataset_name))
+
+
+def _select_subsets(data_args: DataArguments, model_args: ModelArguments, *, train_only: bool = False) -> list[DataArguments]:
+    if data_args.source.select.subset:
+        return [data_args]
+    feature_type = data_args.attributes.get('sequence', {}).get('features', {}).get('type', 'embeddings')
     embed_dir = paths.get_script_ctx_path('data', 'embed')
     prepare_dir = paths.get_script_ctx_path('data', 'prepare')
     prefix = f'{data_args.dataset_name}.'
     source_dir = prepare_dir if feature_type == 'tfidf' else embed_dir
-    suffixes = [f'.{split}.jsonl' if feature_type == 'tfidf' else f'.{model_args.short_name}.{split}.npz' for split in ['train', 'test']]
+    splits = ['train'] if train_only else ['train', 'test']
+    suffixes = [f'.{split}.jsonl' if feature_type == 'tfidf' else f'.{model_args.short_name}.{split}.npz' for split in splits]
     languages = {
         file.name[len(prefix):-len(suffix)]
         for file in source_dir.glob('*.jsonl' if feature_type == 'tfidf' else '*.npz')
@@ -230,13 +275,9 @@ def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str)
         )))
     if not selected:
         raise FileNotFoundError(
-            f'No complete language train/test inputs with label CSVs for {model_args.short_name} in {source_dir}'
+            f'No complete language {"/".join(splits)} inputs with label CSVs for {model_args.short_name} in {source_dir}'
         )
-    logger.info('Evaluating %s for available languages: %s', method, ', '.join(
-        get_subset_name(args) for args in selected
-    ))
-    evaluations = [_evaluate_subset(args, model_args, method) for args in selected]
-    _write_evaluation(_pool_evaluations(evaluations, data_args.dataset_name))
+    return selected
 
 
 def zero_shot(data_args: DataArguments, model_args: ModelArguments) -> None:

@@ -1,0 +1,18 @@
+# Pooled hr/mk/sl/sr validation, 1,000 Optuna trials per method.
+data:
+  attributes:
+    sequence:
+      methods:
+        rae_xmc:
+          # Validation micro-F1: 0.712396.
+          threshold: 0.33627343872958393
+          top_k: 18
+          temperature: 0.07033358828261554
+          metric: ip
+        svm:
+          # Validation micro-F1: 0.756576.
+          threshold: 0.33566984547530776
+          C: 0.3960445209361584
+          max_iter: -1
+          class_weight: null
+          seed: 2611

@@ -79,33 +79,35 @@ done
 
 Evaluate existing embeddings. Omit the language to pool all available test sets, or add `-c sl` (or another language) for an individual result:
 ```shell
-./test sequence iptc-31 zero_shot -c bge-m3
-./test sequence iptc-31 rae_xmc -c bge-m3
-./test sequence iptc-31 log_reg -c bge-m3
-./test sequence iptc-31 mlknn -c bge-m3
-./test sequence iptc-31 svm -c bge-m3
+./eval sequence iptc-31 zero_shot -c bge-m3
+./eval sequence iptc-31 rae_xmc -c bge-m3
+./eval sequence iptc-31 log_reg -c bge-m3
+./eval sequence iptc-31 mlknn -c bge-m3
+./eval sequence iptc-31 svm -c bge-m3
 ```
+
+Add `-s data.attributes.sequence.optuna.trials=50` to search parameters for `rae_xmc`, `log_reg`, or `svm` and print the best settings (integer ≥ 50; omit to evaluate normally).
 
 | Method | Description | Default parameters |
 | --- | --- | --- |
 | `zero_shot` | Copy the nearest training document's labels | 1 neighbor, normalized L2 distance |
-| `rae_xmc` | Temperature-weighted neighbor labels | `top_k=50`, `temperature=0.04`, `metric=l2` |
+| `rae_xmc` | Temperature-weighted neighbor labels | Model-specific parameters and threshold |
 | `log_reg` | OVA logistic regression | L2 penalty, `C=1.0`, `max_iter=1000`, `liblinear` solver |
 | `mlknn` | Bayesian multilabel k-nearest neighbors | `n_neighbors=10`, `smoothing=1.0`, Euclidean distance, CPU |
-| `svm` | OVA linear SVM with probability calibration | `C=1.0`, `max_iter=-1` (unlimited) |
+| `svm` | OVA linear SVM with probability calibration | Model-specific `C` and threshold; `max_iter=-1` (unlimited) |
 
-Shared defaults: batch size 256 and probability threshold 0.5. Logistic regression and SVM use no class weighting and seed 2611. Override parameters with `-s`, for example `-s data.attributes.sequence.parameters.C=10`.
+Batch size defaults to 256; the fallback probability threshold is 0.5. Logistic regression and SVM use no class weighting and seed 2611. Override parameters with `-s`, for example `-s data.attributes.sequence.parameters.C=10`.
 
 Run TF-IDF baselines directly from prepared text:
 ```shell
-./test sequence iptc-31 svm -c tfidf-word
-./test sequence iptc-31 log_reg -c tfidf-word
-./test sequence iptc-31 svm -c tfidf-char
-./test sequence iptc-31 log_reg -c tfidf-char
+./eval sequence iptc-31 svm -c tfidf-word
+./eval sequence iptc-31 log_reg -c tfidf-word
+./eval sequence iptc-31 svm -c tfidf-char
+./eval sequence iptc-31 log_reg -c tfidf-char
 ```
 Word TF-IDF uses 1–2-grams; character TF-IDF uses `char_wb` 3–5-grams. Both default to `min_df=2`, `max_features=100000`, sublinear term frequencies, and L2 normalization.
 
-Results are saved under `result/test/sequence/iptc-31/`. See the [dataset config](conf/data/iptc-31/iptc-31.yaml) and [evaluation config](conf/data/iptc-31/sequence/iptc-31.yaml) for file layouts, pooling rules, and implementation details.
+Results are saved under `result/eval/sequence/iptc-31/`. See the [dataset config](conf/data/iptc-31/iptc-31.yaml) and [evaluation config](conf/data/iptc-31/sequence/iptc-31.yaml) for file layouts, pooling rules, and implementation details.
 
 ## 2. Multilingual Slavic NER task
 

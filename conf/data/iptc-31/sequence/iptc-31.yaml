@@ -1,4 +1,4 @@
-# IPTC-31 sequence evaluation: ./test sequence iptc-31 <method> -c <model>.
+# IPTC-31 sequence evaluation: ./eval sequence iptc-31 <method> -c <model>.
 # Add -c hr/mk/sr/sl to evaluate a single language. Without a language config,
 # discover complete train/test inputs and label CSVs for the selected features.
 # Incomplete languages are skipped with a warning; no complete inputs is an error.
@@ -13,7 +13,7 @@
 # Logistic regression uses sparse features directly; SVM shares a linear
 # kernel matrix across all label classifiers and calibration folds.
 #
-# Outputs under result/test/sequence/iptc-31/:
+# Outputs under result/eval/sequence/iptc-31/:
 #   iptc-31.<lang>.<model>.<method>.metrics.json / .predictions.npz
 #   iptc-31.<model>.<method>.metrics.json / .predictions.npz (pooled run)
 # Prediction arrays contain ids, label_codes, y_true, y_score, and y_pred.
@@ -22,16 +22,52 @@
 # separately, with vocabulary sizes per language in pooled reports.
 #
 # Methods implement a shared score-matrix interface and are registered in
-# src/test/sequence/iptc_31/methods/. Select the positional method or set
+# src/eval/sequence/iptc_31/methods/. Select the positional method or set
 # data.attributes.sequence.method. Per-run sequence.parameters overrides the
 # selected method's defaults below, e.g. -s data.attributes.sequence.parameters.C=10.
+# Model configs in this directory can override method parameters and thresholds.
+# The fallback threshold is 0.5; sequence.threshold overrides a method's threshold.
 # Model fitting and probability calibration use training data only.
+# Test filtering uses exact language-prefixed sample IDs for all methods and
+# both embedding and TF-IDF features. Prepared files and training data are kept.
+# Metrics metadata records counts before/after filtering and removed sample IDs.
 data:
   attributes:
     sequence:
       method: zero_shot
       batch_size: 256
-      threshold: 0.5
+      # Enable with -s data.attributes.sequence.optuna.trials=50 to search
+      # rae_xmc/log_reg/svm plus a global threshold.
+      # Hold out multilabel-stratified validation rows from each language's
+      # training set; TF-IDF vocabulary/IDF use only the remaining training rows.
+      # One shared parameter set maximizes pooled validation micro-F1.
+      # Seeded TPE includes current defaults as its first trial. Search spaces:
+      # rae_xmc: top_k=1..min(256, train size), temperature=0.001..1 (log), l2/ip.
+      # log_reg/svm: C=0.0001..1000 (log), class_weight=null/balanced.
+      # All methods: threshold=0.05..0.8; other configured parameters stay fixed.
+      # Test files are not loaded. Search is in memory; best settings print to
+      # the terminal without writing metrics/predictions or changing defaults.
+      # trials must be an integer >= 50. Omit it for normal evaluation.
+      optuna:
+        validation_size: 0.2
+        seed: 2611
+      # 13 Slovene test documents in 15 train-test pairs sharing at least 30
+      # consecutive words when punctuation and letter case are ignored.
+      # This is a fixed exclusion list from the overlap audit, not a text filter.
+      exclude_test_ids:
+        - 'sl:206'
+        - 'sl:527'
+        - 'sl:749'
+        - 'sl:1058'
+        - 'sl:1188'
+        - 'sl:1225'
+        - 'sl:1308'
+        - 'sl:1683'
+        - 'sl:1843'
+        - 'sl:2095'
+        - 'sl:2797'
+        - 'sl:3309'
+        - 'sl:3984'
       parameters: {}
       methods:
         # zero_shot has no method parameters: exact normalized L2 search,
