@@ -1,7 +1,9 @@
 import json
 import logging
 from dataclasses import replace
+from importlib import import_module
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import optuna
@@ -191,3 +193,40 @@ def test_model_configs_apply_tuned_settings_per_method(model, top_k, temperature
     parameters, actual_threshold = iptc_31._method_settings(overridden['data']['attributes']['sequence'], 'rae_xmc')
     assert parameters['top_k'] == 7
     assert actual_threshold == 0.4
+
+
+def test_cuml_tuning_prepares_features_once_and_prints_selected_backend(tmp_path, monkeypatch, capsys):
+    log_reg = import_module('src.eval.sequence.iptc_31.methods.log_reg')
+
+    paths = entrypoint._ensure_dirs(tmp_path, 'eval', 'sequence', 'iptc-31')
+    _training_inputs(paths, 'hr', 24)
+    _training_inputs(paths, 'sl', 36)
+    args = DataArguments(dataset_name='iptc-31', attributes={'sequence': {
+        'optuna': {'trials': 50}, 'parameters': {'backend': 'cuml'},
+    }})
+    monkeypatch.setattr(iptc_31, 'paths', paths, raising=False)
+    monkeypatch.setattr(iptc_31, 'logger', logging.getLogger(__name__), raising=False)
+    uploaded = []
+    predictions = []
+
+    def upload(features):
+        device_features = SimpleNamespace(shape=features.shape)
+        uploaded.append(device_features)
+        return device_features
+
+    def predict(train, labels, query, **options):
+        assert options['backend'] == 'cuml'
+        assert any(train is features for features in uploaded)
+        assert any(query is features for features in uploaded)
+        predictions.append(1)
+        return np.full((query.shape[0], labels.shape[1]), 0.6, dtype=np.float32)
+
+    monkeypatch.setattr(log_reg, 'prepare_cuml_features', upload)
+    monkeypatch.setitem(iptc_31.METHODS, 'log_reg', predict)
+    iptc_31.log_reg(args, ModelArguments(short_name='fixture'))
+    assert len(uploaded) == 4  # Train/validation matrices, once per language.
+    assert len(predictions) == 100  # Two languages for each of 50 trials.
+    output = capsys.readouterr().out
+    best = yaml.safe_load(output.split('Best evaluation settings (YAML):\n')[1])
+    assert best['data']['attributes']['sequence']['parameters']['backend'] == 'cuml'
+    assert list(paths.context.iterdir()) == []

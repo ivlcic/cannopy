@@ -81,10 +81,17 @@ data:
           temperature: 0.04
           metric: l2
         log_reg:
-          # Independent L2-regularized binary classifiers (liblinear solver).
+          # Independent L2-regularized binary classifiers.
+          # sklearn uses CPU liblinear; cuml uses GPU QN (requires uv sync --extra cuml).
+          # Select with -s data.attributes.sequence.parameters.backend=cuml.
+          # Both dense embeddings and sparse TF-IDF are supported. Optuna keeps
+          # features on the GPU between trials. Returned scores stay NumPy.
+          # seed applies to sklearn; cuML QN has no random_state parameter.
+          # Retune C/threshold when changing backend because solvers differ.
           # C is inverse regularization strength; larger C weakens the penalty.
           # class_weight: balanced is available for class imbalance.
           # Labels constant in training receive constant probabilities.
+          backend: sklearn
           C: 1.0
           max_iter: 1000
           class_weight: null

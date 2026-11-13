@@ -34,6 +34,12 @@ dependencies = [
     "peft>=0.19.1",
 ]
 
+[project.optional-dependencies]
+cuml = [
+    # Newer cuML releases require nvJitLink 13.3, conflicting with Torch's CUDA 13.0 pin.
+    "cuml-cu13==26.6.0; sys_platform == 'linux'",
+]
+
 [project.scripts]
 data = "app.entrypoint:main"
 train = "app.entrypoint:main"

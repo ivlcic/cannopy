@@ -88,6 +88,8 @@ Evaluate existing embeddings. Omit the language to pool all available test sets,
 
 Add `-s data.attributes.sequence.optuna.trials=50` to search parameters for `rae_xmc`, `log_reg`, or `svm` and print the best settings (integer ≥ 50; omit to evaluate normally).
 
+For CUDA logistic regression, install `uv sync --extra cuml` and add `-s data.attributes.sequence.parameters.backend=cuml`.
+
 | Method | Description | Default parameters |
 | --- | --- | --- |
 | `zero_shot` | Copy the nearest training document's labels | 1 neighbor, normalized L2 distance |

@@ -73,12 +73,18 @@ def tune(data_args: DataArguments, model_args: ModelArguments, method: str,
         raise ValueError('sequence.optuna.validation_size must be between 0 and 1')
     if batch_size <= 0:
         raise ValueError('sequence.batch_size must be positive')
+    parameters, baseline_threshold = _method_settings(options, method)
     selected = _select_subsets(data_args, model_args, train_only=True)
     splits = [_load_validation_split(args, model_args, paths, validation_size, seed) for args in selected]
     for split in splits:
         logger.info('Optuna %s: %s training and %s validation documents (seed %s)',
                     split.subset, len(split.train.ids), len(split.validation.ids), seed)
-    parameters, baseline_threshold = _method_settings(options, method)
+    if method == 'log_reg' and parameters.get('backend') == 'cuml':
+        from .methods.log_reg import prepare_cuml_features
+
+        for split in splits:
+            split.train.embeddings = prepare_cuml_features(split.train.embeddings)
+            split.validation.embeddings = prepare_cuml_features(split.validation.embeddings)
     max_k = min(256, min(len(split.train.ids) for split in splits))
 
     def objective(trial):
