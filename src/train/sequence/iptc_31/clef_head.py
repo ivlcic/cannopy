@@ -255,10 +255,14 @@ def train_head(data_args: DataArguments, model_args: ModelArguments, train_args:
     trainer = HeadTrainer(
         model=model, args=train_args, train_dataset=datasets[0], eval_dataset=datasets[1],
         data_collator=HeadCollator(decider),
-        compute_metrics=lambda prediction: metrics.compute_metrics(prediction.label_ids, prediction.predictions,
-                                                                   prob_threshold=threshold),
+        compute_metrics=lambda prediction: metrics.compute_metrics(prediction.label_ids, prediction.predictions, prob_threshold=threshold),
         preprocess_logits_for_metrics=metrics.preprocess_logits,
-        decider=decider, provenance=provenance,
+        decider=decider, provenance=provenance, callbacks=[
+            EarlyStoppingCallback(
+                early_stopping_patience=7,
+                early_stopping_threshold=0.0,
+            ),
+        ],
     )
     trainer.train(resume_from_checkpoint=train_args.resume_from_checkpoint)
     provenance['validation_metrics'] = trainer.evaluate()
