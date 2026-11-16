@@ -56,20 +56,20 @@ data:
       # 13 Slovene test documents in 15 train-test pairs sharing at least 30
       # consecutive words when punctuation and letter case are ignored.
       # This is a fixed exclusion list from the overlap audit, not a text filter.
-      exclude_test_ids:
-        - 'sl:206'
-        - 'sl:527'
-        - 'sl:749'
-        - 'sl:1058'
-        - 'sl:1188'
-        - 'sl:1225'
-        - 'sl:1308'
-        - 'sl:1683'
-        - 'sl:1843'
-        - 'sl:2095'
-        - 'sl:2797'
-        - 'sl:3309'
-        - 'sl:3984'
+#      exclude_test_ids:
+#        - 'sl:206'
+#        - 'sl:527'
+#        - 'sl:749'
+#        - 'sl:1058'
+#        - 'sl:1188'
+#        - 'sl:1225'
+#        - 'sl:1308'
+#        - 'sl:1683'
+#        - 'sl:1843'
+#        - 'sl:2095'
+#        - 'sl:2797'
+#        - 'sl:3309'
+#        - 'sl:3984'
       parameters: {}
       methods:
         # zero_shot has no method parameters: exact normalized L2 search,
