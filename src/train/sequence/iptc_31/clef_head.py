@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 from torch.utils.data import Dataset
-from transformers import Trainer, TrainingArguments, set_seed
+from transformers import Trainer, TrainingArguments, set_seed, EarlyStoppingCallback
 
 from ....app.args.data import DataArguments
 from ....app.args.model import ModelArguments
