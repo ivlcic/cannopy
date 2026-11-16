@@ -178,7 +178,16 @@ def test_model_configs_apply_tuned_settings_per_method(model, top_k, temperature
     svm_parameters, actual_svm_threshold = iptc_31._method_settings(options, 'svm')
     assert svm_parameters == {'C': svm_c, 'max_iter': -1, 'class_weight': None, 'seed': 2611}
     assert actual_svm_threshold == svm_threshold
-    for method in ('zero_shot', 'log_reg', 'mlknn'):
+    log_reg_c, log_reg_weight, log_reg_threshold = {
+        'bge-m3': (2.8041871397233513, 'balanced', 0.6024409247243658),
+        'qwen3-ebd-8b': (19.05915556977193, None, 0.28917211311782215),
+    }[model]
+    log_reg_parameters, actual_log_reg_threshold = iptc_31._method_settings(options, 'log_reg')
+    assert log_reg_parameters == {
+        'backend': 'cuml', 'C': log_reg_c, 'max_iter': 1000, 'class_weight': log_reg_weight, 'seed': 2611,
+    }
+    assert actual_log_reg_threshold == log_reg_threshold
+    for method in ('zero_shot', 'mlknn'):
         other_parameters, other_threshold = iptc_31._method_settings(options, method)
         assert other_threshold == 0.5
         assert 'top_k' not in other_parameters

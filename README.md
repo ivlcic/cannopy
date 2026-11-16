@@ -94,11 +94,11 @@ For CUDA logistic regression, install `uv sync --extra cuml` and add `-s data.at
 | --- | --- | --- |
 | `zero_shot` | Copy the nearest training document's labels | 1 neighbor, normalized L2 distance |
 | `rae_xmc` | Temperature-weighted neighbor labels | Model-specific parameters and threshold |
-| `log_reg` | OVA logistic regression | L2 penalty, `C=1.0`, `max_iter=1000`, `liblinear` solver |
+| `log_reg` | OVA logistic regression | Model-specific backend, `C`, class weighting and threshold |
 | `mlknn` | Bayesian multilabel k-nearest neighbors | `n_neighbors=10`, `smoothing=1.0`, Euclidean distance, CPU |
 | `svm` | OVA linear SVM with probability calibration | Model-specific `C` and threshold; `max_iter=-1` (unlimited) |
 
-Batch size defaults to 256; the fallback probability threshold is 0.5. Logistic regression and SVM use no class weighting and seed 2611. Override parameters with `-s`, for example `-s data.attributes.sequence.parameters.C=10`.
+Batch size defaults to 256; the fallback probability threshold is 0.5. The default classifier seed is 2611. Override parameters with `-s`, for example `-s data.attributes.sequence.parameters.C=10`.
 
 Run TF-IDF baselines directly from prepared text:
 ```shell

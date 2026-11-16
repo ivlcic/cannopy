@@ -16,3 +16,11 @@ data:
           max_iter: -1
           class_weight: null
           seed: 2611
+        log_reg:
+          # cuML validation micro-F1: 0.777479.
+          backend: cuml
+          threshold: 0.28917211311782215
+          C: 19.05915556977193
+          max_iter: 1000
+          class_weight: null
+          seed: 2611
