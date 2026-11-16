@@ -105,6 +105,7 @@ Run GLiDE decisions on prepared text (CUDA required):
 
 Run StartLux Instant decisions on prepared text (CUDA required):
 ```shell
+uv sync --extra linear-attention
 ./eval sequence iptc-31 -c starlux1.1-4b
 ```
 

@@ -18,7 +18,6 @@ from . import (
 )
 from .features import _read_text_split
 from .methods.glide import GlidePredictor
-from .methods.startlux import StartLuxPredictor
 from ....app.args.data import DataArguments
 from ....app.args.model import ModelArguments
 from ....app.args.runtime import Paths
@@ -149,10 +148,24 @@ class ClefPredictor:
         return scores
 
 
+def _startlux_predictor(model_args: ModelArguments, parameters: dict):
+    try:
+        from .methods.startlux import StartLuxPredictor
+
+        return StartLuxPredictor(model_args, parameters)
+    except ModuleNotFoundError as error:
+        if not error.name or error.name.split('.')[0] != 'startlux_decide':
+            raise
+        raise ImportError(
+            'StartLux inference requires startlux-decide. Run `uv sync --extra linear-attention` '
+            'in this checkout, then retry the evaluation.'
+        ) from error
+
+
 def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, paths: Paths, logger: Logger,
                       method: str = 'clef') -> None:
     predictors = {'clef': ('Clef', ClefPredictor), 'glide': ('GLiDE', GlidePredictor),
-                  'startlux': ('StartLux', StartLuxPredictor)}
+                  'startlux': ('StartLux', _startlux_predictor)}
     if method not in predictors:
         raise ValueError(f'Unknown decision method: {method}')
     name, factory = predictors[method]
@@ -200,6 +213,9 @@ def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, path
         datasets.append((subset, test_file, before_filter, excluded, retained))
 
     logger.info('Loading %s model %s at revision %s', name, model_args.model_name_or_path, parameters['revision'])
+    if method == 'startlux' and batch_size > 1:
+        logger.info('StartLux reference engine uses sequential per-question forwards; batch_size=%s does not enable GPU batching',
+                    batch_size)
     loaded = time.perf_counter()
     with ExitStack() as resources:
         predictor = factory(model_args, parameters)

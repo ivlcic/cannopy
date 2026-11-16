@@ -1,5 +1,7 @@
 import json
 import logging
+import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +15,36 @@ from src.app.args.data import DataArguments
 from src.app.args.model import ModelArguments
 from src.eval.sequence import iptc_31
 from src.eval.sequence.iptc_31 import decision
+
+
+def test_missing_startlux_dependency_is_isolated_and_explains_how_to_install():
+    # A fresh process reproduces an unsynced remote environment without
+    # uninstalling the SDK from the developer's environment.
+    script = '''
+import importlib.abc
+import sys
+
+class MissingStartLux(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] == 'startlux_decide':
+            raise ModuleNotFoundError("No module named 'startlux_decide'", name=fullname)
+
+sys.meta_path.insert(0, MissingStartLux())
+from src.eval.sequence.iptc_31 import decision
+from src.app.args.model import ModelArguments
+
+assert callable(decision.ClefPredictor) and callable(decision.GlidePredictor)
+assert 'startlux_decide' not in sys.modules
+try:
+    decision._startlux_predictor(ModelArguments(), {})
+except ImportError as error:
+    assert 'uv sync --extra linear-attention' in str(error), str(error)
+    assert isinstance(error.__cause__, ModuleNotFoundError)
+else:
+    raise AssertionError('Missing StartLux dependency was not reported')
+'''
+    result = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_topic_schema_is_multilabel_and_keeps_string_codes():
@@ -193,7 +225,7 @@ def test_decision_uses_prepared_test_only_filters_ids_and_loads_once(
 
     monkeypatch.setattr(decision, 'ClefPredictor', FakePredictor)
     monkeypatch.setattr(decision, 'GlidePredictor', FakePredictor)
-    monkeypatch.setattr(decision, 'StartLuxPredictor', FakePredictor)
+    monkeypatch.setattr(decision, '_startlux_predictor', FakePredictor)
     monkeypatch.setattr(iptc_31, 'paths', paths, raising=False)
     monkeypatch.setattr(iptc_31, 'logger', logging.getLogger(__name__), raising=False)
     iptc_31.main(args, model_args)

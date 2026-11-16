@@ -202,7 +202,7 @@ def test_startlux_evaluation_closes_worker_after_prediction_error(tmp_path, monk
         def close(self):
             closed.append(True)
 
-    monkeypatch.setattr(decision, 'StartLuxPredictor', Predictor)
+    monkeypatch.setattr(decision, '_startlux_predictor', Predictor)
     with pytest.raises(ValueError, match='prediction failed'):
         decision.evaluate_decision(args, model, paths, logging.getLogger(__name__), method='startlux')
     assert closed == [True]
