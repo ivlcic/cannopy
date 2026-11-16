@@ -95,6 +95,11 @@ Run Clef-Flash decisions directly on prepared text (CUDA required):
 ./eval sequence iptc-31 -c clef-flash
 ```
 
+Add retrieved training examples (requires BGE-M3 embeddings):
+```shell
+./eval sequence iptc-31 -c clef-flash -c bge-m3_clef
+```
+
 | Method | Description | Default parameters |
 | --- | --- | --- |
 | `zero_shot` | Copy the nearest training document's labels | 1 neighbor, normalized L2 distance |

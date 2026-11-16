@@ -201,6 +201,8 @@ def _pool_evaluations(evaluations: list[EvaluationResult], dataset_name: str) ->
         'method_seconds': sum(evaluation.metadata['method_seconds'] for evaluation in evaluations),
         'aggregation': ('pooled test samples; one pretrained decision model across languages'
                         if evaluations[0].metadata.get('supervision') == 'zero_shot_decision'
+                        else 'pooled test samples; pretrained decision model with same-language training examples'
+                        if evaluations[0].metadata.get('supervision') == 'retrieval_augmented_decision'
                         else 'pooled test samples; each language uses its own training set'),
     }
     for kind in ['sidecar', 'data']:
@@ -219,6 +221,9 @@ def _pool_evaluations(evaluations: list[EvaluationResult], dataset_name: str) ->
 def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str) -> None:
     if method == 'clef':
         clef(data_args, model_args)
+        return
+    if method == 'bge-m3_clef':
+        bge_m3_clef(data_args, model_args)
         return
     if method not in METHODS:
         raise ValueError(f'Unknown classification method {method!r}; available: {", ".join(METHODS)}')
@@ -311,6 +316,12 @@ def clef(data_args: DataArguments, model_args: ModelArguments) -> None:
     from .decision import evaluate_clef
 
     evaluate_clef(data_args, model_args, paths, logger)
+
+
+def bge_m3_clef(data_args: DataArguments, model_args: ModelArguments) -> None:
+    from .decision import evaluate_clef
+
+    evaluate_clef(data_args, model_args, paths, logger, method='bge-m3_clef')
 
 
 def main(data_args: DataArguments, model_args: ModelArguments) -> None:

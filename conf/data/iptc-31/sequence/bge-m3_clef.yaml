@@ -1,0 +1,21 @@
+# Clef with descriptions of retrieved, labeled training examples.
+# Inherits Clef model/revision/device/threshold from -c clef-flash.
+# Requires prepared training text and bge-m3 train/test sidecars per language.
+# Each target retrieves only from its own language's training set, with cosine
+# similarity. No test labels or cross-language examples enter the context.
+# Labels are complete IPTC code/name lists; only example excerpts are shortened.
+# max_excerpt_tokens caps each excerpt. Examples are shortened/dropped to fit
+# the Clef state/context budget, preserving the target's non-RAG token budget.
+# Outputs use method bge-m3_clef, preserving plain clef results. Metrics JSON records
+# the actual example IDs, similarities and excerpt lengths included per target.
+# This is a few-shot experiment; select retrieval settings/threshold on validation
+# with held-out IDs excluded from the retrieval index before evaluating test data.
+data:
+  attributes:
+    sequence:
+      method: bge-m3_clef
+      methods:
+        bge-m3_clef:
+          retrieval_model: bge-m3
+          top_k: 3
+          max_excerpt_tokens: 256

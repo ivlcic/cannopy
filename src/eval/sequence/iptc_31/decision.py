@@ -16,6 +16,7 @@ from . import (
     _pool_evaluations, _select_subsets, _write_evaluation,
 )
 from .features import _read_text_split
+from .methods.bge_m3_clef import RAG_INSTRUCTION, BgeM3ClefRetriever, encode_with_examples
 from ....app.args.data import DataArguments
 from ....app.args.model import ModelArguments
 from ....app.args.runtime import Paths
@@ -101,6 +102,7 @@ class ClefPredictor:
             raise ValueError('Clef model.max_seq_length must be positive')
         self.max_state_tokens = parameters.get('max_state_tokens', 8192)
         self.input_tokens = 0
+        self.retrieval_audit = []
         checkpoint = Path(snapshot_download(
             model_args.model_name_or_path, revision=parameters['revision'], cache_dir=model_args.cache_dir,
         ))
@@ -110,16 +112,33 @@ class ClefPredictor:
             self.api, checkpoint, device=self.device, dtype=self.dtype, **kwargs,
         )
 
-    def predict(self, ids: np.ndarray, texts: list[str], questions: dict, batch_size: int) -> np.ndarray:
+    def predict(self, ids: np.ndarray, texts: list[str], questions: dict, batch_size: int,
+                *, examples: list[list[dict]] | None = None, max_excerpt_tokens: int = 256) -> np.ndarray:
         codes = list(questions)
         columns = {code: index for index, code in enumerate(codes)}
         scores = np.empty((len(ids), len(codes)), dtype=np.float32)
+        if examples is not None:
+            if len(examples) != len(ids):
+                raise ValueError('RAG contexts must match the target article IDs')
+            schema_tokens = len(self.api.encode_record(
+                self.tokenizer, {'state': '', 'questions': questions}, max_length=self.max_length,
+            ).input_ids)
         for start in range(0, len(ids), batch_size):
-            encoded = [self.api.encode_record(
-                self.tokenizer,
-                {'id': str(sample_id), 'state': {'article': text}, 'questions': questions},
-                max_length=self.max_length, max_state_tokens=self.max_state_tokens,
-            ) for sample_id, text in zip(ids[start:start + batch_size], texts[start:start + batch_size], strict=True)]
+            encoded = []
+            for row in range(start, min(start + batch_size, len(ids))):
+                if examples is None:
+                    record = self.api.encode_record(
+                        self.tokenizer, {'id': str(ids[row]), 'state': {'article': texts[row]}, 'questions': questions},
+                        max_length=self.max_length, max_state_tokens=self.max_state_tokens,
+                    )
+                else:
+                    record, audit = encode_with_examples(
+                        self.api, self.tokenizer, str(ids[row]), texts[row], questions, examples[row],
+                        max_length=self.max_length, max_state_tokens=self.max_state_tokens,
+                        max_excerpt_tokens=max_excerpt_tokens, schema_tokens=schema_tokens,
+                    )
+                    self.retrieval_audit.append(audit)
+                encoded.append(record)
             batch = self.api.collate_records(encoded, self.tokenizer.pad_token_id, self.device)
             with torch.inference_mode():
                 outputs = self.model(batch)
@@ -139,7 +158,8 @@ class ClefPredictor:
         return scores
 
 
-def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: Paths, logger: Logger) -> None:
+def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: Paths, logger: Logger,
+                   method: str = 'clef') -> None:
     options = data_args.attributes.get('sequence', {})
     if 'trials' in options.get('optuna', {}):
         raise ValueError('Optuna supports rae_xmc, log_reg and svm; Clef is a zero-shot decision method')
@@ -147,8 +167,18 @@ def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: P
         raise ValueError('Select a Clef model configuration, for example -c clef-flash')
     if options.get('features', {}).get('type') != 'text':
         raise ValueError('Clef requires text features; select -c clef-flash')
-    parameters, threshold = _method_settings(options, 'clef')
-    unknown = set(parameters) - {'revision', 'device', 'max_state_tokens', 'max_samples'}
+    if method == 'bge-m3_clef':
+        methods = options.get('methods', {})
+        settings = {**methods.get('clef', {}), **methods.get('bge-m3_clef', {})}
+        parameters, threshold = _method_settings({**options, 'methods': {method: settings}}, method)
+        for name, value in {'retrieval_model': 'bge-m3', 'top_k': 3, 'max_excerpt_tokens': 256}.items():
+            parameters.setdefault(name, value)
+    else:
+        parameters, threshold = _method_settings(options, 'clef')
+    allowed = {'revision', 'device', 'max_state_tokens', 'max_samples'}
+    if method == 'bge-m3_clef':
+        allowed |= {'retrieval_model', 'top_k', 'max_excerpt_tokens'}
+    unknown = set(parameters) - allowed
     if unknown:
         raise ValueError(f'Unknown Clef parameters: {", ".join(sorted(unknown))}')
     if not isinstance(parameters.get('revision'), str) or not parameters['revision']:
@@ -161,6 +191,11 @@ def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: P
     for name, value in (('max_samples', max_samples), ('max_state_tokens', state_limit)):
         if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value <= 0):
             raise ValueError(f'Clef {name} must be a positive integer or null')
+    if method == 'bge-m3_clef' and (
+        not isinstance(parameters['max_excerpt_tokens'], int) or isinstance(parameters['max_excerpt_tokens'], bool)
+        or parameters['max_excerpt_tokens'] <= 0
+    ):
+        raise ValueError('bge-m3_clef.max_excerpt_tokens must be a positive integer')
     questions = _topic_questions(data_args.attributes.get('labels', []))
     labeler = MultilabelLabeler(labels=list(questions))
     prepare_dir = paths.get_script_ctx_path('data', 'prepare')
@@ -172,7 +207,16 @@ def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: P
         before_filter = len(ids)
         # The common row filter works on text arrays as well as feature matrices.
         retained, excluded = _filter_test_split(EmbeddedSplit(ids, np.asarray(texts), labels), options.get('exclude_test_ids', []))
-        datasets.append((subset, test_file, before_filter, excluded, retained))
+        retriever = None
+        if method == 'bge-m3_clef':
+            retriever = BgeM3ClefRetriever(prepare_dir, paths.get_script_ctx_path('data', 'embed'), subset,
+                                       labeler, data_args.attributes['labels'],
+                                       parameters['retrieval_model'], parameters['top_k'])
+            # Check every retained query ID before downloading/loading Clef.
+        retrieval_started = time.perf_counter()
+        examples = None if retriever is None else retriever.retrieve(retained.ids[:max_samples])
+        retrieval_seconds = time.perf_counter() - retrieval_started
+        datasets.append((subset, test_file, before_filter, excluded, retained, retriever, examples, retrieval_seconds))
 
     logger.info('Loading Clef model %s at revision %s', model_args.model_name_or_path, parameters['revision'])
     loaded = time.perf_counter()
@@ -180,19 +224,23 @@ def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: P
     load_seconds = time.perf_counter() - loaded
     evaluations = []
     suffix = f'.limit{max_samples}' if max_samples is not None else ''
-    for subset, test_file, before_filter, excluded, retained in datasets:
+    for subset, test_file, before_filter, excluded, retained, retriever, examples, retrieval_seconds in datasets:
         ids, texts, labels = retained.ids[:max_samples], retained.embeddings[:max_samples].tolist(), retained.labels[:max_samples]
-        logger.info('Clef %s: scoring %s articles after excluding %s test IDs', subset, len(ids), len(excluded))
+        logger.info('%s %s: scoring %s articles after excluding %s test IDs', method, subset, len(ids), len(excluded))
         input_tokens = predictor.input_tokens
         started = time.perf_counter()
-        scores = np.asarray(predictor.predict(ids, texts, questions, batch_size), dtype=np.float32)
+        retrieval_options = {} if retriever is None else {
+            'examples': examples, 'max_excerpt_tokens': parameters['max_excerpt_tokens'],
+        }
+        scores = np.asarray(predictor.predict(ids, texts, questions, batch_size, **retrieval_options), dtype=np.float32)
         duration = time.perf_counter() - started
         if scores.shape != labels.shape or not np.isfinite(scores).all():
             raise ValueError('Clef returned invalid classification scores')
         result = {
             'dataset': data_args.dataset_name, 'subset': subset + suffix,
             'model': model_args.short_name, 'model_name_or_path': model_args.model_name_or_path,
-            'method': 'clef', 'supervision': 'zero_shot_decision', 'num_train': 0,
+            'method': method, 'supervision': 'zero_shot_decision' if retriever is None else 'retrieval_augmented_decision',
+            'num_train': 0 if retriever is None else retriever.num_train,
             'num_test': len(ids), 'num_test_before_filter': before_filter,
             'num_test_excluded': len(excluded), 'excluded_test_ids': excluded,
             'num_test_before_limit': len(retained.ids), 'num_labels': labeler.num_labels,
@@ -203,6 +251,11 @@ def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: P
             'input_tokens': predictor.input_tokens - input_tokens,
             'device': str(predictor.device), 'dtype': str(predictor.dtype),
         }
+        if retriever is not None:
+            result.update(train_data=str(retriever.train_file), train_sidecar=str(retriever.train_sidecar),
+                          test_sidecar=str(retriever.test_sidecar), retrieval_metric='cosine',
+                          retrieval_instructions=RAG_INSTRUCTION, retrieval_seconds=retrieval_seconds,
+                          retrieval_examples=predictor.retrieval_audit[-len(ids):])
         evaluations.append(EvaluationResult(result, ids, labels, scores))
     if data_args.source.select.subset:
         final = evaluations[0]
@@ -210,4 +263,8 @@ def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: P
         final = _pool_evaluations(evaluations, data_args.dataset_name + suffix)
         for field in ('input_tokens', 'num_test_before_limit'):
             final.metadata[field] = sum(evaluation.metadata[field] for evaluation in evaluations)
+        if method == 'bge-m3_clef':
+            final.metadata['retrieval_seconds'] = sum(evaluation.metadata['retrieval_seconds'] for evaluation in evaluations)
+            final.metadata['retrieval_examples'] = [record for evaluation in evaluations
+                                                    for record in evaluation.metadata['retrieval_examples']]
     _write_evaluation(final)
