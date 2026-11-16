@@ -191,7 +191,9 @@ def _pool_evaluations(evaluations: list[EvaluationResult], dataset_name: str) ->
         **evaluations[0].metadata,
         'subset': dataset_name,
         'subsets': [evaluation.metadata['subset'] for evaluation in evaluations],
-        'num_train': sum(evaluation.metadata['num_train'] for evaluation in evaluations),
+        'num_train': (evaluations[0].metadata['num_train']
+                      if evaluations[0].metadata.get('supervision') == 'supervised_decision_head'
+                      else sum(evaluation.metadata['num_train'] for evaluation in evaluations)),
         'num_test': len(ids),
         'num_test_before_filter': sum(evaluation.metadata['num_test_before_filter'] for evaluation in evaluations),
         'num_test_excluded': sum(evaluation.metadata['num_test_excluded'] for evaluation in evaluations),
@@ -199,9 +201,10 @@ def _pool_evaluations(evaluations: list[EvaluationResult], dataset_name: str) ->
         'num_labels': len(label_order),
         'label_order': label_order,
         'method_seconds': sum(evaluation.metadata['method_seconds'] for evaluation in evaluations),
-        'aggregation': ('pooled test samples; one pretrained decision model across languages'
-                        if evaluations[0].metadata.get('supervision') == 'zero_shot_decision'
-                        else 'pooled test samples; each language uses its own training set'),
+        'aggregation': ({
+            'zero_shot_decision': 'pooled test samples; one pretrained decision model across languages',
+            'supervised_decision_head': 'pooled test samples; one shared trained decision head across languages',
+        }.get(evaluations[0].metadata.get('supervision'), 'pooled test samples; each language uses its own training set')),
     }
     for kind in ['sidecar', 'data']:
         for split in ['train', 'test']:

@@ -111,6 +111,13 @@ uv sync --extra linear-attention
 
 Add `-s data.attributes.sequence.parameters.use_label_descriptions=true` to include official IPTC definitions in Clef, GLiDE or StartLux questions.
 
+Train only Clef-Flash's decision head on prepared training text, then evaluate it:
+```shell
+./train sequence iptc-31 -c clef-flash -c clef-flash-head
+./eval sequence iptc-31 -c clef-flash -c clef-flash-head
+```
+The backbone stays frozen; a validation split selects the best head. Head-specific overrides are in the [head training overlay](conf/task/sequence/iptc-31/clef-flash-head.yaml).
+
 | Method | Description | Default parameters |
 | --- | --- | --- |
 | `zero_shot` | Copy the nearest training document's labels | 1 neighbor, normalized L2 distance |

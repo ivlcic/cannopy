@@ -8,10 +8,13 @@ import torch
 from src.app.args.data import DataArguments
 from src.app.args.model import ModelArguments
 from src.eval.sequence.iptc_31 import decision
-from src.eval.sequence.iptc_31.methods import glide
+from src.app import decider as glide
 
 
 class CharacterTokenizer:
+    def encode(self, text, **kwargs):
+        return [ord(char) for char in text]
+
     def __call__(self, text, **kwargs):
         return SimpleNamespace(input_ids=[ord(char) for char in text])
 
@@ -39,7 +42,7 @@ def test_glide_batches_articles_maps_topic_ids_and_reads_noul_not_confidence():
                                  '01000000': {'type': 'noul', 'noul': 0.8, 'confidence': 0.6}},
                      'usage': {'input_tokens': 200}} for _ in requests]
 
-    predictor = glide.GlidePredictor.__new__(glide.GlidePredictor)
+    predictor = glide.GlideDecider.__new__(glide.GlideDecider)
     predictor.api = SimpleNamespace(RequestError=RequestError)
     predictor.model = Model()
     predictor.max_state_tokens = 1000
@@ -54,7 +57,7 @@ def test_glide_batches_articles_maps_topic_ids_and_reads_noul_not_confidence():
     assert predictor.input_tokens == 600 and predictor.truncated_articles == 0
 
     predictor.max_state_tokens = 10
-    assert predictor._state('Članek, daljši od omejitve') == json.dumps(
+    assert predictor._article_state('Članek, daljši od omejitve', predictor.model.tokenizer, skip_special_tokens=True) == json.dumps(
         {'article': 'Članek, daljši od omejitve'}, ensure_ascii=False,
     )[:10]
     assert predictor.truncated_articles == 1
@@ -68,9 +71,9 @@ def test_glide_batches_articles_maps_topic_ids_and_reads_noul_not_confidence():
     ({'answers': {'01000000': {'type': 'noul', 'noul': 0.7}}, 'usage': {'input_tokens': -1}}, 'invalid input token usage'),
 ])
 def test_glide_rejects_per_article_errors_and_invalid_scores(result, message):
-    predictor = glide.GlidePredictor.__new__(glide.GlidePredictor)
+    predictor = glide.GlideDecider.__new__(glide.GlideDecider)
     predictor.api = SimpleNamespace(RequestError=RequestError)
-    predictor.model = SimpleNamespace(decide_batch=lambda requests: [result])
+    predictor.model = SimpleNamespace(decide_batch=lambda requests: [result], tokenizer=CharacterTokenizer())
     predictor.max_state_tokens = None
     predictor.input_tokens, predictor.truncated_articles = 0, 0
     with pytest.raises(ValueError, match=message):
@@ -97,14 +100,14 @@ def test_glide_loader_uses_pinned_text_only_api_without_processor(tmp_path, monk
 
     monkeypatch.setattr(torch.cuda, 'is_available', lambda: True)
     monkeypatch.setattr('huggingface_hub.snapshot_download', download)
-    monkeypatch.setattr(glide, '_load_glide_api', lambda path: SimpleNamespace(Glide=SimpleNamespace(from_pretrained=load)))
-    predictor = glide.GlidePredictor(model_args, parameters)
+    monkeypatch.setattr(glide.GlideDecider, '_load_api', staticmethod(lambda path: SimpleNamespace(Glide=SimpleNamespace(from_pretrained=load))))
+    predictor = glide.GlideDecider(model_args, parameters)
     assert calls == [str(tmp_path)] and predictor.device.type == 'cuda'
     assert predictor.dtype == torch.bfloat16 and not predictor.mask_mapping_compatibility
 
     monkeypatch.setattr(torch.cuda, 'is_available', lambda: False)
     with pytest.raises(RuntimeError, match='no model weights were downloaded'):
-        glide.GlidePredictor(model_args, parameters)
+        glide.GlideDecider(model_args, parameters)
     assert calls == [str(tmp_path)]
 
 
@@ -122,7 +125,7 @@ def test_glide_compatibility_preserves_bidirectional_and_linear_masks_with_real_
     config._attn_implementation = 'sdpa'
     backbone = Qwen3_5TextModel(config).eval()
     model = SimpleNamespace(network=SimpleNamespace(backbone=backbone, recurrence=None))
-    glide._enable_mask_mapping(model)
+    glide.GlideDecider._enable_mask_mapping(model)
     ids = torch.tensor([[1, 2, 3], [0, 4, 5]])
     padding = torch.tensor([[1, 1, 1], [0, 1, 1]])
     masks = {'full_attention': padding[:, None, None, :].bool(), 'linear_attention': padding}

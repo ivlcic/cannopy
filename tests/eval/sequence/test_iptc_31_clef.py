@@ -11,6 +11,7 @@ import pytest
 import torch
 
 from src.app import entrypoint
+from src.app.decider import ClefDecider, TextDecider
 from src.app.args.data import DataArguments
 from src.app.args.model import ModelArguments
 from src.eval.sequence import iptc_31
@@ -31,12 +32,14 @@ class MissingStartLux(importlib.abc.MetaPathFinder):
 
 sys.meta_path.insert(0, MissingStartLux())
 from src.eval.sequence.iptc_31 import decision
+from src.app.decider import ClefDecider, GlideDecider, TextDecider
 from src.app.args.model import ModelArguments
 
-assert callable(decision.ClefPredictor) and callable(decision.GlidePredictor)
+assert callable(ClefDecider) and callable(GlideDecider)
 assert 'startlux_decide' not in sys.modules
 try:
-    decision._startlux_predictor(ModelArguments(), {})
+    TextDecider.create(ModelArguments(model_name_or_path='startlux-models/StartLux-Decision-v1.1-4B-Instant'),
+                       {'revision': 'a' * 40, 'device': 'cpu'})
 except ImportError as error:
     assert 'uv sync --extra linear-attention' in str(error), str(error)
     assert isinstance(error.__cause__, ModuleNotFoundError)
@@ -99,7 +102,7 @@ def test_predict_decodes_true_option_by_id_and_batches_without_reference_labels(
             return [[torch.tensor([0.2, 0.8]).log() if q.question_id == '01000000'
                      else torch.tensor([0.8, 0.2]).log() for q in record.questions] for record in encoded]
 
-    predictor = decision.ClefPredictor.__new__(decision.ClefPredictor)
+    predictor = ClefDecider.__new__(ClefDecider)
     predictor.api = SimpleNamespace(encode_record=encode, collate_records=collate)
     predictor.tokenizer = SimpleNamespace(pad_token_id=0)
     predictor.model = Model()
@@ -121,7 +124,7 @@ def test_loader_fails_before_download_when_cuda_is_unavailable(monkeypatch):
 
     monkeypatch.setattr('huggingface_hub.snapshot_download', no_download)
     with pytest.raises(RuntimeError, match='no model weights were downloaded'):
-        decision.ClefPredictor(ModelArguments(model_name_or_path='Cloudflare/clef-flash'), {'device': 'cuda'})
+        ClefDecider(ModelArguments(model_name_or_path='Cloudflare/clef-flash'), {'device': 'cuda', 'revision': 'a' * 40})
 
 
 @pytest.mark.parametrize('pad_token_id', [0, None])
@@ -159,7 +162,7 @@ def test_text_loader_restores_head_and_tokenizer_without_image_processor(tmp_pat
     monkeypatch.setattr(AutoTokenizer, 'from_pretrained', load_tokenizer)
     monkeypatch.setattr(Qwen3_5ForConditionalGeneration, 'from_pretrained', load_backbone)
     monkeypatch.setattr(AutoProcessor, 'from_pretrained', no_processor)
-    model, loaded_tokenizer = decision._load_text_model(
+    model, loaded_tokenizer = ClefDecider._load_text_model(
         SimpleNamespace(JointSchemaHead=Head, ClefModel=Model), tmp_path,
         torch.device('cpu'), torch.float32, attn_implementation='sdpa',
     )
@@ -195,13 +198,26 @@ def test_decision_uses_prepared_test_only_filters_ids_and_loads_once(
     source_contents = {path: path.read_bytes() for path in prepare.iterdir()}
     calls, instances = [], []
 
-    class FakePredictor:
+    class FakePredictor(TextDecider):
+        tracks_truncation = model_config != 'clef-flash'
+
+        def metadata(self):
+            result = super().metadata()
+            if method in ('glide', 'startlux'):
+                result['input_tokens_scope'] = 'sum of per-question prompt tokens'
+            if method == 'glide':
+                result['mask_mapping_compatibility'] = self.mask_mapping_compatibility
+            if method == 'startlux':
+                result.update(backend=self.backend_metadata, temperature_by_type=self.temperature_by_type, output_tokens=0)
+            return result
+
         def __init__(self, model_args, parameters):
             assert model_args.model_name_or_path == {
                 'clef-flash': 'Cloudflare/clef-flash', 'glide-2b': 'fastino/GLiDE-2B', 'glide-9b': 'fastino/GLiDE-9B',
                 'starlux1.1-4b': 'startlux-models/StartLux-Decision-v1.1-4B-Instant',
             }[model_config]
             assert len(parameters['revision']) == 40
+            self.model_args, self.max_length = model_args, model_args.max_seq_length
             self.input_tokens = 0
             self.truncated_articles = 0
             self.mask_mapping_compatibility = True
@@ -211,7 +227,7 @@ def test_decision_uses_prepared_test_only_filters_ids_and_loads_once(
             self.device, self.dtype = torch.device('cpu'), torch.float32
             instances.append(self)
 
-        def predict(self, ids, texts, questions, batch_size):
+        def _predict(self, ids, texts, questions, batch_size):
             assert 'sl:206' not in ids
             assert len(questions) == 31 and all(q['type'] == 'noul' for q in questions.values())
             assert all(('IPTC definition:' in q['instructions']) == use_descriptions for q in questions.values())
@@ -223,9 +239,7 @@ def test_decision_uses_prepared_test_only_filters_ids_and_loads_once(
         def close(self):
             self.closed = True
 
-    monkeypatch.setattr(decision, 'ClefPredictor', FakePredictor)
-    monkeypatch.setattr(decision, 'GlidePredictor', FakePredictor)
-    monkeypatch.setattr(decision, '_startlux_predictor', FakePredictor)
+    monkeypatch.setattr(TextDecider, 'create', classmethod(lambda cls, model, params: FakePredictor(model, params)))
     monkeypatch.setattr(iptc_31, 'paths', paths, raising=False)
     monkeypatch.setattr(iptc_31, 'logger', logging.getLogger(__name__), raising=False)
     iptc_31.main(args, model_args)

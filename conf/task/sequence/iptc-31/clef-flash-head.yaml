@@ -1,0 +1,48 @@
+# Compose with -c clef-flash -c clef-flash-head, for both train and eval.
+# Model identity, revision, device, input limits and decision settings come
+# from clef-flash; this overlay contains only head-specific changes.
+# One shared head over the available prepared training languages; test files
+# are never loaded. Duplicate texts stay together in the stratified holdout.
+# The backbone stays frozen/eval; only the FP32 head receives gradients, with
+# BF16 autocast on CUDA. Checkpoints contain the head and training provenance,
+# plus Trainer optimizer/scheduler/RNG state for resume, without base weights.
+# Training starts from the released head. Resume a saved training checkpoint
+# with -s train.resume_from_checkpoint=<directory>.
+#
+# ./eval sequence iptc-31 -c clef-flash -c clef-flash-head reloads the head. 'auto'
+# finds result/train/sequence/iptc-31/<subset>[.limit<N>].clef-flash-head.
+# Set parameters.head_checkpoint explicitly to evaluate a shared head on one
+# language, or a head saved with train.output_dir. Keep prompt/caps unchanged.
+# max_samples_per_language enables short training runs with separate output
+# names; train.max_steps limits optimizer steps. train.* controls the Trainer.
+model:
+  short_name: clef-flash-head
+data:
+  attributes:
+    sequence:
+      methods:
+        clef:
+          head_checkpoint: auto
+          use_label_descriptions: true
+      head_training:
+        validation_size: 0.2
+        max_samples_per_language: null
+train:
+  per_device_train_batch_size: 1
+  per_device_eval_batch_size: 1
+  gradient_accumulation_steps: 8
+  num_train_epochs: 3
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  warmup_steps: 20
+  max_grad_norm: 1.0
+  bf16: true
+  seed: 2611
+  eval_strategy: epoch
+  save_strategy: epoch
+  load_best_model_at_end: true
+  metric_for_best_model: micro.f1
+  greater_is_better: true
+  save_total_limit: 2
+  logging_steps: 10
+  report_to: []

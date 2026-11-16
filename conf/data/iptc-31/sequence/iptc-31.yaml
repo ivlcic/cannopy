@@ -26,8 +26,9 @@
 # method fitting/prediction; TF-IDF feature_seconds records vectorization
 # separately, with vocabulary sizes per language in pooled reports.
 #
-# Methods implement a shared score-matrix interface and are registered in
-# src/eval/sequence/iptc_31/methods/. Select the positional method or set
+# Numerical methods share a score-matrix interface in eval/sequence/iptc_31/methods/;
+# decision backends use the TextDecider registry in app/decider.py.
+# Select the positional method or set
 # data.attributes.sequence.method. Per-run sequence.parameters overrides the
 # selected method's defaults below, e.g. -s data.attributes.sequence.parameters.C=10.
 # Model configs in this directory can override method parameters and thresholds.

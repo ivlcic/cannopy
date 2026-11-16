@@ -13,7 +13,7 @@ from src.app import entrypoint
 from src.app.args.model import ModelArguments
 from src.eval.sequence import iptc_31
 from src.eval.sequence.iptc_31 import decision
-from src.eval.sequence.iptc_31.methods import startlux
+from src.app import decider as startlux
 
 
 @pytest.fixture
@@ -59,8 +59,8 @@ def test_startlux_uses_official_prompts_calibration_and_instant_readout(release,
         async def close(self):
             self.closed = True
 
-    monkeypatch.setattr(startlux, '_TextBackend', Backend)
-    predictor = startlux.StartLuxPredictor(*release)
+    monkeypatch.setattr(startlux, '_load_startlux_backend', lambda: Backend)
+    predictor = startlux.StartLuxDecider(*release)
     questions = {'01000000': {'type': 'noul', 'instructions': 'arts'},
                  '20000002': {'type': 'noul', 'instructions': 'sport'}}
     try:
@@ -85,7 +85,7 @@ def test_startlux_uses_official_prompts_calibration_and_instant_readout(release,
 def test_startlux_closes_worker_when_loading_fails(release, monkeypatch):
     instances = []
 
-    class BrokenBackend(startlux._TextBackend):
+    class BrokenBackend(startlux._load_startlux_backend()):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             instances.append(self)
@@ -93,9 +93,9 @@ def test_startlux_closes_worker_when_loading_fails(release, monkeypatch):
         def _load(self):
             raise RuntimeError('load failed')
 
-    monkeypatch.setattr(startlux, '_TextBackend', BrokenBackend)
+    monkeypatch.setattr(startlux, '_load_startlux_backend', lambda: BrokenBackend)
     with pytest.raises(RuntimeError, match='load failed'):
-        startlux.StartLuxPredictor(*release)
+        startlux.StartLuxDecider(*release)
     assert instances[0]._executor._shutdown
     assert all(not thread.is_alive() for thread in instances[0]._executor._threads)
 
@@ -116,7 +116,7 @@ def test_startlux_text_loader_uses_sdpa_and_release_attention_checks_without_pro
     monkeypatch.setattr(Qwen3_5ForConditionalGeneration, 'from_pretrained', load)
     monkeypatch.setattr(AutoProcessor, 'from_pretrained', lambda *args, **kwargs: pytest.fail('Text only'))
     monkeypatch.setattr(bidirectional, 'enable', lambda loaded: {'checked': loaded is body})
-    backend = startlux._TextBackend('checkpoint', FakeTokenizer(), True, device='cpu', dtype='float32', max_length=8)
+    backend = startlux._load_startlux_backend()('checkpoint', FakeTokenizer(), True, device='cpu', dtype='float32', max_length=8)
     backend._load()
     assert backend.check == {'checked': True} and not body.config.use_cache and not backend.reads_images
     assert backend._inputs('short', None)['input_ids'].shape == (1, 5)
@@ -153,7 +153,7 @@ def test_startlux_requires_cuda_before_downloading(monkeypatch):
     monkeypatch.setattr(torch.cuda, 'is_available', lambda: False)
     monkeypatch.setattr(huggingface_hub, 'snapshot_download', lambda *args, **kwargs: pytest.fail('No download'))
     with pytest.raises(RuntimeError, match='no model weights were downloaded'):
-        startlux.StartLuxPredictor(ModelArguments(), {'revision': 'a' * 40})
+        startlux.StartLuxDecider(ModelArguments(), {'revision': 'a' * 40})
 
 
 @pytest.mark.parametrize('answers, usage, message', [
@@ -161,7 +161,7 @@ def test_startlux_requires_cuda_before_downloading(monkeypatch):
     ({'01000000': {'type': 'noul', 'noul': float('nan')}}, {}, 'invalid topic probability'),
     ({'01000000': {'type': 'noul', 'noul': 1.2}}, {}, 'invalid topic probability'),
     ({'01000000': {'type': 'choice', 'noul': .7}}, {}, 'invalid topic probability'),
-    ({'01000000': {'type': 'noul', 'noul': .7}}, {'input_tokens': -1, 'output_tokens': 0}, 'invalid token usage'),
+    ({'01000000': {'type': 'noul', 'noul': .7}}, {'input_tokens': -1, 'output_tokens': 0}, 'invalid input token usage'),
     ({'01000000': {'type': 'noul', 'noul': .7}}, {'input_tokens': 1, 'output_tokens': 1}, 'generated text'),
 ])
 def test_startlux_rejects_misaligned_scores_and_generated_answers(answers, usage, message):
@@ -170,8 +170,9 @@ def test_startlux_rejects_misaligned_scores_and_generated_answers(answers, usage
     async def decide(*args):
         return Decision(answers=answers, usage=usage, timing_ms={})
 
-    predictor = startlux.StartLuxPredictor.__new__(startlux.StartLuxPredictor)
+    predictor = startlux.StartLuxDecider.__new__(startlux.StartLuxDecider)
     predictor.decider = SimpleNamespace(decide=decide)
+    predictor.tokenizer = FakeTokenizer()
     predictor.max_state_tokens = None
     predictor.input_tokens = predictor.truncated_articles = 0
     with asyncio.Runner() as runner:
@@ -190,19 +191,19 @@ def test_startlux_evaluation_closes_worker_after_prediction_error(tmp_path, monk
     monkeypatch.setattr(decision, '_filter_test_split', lambda *args: (retained, []))
     closed = []
 
-    class Predictor:
+    class Predictor(startlux.TextDecider):
         input_tokens = 0
 
         def __init__(self, *args):
             pass
 
-        def predict(self, *args):
+        def _predict(self, *args):
             raise ValueError('prediction failed')
 
         def close(self):
             closed.append(True)
 
-    monkeypatch.setattr(decision, '_startlux_predictor', Predictor)
+    monkeypatch.setattr(startlux.TextDecider, 'create', classmethod(lambda cls, *args: Predictor(*args)))
     with pytest.raises(ValueError, match='prediction failed'):
         decision.evaluate_decision(args, model, paths, logging.getLogger(__name__), method='startlux')
     assert closed == [True]
