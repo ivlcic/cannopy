@@ -36,7 +36,7 @@ set -a; source .env; set +a
 The default environment uses Torch 2.11, CUDA 13, and FlashAttention-2 via
 custom third-party Linux wheels for Python 3.13 and 3.14.
 
-For Clef/GLiDE CUDA linear-attention kernels, run `uv sync --extra linear-attention`. Building `causal-conv1d` requires the CUDA toolkit (`nvcc`).
+For Clef/GLiDE/StartLux CUDA linear-attention kernels, run `uv sync --extra linear-attention`. Building `causal-conv1d` requires the CUDA toolkit (`nvcc`).
 
 ## 1. Dataset mining/creation tasks
 
@@ -103,7 +103,12 @@ Run GLiDE decisions on prepared text (CUDA required):
 ./eval sequence iptc-31 -c glide-9b
 ```
 
-Add `-s data.attributes.sequence.parameters.use_label_descriptions=true` to include official IPTC definitions in Clef or GLiDE questions.
+Run StartLux Instant decisions on prepared text (CUDA required):
+```shell
+./eval sequence iptc-31 -c starlux1.1-4b
+```
+
+Add `-s data.attributes.sequence.parameters.use_label_descriptions=true` to include official IPTC definitions in Clef, GLiDE or StartLux questions.
 
 | Method | Description | Default parameters |
 | --- | --- | --- |

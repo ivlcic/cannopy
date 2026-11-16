@@ -19,6 +19,7 @@ dependencies = [
     "iterative-stratification==0.1.9",
     "torch==2.11.0",
     "transformers[sentencepiece,torch]==5.8.0",
+    "startlux-decide[transformers]",
     "sentencepiece==0.2.1",
     "evaluate==0.4.6",
     "seqeval==1.2.2",
@@ -75,6 +76,7 @@ url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [tool.uv.sources]
+startlux-decide = { git = "https://github.com/StartLuxLabs/StartLux-Decision.git", rev = "a99977d9332decc9fb27a2488b4a83b533b6cd5f" }
 llama-cpp-python = { git = "https://github.com/abetlen/llama-cpp-python.git", rev = "629bd1b333f60d24a01886c5f99019f4c7c3ea6c" }
 torch = { index = "pytorch-cu130" }
 

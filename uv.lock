@@ -197,6 +197,7 @@ dependencies = [
     { name = "sentence-transformers" },
     { name = "sentencepiece" },
     { name = "seqeval" },
+    { name = "startlux-decide", extra = ["transformers"] },
     { name = "syntok" },
     { name = "torch" },
     { name = "transformers", extra = ["sentencepiece", "torch"] },
@@ -240,6 +241,7 @@ requires-dist = [
     { name = "sentence-transformers", specifier = "==5.5.1" },
     { name = "sentencepiece", specifier = "==0.2.1" },
     { name = "seqeval", specifier = "==1.2.2" },
+    { name = "startlux-decide", extras = ["transformers"], git = "https://github.com/StartLuxLabs/StartLux-Decision.git?rev=a99977d9332decc9fb27a2488b4a83b533b6cd5f" },
     { name = "syntok", specifier = "==1.4.4" },
     { name = "torch", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", extras = ["sentencepiece", "torch"], specifier = "==5.8.0" },
@@ -2430,6 +2432,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ba/8a/141a2d5a62bcc5b0826d9b60ab7b5120298b720fdae103d722dd4eb7e0b0/sqlalchemy-2.1.8-cp314-cp314t-win_amd64.whl", hash = "sha256:aaf1e9adb18645bec3eeedf89342d2970103399207123b096284c3741b64217a", size = 2520395, upload-time = "2026-11-04T01:54:52.743Z" },
     { url = "https://files.pythonhosted.org/packages/ba/24/d3d76cc6ff784add4022a01657093648505a98d42933f26531c0e66c956b/sqlalchemy-2.1.8-cp314-cp314t-win_arm64.whl", hash = "sha256:d2dc85ccb5e224f0c5be165d70a1d04a3a754afb53fffddc4c410509fabae430", size = 2438358, upload-time = "2026-11-04T02:24:04.262Z" },
     { url = "https://files.pythonhosted.org/packages/a3/1e/6eba6770b626a991e58de306385d414b9f3ae780ae60c61aa1d0841dcaaf/sqlalchemy-2.1.8-py3-none-any.whl", hash = "sha256:69aea77b5d8a64e95d01fd7ec54985c84b4a8ef3cac3108e9271145441400c1b", size = 2067639, upload-time = "2026-11-04T01:30:31.914Z" },
+]
+
+[[package]]
+name = "startlux-decide"
+version = "1.1.0"
+source = { git = "https://github.com/StartLuxLabs/StartLux-Decision.git?rev=a99977d9332decc9fb27a2488b4a83b533b6cd5f#a99977d9332decc9fb27a2488b4a83b533b6cd5f" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "transformers" },
+]
+
+[package.optional-dependencies]
+transformers = [
+    { name = "torch" },
+    { name = "transformers" },
 ]
 
 [[package]]

@@ -1,0 +1,20 @@
+# Local text-only StartLux Instant decisions: independent P(true) for all 31 topics.
+# The official inference library supplies prompts, readout temperatures and
+# bidirectional full attention; linear attention remains causal. No generation.
+# max_state_tokens caps article evidence; complete question prompts exceeding
+# model.max_seq_length fail. max_samples limits rows per language for smoke runs.
+data:
+  attributes:
+    sequence:
+      method: startlux
+      batch_size: 1
+      features:
+        type: text
+      methods:
+        startlux:
+          threshold: 0.5
+          revision: 416088f77cfce09633906a3675c7cd2e5dabcf10
+          device: cuda
+          max_state_tokens: 8192
+          max_samples: null
+          use_label_descriptions: false

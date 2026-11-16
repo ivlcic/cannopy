@@ -5,6 +5,7 @@ import importlib.util
 import json
 import sys
 import time
+from contextlib import ExitStack
 from logging import Logger
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from . import (
 )
 from .features import _read_text_split
 from .methods.glide import GlidePredictor
+from .methods.startlux import StartLuxPredictor
 from ....app.args.data import DataArguments
 from ....app.args.model import ModelArguments
 from ....app.args.runtime import Paths
@@ -149,14 +151,16 @@ class ClefPredictor:
 
 def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, paths: Paths, logger: Logger,
                       method: str = 'clef') -> None:
-    if method not in ('clef', 'glide'):
+    predictors = {'clef': ('Clef', ClefPredictor), 'glide': ('GLiDE', GlidePredictor),
+                  'startlux': ('StartLux', StartLuxPredictor)}
+    if method not in predictors:
         raise ValueError(f'Unknown decision method: {method}')
-    name = 'GLiDE' if method == 'glide' else 'Clef'
+    name, factory = predictors[method]
     options = data_args.attributes.get('sequence', {})
     if 'trials' in options.get('optuna', {}):
         raise ValueError(f'Optuna supports rae_xmc, log_reg and svm; {name} is a zero-shot decision method')
     if not model_args.short_name or not model_args.model_name_or_path:
-        raise ValueError('Select a decision model configuration, for example -c clef-flash or -c glide-2b')
+        raise ValueError('Select a decision model configuration, for example -c clef-flash, -c glide-2b or -c starlux1.1-4b')
     if options.get('features', {}).get('type') != 'text':
         raise ValueError(f'{name} requires text features; select its model configuration')
     parameters, threshold = _method_settings(options, method)
@@ -197,52 +201,59 @@ def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, path
 
     logger.info('Loading %s model %s at revision %s', name, model_args.model_name_or_path, parameters['revision'])
     loaded = time.perf_counter()
-    predictor = (GlidePredictor if method == 'glide' else ClefPredictor)(model_args, parameters)
-    load_seconds = time.perf_counter() - loaded
-    evaluations = []
-    suffix = ('.descriptions' if use_descriptions else '') + (f'.limit{max_samples}' if max_samples is not None else '')
-    for subset, test_file, before_filter, excluded, retained in datasets:
-        ids, texts, labels = retained.ids[:max_samples], retained.embeddings[:max_samples].tolist(), retained.labels[:max_samples]
-        logger.info('%s %s: scoring %s articles after excluding %s test IDs', method, subset, len(ids), len(excluded))
-        input_tokens = predictor.input_tokens
-        truncated_articles = getattr(predictor, 'truncated_articles', 0)
-        started = time.perf_counter()
-        scores = np.asarray(predictor.predict(ids, texts, questions, batch_size), dtype=np.float32)
-        duration = time.perf_counter() - started
-        if scores.shape != labels.shape or not np.isfinite(scores).all():
-            raise ValueError(f'{name} returned invalid classification scores')
-        result = {
-            'dataset': data_args.dataset_name, 'subset': subset + suffix,
-            'model': model_args.short_name, 'model_name_or_path': model_args.model_name_or_path,
-            'method': method, 'supervision': 'zero_shot_decision', 'num_train': 0,
-            'num_test': len(ids), 'num_test_before_filter': before_filter,
-            'num_test_excluded': len(excluded), 'excluded_test_ids': excluded,
-            'num_test_before_limit': len(retained.ids), 'num_labels': labeler.num_labels,
-            'label_order': labeler.classes, 'batch_size': batch_size, 'threshold': threshold,
-            'parameters': parameters, 'question_template': QUESTION_TEMPLATE + (DEFINITION_TEMPLATE if use_descriptions else ''),
-            'prompt_variant': 'name_and_definition' if use_descriptions else 'name_only',
-            'topic_questions': questions, 'feature_type': 'text', 'test_data': str(test_file),
-            'method_seconds': duration, 'model_load_seconds': load_seconds,
-            'input_tokens': predictor.input_tokens - input_tokens,
-            'device': str(predictor.device), 'dtype': str(predictor.dtype),
-        }
-        if use_descriptions:
-            result['label_description_metadata'] = data_args.attributes.get('label_description_metadata', {})
-        if method == 'glide':
-            result.update(max_seq_length=model_args.max_seq_length,
-                          input_tokens_scope='sum of per-question prompt tokens',
-                          num_test_truncated=predictor.truncated_articles - truncated_articles,
-                          mask_mapping_compatibility=predictor.mask_mapping_compatibility)
-        evaluations.append(EvaluationResult(result, ids, labels, scores))
-    if data_args.source.select.subset:
-        final = evaluations[0]
-    else:
-        final = _pool_evaluations(evaluations, data_args.dataset_name + suffix)
-        for field in ('input_tokens', 'num_test_before_limit'):
-            final.metadata[field] = sum(evaluation.metadata[field] for evaluation in evaluations)
-        if method == 'glide':
-            final.metadata['num_test_truncated'] = sum(evaluation.metadata['num_test_truncated'] for evaluation in evaluations)
-    _write_evaluation(final)
+    with ExitStack() as resources:
+        predictor = factory(model_args, parameters)
+        if close := getattr(predictor, 'close', None):
+            resources.callback(close)
+        load_seconds = time.perf_counter() - loaded
+        evaluations = []
+        suffix = ('.descriptions' if use_descriptions else '') + (f'.limit{max_samples}' if max_samples is not None else '')
+        for subset, test_file, before_filter, excluded, retained in datasets:
+            ids, texts, labels = retained.ids[:max_samples], retained.embeddings[:max_samples].tolist(), retained.labels[:max_samples]
+            logger.info('%s %s: scoring %s articles after excluding %s test IDs', method, subset, len(ids), len(excluded))
+            input_tokens = predictor.input_tokens
+            truncated_articles = getattr(predictor, 'truncated_articles', 0)
+            started = time.perf_counter()
+            scores = np.asarray(predictor.predict(ids, texts, questions, batch_size), dtype=np.float32)
+            duration = time.perf_counter() - started
+            if scores.shape != labels.shape or not np.isfinite(scores).all():
+                raise ValueError(f'{name} returned invalid classification scores')
+            result = {
+                'dataset': data_args.dataset_name, 'subset': subset + suffix,
+                'model': model_args.short_name, 'model_name_or_path': model_args.model_name_or_path,
+                'method': method, 'supervision': 'zero_shot_decision', 'num_train': 0,
+                'num_test': len(ids), 'num_test_before_filter': before_filter,
+                'num_test_excluded': len(excluded), 'excluded_test_ids': excluded,
+                'num_test_before_limit': len(retained.ids), 'num_labels': labeler.num_labels,
+                'label_order': labeler.classes, 'batch_size': batch_size, 'threshold': threshold,
+                'parameters': parameters, 'question_template': QUESTION_TEMPLATE + (DEFINITION_TEMPLATE if use_descriptions else ''),
+                'prompt_variant': 'name_and_definition' if use_descriptions else 'name_only',
+                'topic_questions': questions, 'feature_type': 'text', 'test_data': str(test_file),
+                'method_seconds': duration, 'model_load_seconds': load_seconds,
+                'input_tokens': predictor.input_tokens - input_tokens,
+                'device': str(predictor.device), 'dtype': str(predictor.dtype),
+            }
+            if use_descriptions:
+                result['label_description_metadata'] = data_args.attributes.get('label_description_metadata', {})
+            if method in ('glide', 'startlux'):
+                result.update(max_seq_length=model_args.max_seq_length,
+                              input_tokens_scope='sum of per-question prompt tokens',
+                              num_test_truncated=predictor.truncated_articles - truncated_articles)
+            if method == 'glide':
+                result['mask_mapping_compatibility'] = predictor.mask_mapping_compatibility
+            if method == 'startlux':
+                result.update(backend=predictor.backend_metadata, temperature_by_type=predictor.temperature_by_type,
+                              output_tokens=0)
+            evaluations.append(EvaluationResult(result, ids, labels, scores))
+        if data_args.source.select.subset:
+            final = evaluations[0]
+        else:
+            final = _pool_evaluations(evaluations, data_args.dataset_name + suffix)
+            for field in ('input_tokens', 'num_test_before_limit'):
+                final.metadata[field] = sum(evaluation.metadata[field] for evaluation in evaluations)
+            if method in ('glide', 'startlux'):
+                final.metadata['num_test_truncated'] = sum(evaluation.metadata['num_test_truncated'] for evaluation in evaluations)
+        _write_evaluation(final)
 
 
 def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: Paths, logger: Logger) -> None:

@@ -138,7 +138,7 @@ def test_text_loader_restores_head_and_tokenizer_without_image_processor(tmp_pat
 
 
 @pytest.mark.parametrize('single_language', [False, True])
-@pytest.mark.parametrize('model_config', ['clef-flash', 'glide-2b', 'glide-9b'])
+@pytest.mark.parametrize('model_config', ['clef-flash', 'glide-2b', 'glide-9b', 'starlux1.1-4b'])
 @pytest.mark.parametrize('use_descriptions', [False, True])
 def test_decision_uses_prepared_test_only_filters_ids_and_loads_once(
     tmp_path, monkeypatch, single_language, model_config, use_descriptions,
@@ -167,11 +167,15 @@ def test_decision_uses_prepared_test_only_filters_ids_and_loads_once(
         def __init__(self, model_args, parameters):
             assert model_args.model_name_or_path == {
                 'clef-flash': 'Cloudflare/clef-flash', 'glide-2b': 'fastino/GLiDE-2B', 'glide-9b': 'fastino/GLiDE-9B',
+                'starlux1.1-4b': 'startlux-models/StartLux-Decision-v1.1-4B-Instant',
             }[model_config]
             assert len(parameters['revision']) == 40
             self.input_tokens = 0
             self.truncated_articles = 0
             self.mask_mapping_compatibility = True
+            self.backend_metadata = {'prompt_attention': 'bidirectional', 'images': False}
+            self.temperature_by_type = {'noul': 1.2662}
+            self.closed = False
             self.device, self.dtype = torch.device('cpu'), torch.float32
             instances.append(self)
 
@@ -184,12 +188,17 @@ def test_decision_uses_prepared_test_only_filters_ids_and_loads_once(
             self.input_tokens += len(ids) * 100
             return np.full((len(ids), len(questions)), 0.1, dtype=np.float32)
 
+        def close(self):
+            self.closed = True
+
     monkeypatch.setattr(decision, 'ClefPredictor', FakePredictor)
     monkeypatch.setattr(decision, 'GlidePredictor', FakePredictor)
+    monkeypatch.setattr(decision, 'StartLuxPredictor', FakePredictor)
     monkeypatch.setattr(iptc_31, 'paths', paths, raising=False)
     monkeypatch.setattr(iptc_31, 'logger', logging.getLogger(__name__), raising=False)
     iptc_31.main(args, model_args)
     assert len(instances) == 1
+    assert instances[0].closed
     subset = 'iptc-31.sl' if single_language else 'iptc-31'
     variant = '.descriptions' if use_descriptions else ''
     stem = f'{subset}{variant}.limit2.{model_config}.{method}'
@@ -209,6 +218,10 @@ def test_decision_uses_prepared_test_only_filters_ids_and_loads_once(
         assert metadata['parameters']['token_budget'] == 16384
         assert metadata['num_test_truncated'] == 0 and metadata['mask_mapping_compatibility']
         assert metadata['input_tokens_scope'] == 'sum of per-question prompt tokens'
+    if method == 'startlux':
+        assert metadata['backend'] == {'prompt_attention': 'bidirectional', 'images': False}
+        assert metadata['temperature_by_type']['noul'] == 1.2662 and metadata['output_tokens'] == 0
+        assert metadata['num_test_truncated'] == 0
     if not single_language:
         assert 'own training set' not in metadata['aggregation']
         assert len(metadata['test_data_files']) == 2 and 'test_data' not in metadata

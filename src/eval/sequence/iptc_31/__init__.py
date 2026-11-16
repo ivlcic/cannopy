@@ -223,6 +223,9 @@ def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str)
     if method == 'glide':
         glide(data_args, model_args)
         return
+    if method == 'startlux':
+        startlux(data_args, model_args)
+        return
     if method not in METHODS:
         raise ValueError(f'Unknown classification method {method!r}; available: {", ".join(METHODS)}')
     if not model_args.short_name:
@@ -320,6 +323,12 @@ def glide(data_args: DataArguments, model_args: ModelArguments) -> None:
     from .decision import evaluate_decision
 
     evaluate_decision(data_args, model_args, paths, logger, method='glide')
+
+
+def startlux(data_args: DataArguments, model_args: ModelArguments) -> None:
+    from .decision import evaluate_decision
+
+    evaluate_decision(data_args, model_args, paths, logger, method='startlux')
 
 
 def main(data_args: DataArguments, model_args: ModelArguments) -> None:
