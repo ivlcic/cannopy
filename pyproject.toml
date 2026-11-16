@@ -39,6 +39,10 @@ cuml = [
     # Newer cuML releases require nvJitLink 13.3, conflicting with Torch's CUDA 13.0 pin.
     "cuml-cu13==26.6.0; sys_platform == 'linux'",
 ]
+linear-attention = [
+    "flash-linear-attention[cuda]==0.6.0; sys_platform == 'linux'",
+    "causal-conv1d==1.7.0; sys_platform == 'linux'",
+]
 
 [project.scripts]
 data = "app.entrypoint:main"
@@ -56,6 +60,11 @@ prerelease = "allow"
 
 [tool.uv.extra-build-dependencies]
 flash-attn = [{ requirement = "torch", match-runtime = true }]
+causal-conv1d = [
+    { requirement = "torch", match-runtime = true },
+    "packaging",
+    "ninja",
+]
 
 [tool.uv.extra-build-variables]
 llama-cpp-python = { CMAKE_ARGS = "-DGGML_CUDA=on" }

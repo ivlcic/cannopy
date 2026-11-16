@@ -1,0 +1,26 @@
+# Local text-only GLiDE decisions using the release's 255-way decision readout.
+# Each of the 31 IPTC topics is an independent yes/no question; scores are
+# P(true), without text generation or a softmax over topics. No training data
+# or embeddings are loaded. The common test-ID exclusions apply.
+# The helper and weights are pinned together. vision=False avoids processors.
+# max_state_tokens caps the serialized article state; max_seq_length limits
+# each complete question prompt. token_budget caps padded tokens per internal
+# forward pass, so lower it if GPU memory is tight. Overlong prompts fail.
+# max_samples limits retained test rows per language and adds .limit<N> to names.
+# Example smoke run: -c sl -s data.attributes.sequence.parameters.max_samples=1
+data:
+  attributes:
+    sequence:
+      method: glide
+      batch_size: 1
+      features:
+        type: text
+      methods:
+        glide:
+          threshold: 0.5
+          revision: 00f122c120cdeed82284106cb77d9bab5a50ad16
+          device: cuda
+          max_state_tokens: 8192
+          token_budget: 16384
+          max_samples: null
+          use_label_descriptions: false

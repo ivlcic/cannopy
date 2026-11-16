@@ -28,6 +28,21 @@ def test_topic_schema_is_multilabel_and_keeps_string_codes():
         decision._topic_questions([{'iptc_code': 1000000, 'label_name': 'arts'}])
 
 
+def test_topic_definitions_are_optional_and_require_complete_descriptions():
+    labels = [{'iptc_code': '20000038', 'label_name': 'culture',
+               'label_description': 'The ideas, customs, arts, traditions of a particular group of persons'}]
+    plain = decision._topic_questions(labels)
+    described = decision._topic_questions(labels, use_label_descriptions=True)
+    assert 'IPTC definition:' not in plain['20000038']['instructions']
+    assert described['20000038']['instructions'] == (
+        plain['20000038']['instructions'] + '\nIPTC definition: ' + labels[0]['label_description']
+    )
+    with pytest.raises(ValueError, match='Missing IPTC topic description'):
+        decision._topic_questions([{'iptc_code': '20000038', 'label_name': 'culture'}], True)
+    with pytest.raises(ValueError, match='must be a boolean'):
+        decision._topic_questions(labels, 'true')
+
+
 def test_predict_decodes_true_option_by_id_and_batches_without_reference_labels():
     records, batches = [], []
 
@@ -123,13 +138,20 @@ def test_text_loader_restores_head_and_tokenizer_without_image_processor(tmp_pat
 
 
 @pytest.mark.parametrize('single_language', [False, True])
-def test_clef_uses_prepared_test_only_filters_ids_and_loads_once(tmp_path, monkeypatch, single_language):
+@pytest.mark.parametrize('model_config', ['clef-flash', 'glide-2b', 'glide-9b'])
+@pytest.mark.parametrize('use_descriptions', [False, True])
+def test_decision_uses_prepared_test_only_filters_ids_and_loads_once(
+    tmp_path, monkeypatch, single_language, model_config, use_descriptions,
+):
     paths = entrypoint._ensure_dirs(tmp_path, 'eval', 'sequence', 'iptc-31')
     prepare = paths.get_script_ctx_path('data', 'prepare')
     prepare.mkdir(parents=True)
-    merged, _ = entrypoint._load_and_merge_configs(Path('conf'), 'sequence', 'iptc-31', ['clef-flash'])
+    merged, _ = entrypoint._load_and_merge_configs(Path('conf'), 'sequence', 'iptc-31', [model_config])
     model_args, args, _, _ = entrypoint._parse_hf_args(merged)
-    args.attributes['sequence']['methods']['clef']['max_samples'] = 2
+    method = args.attributes['sequence']['method']
+    args.attributes['sequence']['methods'][method]['max_samples'] = 2
+    args.attributes['sequence']['parameters'] = {'use_label_descriptions': use_descriptions}
+    args.attributes['sequence']['exclude_test_ids'] = ['sl:206']
     if single_language:
         args = replace(args, source=replace(args.source, select=replace(args.source.select, subset='iptc-31.sl')))
     for lang in ('hr', 'sl'):
@@ -143,26 +165,34 @@ def test_clef_uses_prepared_test_only_filters_ids_and_loads_once(tmp_path, monke
 
     class FakePredictor:
         def __init__(self, model_args, parameters):
-            assert model_args.model_name_or_path == 'Cloudflare/clef-flash'
+            assert model_args.model_name_or_path == {
+                'clef-flash': 'Cloudflare/clef-flash', 'glide-2b': 'fastino/GLiDE-2B', 'glide-9b': 'fastino/GLiDE-9B',
+            }[model_config]
+            assert len(parameters['revision']) == 40
             self.input_tokens = 0
+            self.truncated_articles = 0
+            self.mask_mapping_compatibility = True
             self.device, self.dtype = torch.device('cpu'), torch.float32
             instances.append(self)
 
         def predict(self, ids, texts, questions, batch_size):
             assert 'sl:206' not in ids
             assert len(questions) == 31 and all(q['type'] == 'noul' for q in questions.values())
+            assert all(('IPTC definition:' in q['instructions']) == use_descriptions for q in questions.values())
             assert texts == [f'Article {sample_id}' for sample_id in ids]
             calls.extend(ids.tolist())
             self.input_tokens += len(ids) * 100
             return np.full((len(ids), len(questions)), 0.1, dtype=np.float32)
 
     monkeypatch.setattr(decision, 'ClefPredictor', FakePredictor)
+    monkeypatch.setattr(decision, 'GlidePredictor', FakePredictor)
     monkeypatch.setattr(iptc_31, 'paths', paths, raising=False)
     monkeypatch.setattr(iptc_31, 'logger', logging.getLogger(__name__), raising=False)
     iptc_31.main(args, model_args)
     assert len(instances) == 1
     subset = 'iptc-31.sl' if single_language else 'iptc-31'
-    stem = f'{subset}.limit2.clef-flash.clef'
+    variant = '.descriptions' if use_descriptions else ''
+    stem = f'{subset}{variant}.limit2.{model_config}.{method}'
     metadata = json.loads((paths.context / f'{stem}.metrics.json').read_text())
     assert metadata['num_train'] == 0 and metadata['feature_type'] == 'text'
     assert metadata['supervision'] == 'zero_shot_decision'
@@ -171,6 +201,14 @@ def test_clef_uses_prepared_test_only_filters_ids_and_loads_once(tmp_path, monke
     assert metadata['num_test'] == (2 if single_language else 4)
     assert metadata['num_test_before_limit'] == (3 if single_language else 7)
     assert metadata['input_tokens'] == (200 if single_language else 400)
+    assert metadata['prompt_variant'] == ('name_and_definition' if use_descriptions else 'name_only')
+    if use_descriptions:
+        assert metadata['label_description_metadata']['language'] == 'en-US'
+        assert metadata['label_description_metadata']['license_url'] == 'https://creativecommons.org/licenses/by/4.0/'
+    if method == 'glide':
+        assert metadata['parameters']['token_budget'] == 16384
+        assert metadata['num_test_truncated'] == 0 and metadata['mask_mapping_compatibility']
+        assert metadata['input_tokens_scope'] == 'sum of per-question prompt tokens'
     if not single_language:
         assert 'own training set' not in metadata['aggregation']
         assert len(metadata['test_data_files']) == 2 and 'test_data' not in metadata

@@ -54,7 +54,7 @@ def test_evaluation_filters_only_test_ids_and_pools_audit_metadata(tmp_path, mon
     data_args = DataArguments(dataset_name='iptc-31', attributes=config['data']['attributes'])
     options = data_args.attributes['sequence']
     # An excluded ID present only in training must keep its training row.
-    options['exclude_test_ids'].append('sl:215')
+    options['exclude_test_ids'] = ['sl:206', 'sl:215']
     if feature_type == 'tfidf':
         options['features'] = {'type': 'tfidf', 'min_df': 1}
     model_args = ModelArguments(short_name='fixture')

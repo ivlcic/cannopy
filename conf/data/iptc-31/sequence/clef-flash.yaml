@@ -26,3 +26,4 @@ data:
           device: cuda
           max_state_tokens: 8192
           max_samples: null
+          use_label_descriptions: false

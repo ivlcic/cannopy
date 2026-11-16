@@ -1,0 +1,17 @@
+# Same text-only decision protocol as glide-2b.yaml, for the remote 9B run.
+data:
+  attributes:
+    sequence:
+      method: glide
+      batch_size: 1
+      features:
+        type: text
+      methods:
+        glide:
+          threshold: 0.5
+          revision: ab54df5acba0eebf7df45560ffdaacd64e32df3b
+          device: cuda
+          max_state_tokens: 8192
+          token_budget: 16384
+          max_samples: null
+          use_label_descriptions: false
