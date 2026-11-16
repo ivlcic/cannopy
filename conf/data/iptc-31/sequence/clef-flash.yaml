@@ -1,0 +1,27 @@
+# Local Clef-Flash zero-shot decision evaluation; no embedding step required.
+# One independent true/false question per configured IPTC topic, including
+# parent/child topics. Scores are P(true), rather than a softmax over 31 topics.
+# Only article text is supplied as state; reference labels are used for scoring.
+# The model and its inference helper are downloaded from this pinned HF revision.
+# Default: CUDA, BF16, SDPA, one article per batch. The model is loaded once
+# across languages. max_seq_length includes the state and the complete schema;
+# max_state_tokens caps article tokens while preserving every topic question.
+# The shared test exclusions and metrics/prediction outputs apply as usual.
+# max_samples limits retained test documents per language for a smoke run and
+# adds .limit<N> to output names so a partial run cannot replace full results.
+# Example: -s data.attributes.sequence.parameters.max_samples=2
+# Optuna is not supported for this zero-shot method.
+data:
+  attributes:
+    sequence:
+      method: clef
+      batch_size: 1
+      features:
+        type: text
+      methods:
+        clef:
+          threshold: 0.5
+          revision: 22b75507981345858dd152fbd9a6f8c0c4068b0a
+          device: cuda
+          max_state_tokens: 8192
+          max_samples: null

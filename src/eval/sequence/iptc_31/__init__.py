@@ -199,11 +199,13 @@ def _pool_evaluations(evaluations: list[EvaluationResult], dataset_name: str) ->
         'num_labels': len(label_order),
         'label_order': label_order,
         'method_seconds': sum(evaluation.metadata['method_seconds'] for evaluation in evaluations),
-        'aggregation': 'pooled test samples; each language uses its own training set',
+        'aggregation': ('pooled test samples; one pretrained decision model across languages'
+                        if evaluations[0].metadata.get('supervision') == 'zero_shot_decision'
+                        else 'pooled test samples; each language uses its own training set'),
     }
     for kind in ['sidecar', 'data']:
-        if f'train_{kind}' in result:
-            for split in ['train', 'test']:
+        for split in ['train', 'test']:
+            if f'{split}_{kind}' in result:
                 plural = 'sidecars' if kind == 'sidecar' else 'data_files'
                 result[f'{split}_{plural}'] = [evaluation.metadata[f'{split}_{kind}'] for evaluation in evaluations]
                 del result[f'{split}_{kind}']
@@ -215,6 +217,9 @@ def _pool_evaluations(evaluations: list[EvaluationResult], dataset_name: str) ->
 
 
 def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str) -> None:
+    if method == 'clef':
+        clef(data_args, model_args)
+        return
     if method not in METHODS:
         raise ValueError(f'Unknown classification method {method!r}; available: {", ".join(METHODS)}')
     if not model_args.short_name:
@@ -243,19 +248,21 @@ def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str)
     _write_evaluation(_pool_evaluations(evaluations, data_args.dataset_name))
 
 
-def _select_subsets(data_args: DataArguments, model_args: ModelArguments, *, train_only: bool = False) -> list[DataArguments]:
+def _select_subsets(data_args: DataArguments, model_args: ModelArguments, *, train_only: bool = False,
+                    test_only: bool = False) -> list[DataArguments]:
     if data_args.source.select.subset:
         return [data_args]
     feature_type = data_args.attributes.get('sequence', {}).get('features', {}).get('type', 'embeddings')
     embed_dir = paths.get_script_ctx_path('data', 'embed')
     prepare_dir = paths.get_script_ctx_path('data', 'prepare')
     prefix = f'{data_args.dataset_name}.'
-    source_dir = prepare_dir if feature_type == 'tfidf' else embed_dir
-    splits = ['train'] if train_only else ['train', 'test']
-    suffixes = [f'.{split}.jsonl' if feature_type == 'tfidf' else f'.{model_args.short_name}.{split}.npz' for split in splits]
+    text_inputs = feature_type in ('tfidf', 'text')
+    source_dir = prepare_dir if text_inputs else embed_dir
+    splits = ['test'] if test_only else ['train'] if train_only else ['train', 'test']
+    suffixes = [f'.{split}.jsonl' if text_inputs else f'.{model_args.short_name}.{split}.npz' for split in splits]
     languages = {
         file.name[len(prefix):-len(suffix)]
-        for file in source_dir.glob('*.jsonl' if feature_type == 'tfidf' else '*.npz')
+        for file in source_dir.glob('*.jsonl' if text_inputs else '*.npz')
         for suffix in suffixes
         if file.name.startswith(prefix) and file.name.endswith(suffix)
     }
@@ -298,6 +305,12 @@ def mlknn(data_args: DataArguments, model_args: ModelArguments) -> None:
 
 def svm(data_args: DataArguments, model_args: ModelArguments) -> None:
     _evaluate(data_args, model_args, 'svm')
+
+
+def clef(data_args: DataArguments, model_args: ModelArguments) -> None:
+    from .decision import evaluate_clef
+
+    evaluate_clef(data_args, model_args, paths, logger)
 
 
 def main(data_args: DataArguments, model_args: ModelArguments) -> None:

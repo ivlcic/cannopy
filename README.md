@@ -90,6 +90,11 @@ Add `-s data.attributes.sequence.optuna.trials=50` to search parameters for `rae
 
 For CUDA logistic regression, install `uv sync --extra cuml` and add `-s data.attributes.sequence.parameters.backend=cuml`.
 
+Run Clef-Flash decisions directly on prepared text (CUDA required):
+```shell
+./eval sequence iptc-31 -c clef-flash
+```
+
 | Method | Description | Default parameters |
 | --- | --- | --- |
 | `zero_shot` | Copy the nearest training document's labels | 1 neighbor, normalized L2 distance |

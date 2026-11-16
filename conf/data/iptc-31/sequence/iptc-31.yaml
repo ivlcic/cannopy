@@ -5,6 +5,8 @@
 # Each language uses its own training set. Test predictions are aligned by IPTC
 # code and concatenated before metrics are computed through src/app/metrics.py.
 # Pooled micro-F1 uses global TP/FP/FN counts, not mean language-level F1.
+# Clef is a zero-shot exception: prepared test text, no training fit or embeddings.
+# Select -c clef-flash; model-specific decision settings are in clef-flash.yaml.
 #
 # Embedding inputs come from result/data/embed/iptc-31/; TF-IDF inputs come
 # directly from prepared text and need no embedding sidecars. tfidf-word.yaml

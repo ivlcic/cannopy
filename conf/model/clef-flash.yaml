@@ -1,0 +1,6 @@
+model:
+  short_name: clef-flash
+  model_name_or_path: Cloudflare/clef-flash
+  max_seq_length: 16384
+  dtype: bfloat16
+  attn_implementation: sdpa
