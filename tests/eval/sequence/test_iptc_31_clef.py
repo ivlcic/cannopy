@@ -34,6 +34,7 @@ def test_predict_decodes_true_option_by_id_and_batches_without_reference_labels(
     def encode(tokenizer, record, **kwargs):
         assert record['state'] == {'article': f"Article {record['id']}"}
         assert kwargs['max_length'] == 16384 and kwargs['max_state_tokens'] == 8192
+        assert 'processor' not in kwargs
         records.append(record)
         return SimpleNamespace(input_ids=[1, 2, 3], questions=[
             SimpleNamespace(question_id=code, option_ids=('false', 'true'))
@@ -53,7 +54,7 @@ def test_predict_decodes_true_option_by_id_and_batches_without_reference_labels(
 
     predictor = decision.ClefPredictor.__new__(decision.ClefPredictor)
     predictor.api = SimpleNamespace(encode_record=encode, collate_records=collate)
-    predictor.processor = SimpleNamespace(tokenizer=SimpleNamespace(pad_token_id=0))
+    predictor.tokenizer = SimpleNamespace(pad_token_id=0)
     predictor.model = Model()
     predictor.device = torch.device('cpu')
     predictor.max_length, predictor.max_state_tokens, predictor.input_tokens = 16384, 8192, 0
@@ -74,6 +75,51 @@ def test_loader_fails_before_download_when_cuda_is_unavailable(monkeypatch):
     monkeypatch.setattr('huggingface_hub.snapshot_download', no_download)
     with pytest.raises(RuntimeError, match='no model weights were downloaded'):
         decision.ClefPredictor(ModelArguments(model_name_or_path='Cloudflare/clef-flash'), {'device': 'cuda'})
+
+
+@pytest.mark.parametrize('pad_token_id', [0, None])
+def test_text_loader_restores_head_and_tokenizer_without_image_processor(tmp_path, monkeypatch, pad_token_id):
+    from safetensors.torch import save_file
+    from transformers import AutoProcessor, AutoTokenizer, Qwen3_5ForConditionalGeneration
+
+    class Head(torch.nn.Linear):
+        def __init__(self, hidden_size, width):
+            super().__init__(hidden_size, width, bias=False)
+
+    class Model(torch.nn.Module):
+        def __init__(self, backbone, head):
+            super().__init__()
+            self.backbone, self.head = backbone, head
+
+    expected = torch.arange(6, dtype=torch.float32).reshape(2, 3)
+    (tmp_path / 'joint_head_config.json').write_text(json.dumps({'hidden_size': 3, 'width': 2}))
+    save_file({'weight': expected}, tmp_path / 'joint_head.safetensors')
+    tokenizer = SimpleNamespace(pad_token_id=pad_token_id, eos_token_id=2)
+    backbone = SimpleNamespace(config=SimpleNamespace(use_cache=True))
+
+    def load_tokenizer(path):
+        assert path == tmp_path
+        return tokenizer
+
+    def load_backbone(path, **kwargs):
+        assert path == tmp_path
+        assert kwargs == {'dtype': torch.float32, 'device_map': {'': 'cpu'}, 'attn_implementation': 'sdpa'}
+        return backbone
+
+    def no_processor(*args, **kwargs):
+        pytest.fail('Text-only evaluation must not initialize image/video processors')
+
+    monkeypatch.setattr(AutoTokenizer, 'from_pretrained', load_tokenizer)
+    monkeypatch.setattr(Qwen3_5ForConditionalGeneration, 'from_pretrained', load_backbone)
+    monkeypatch.setattr(AutoProcessor, 'from_pretrained', no_processor)
+    model, loaded_tokenizer = decision._load_text_model(
+        SimpleNamespace(JointSchemaHead=Head, ClefModel=Model), tmp_path,
+        torch.device('cpu'), torch.float32, attn_implementation='sdpa',
+    )
+    assert loaded_tokenizer is tokenizer
+    assert tokenizer.pad_token_id == (0 if pad_token_id == 0 else 2)
+    assert not backbone.config.use_cache and not model.training
+    torch.testing.assert_close(model.head.weight, expected)
 
 
 @pytest.mark.parametrize('single_language', [False, True])

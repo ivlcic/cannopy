@@ -2,6 +2,7 @@
 
 import hashlib
 import importlib.util
+import json
 import sys
 import time
 from logging import Logger
@@ -63,6 +64,27 @@ def _load_helper(checkpoint: Path):
     return sys.modules[name]
 
 
+def _load_text_model(api, checkpoint: Path, device: torch.device, dtype: torch.dtype, **kwargs):
+    from safetensors.torch import load_file
+    from transformers import AutoTokenizer, Qwen3_5ForConditionalGeneration
+
+    # The release loader always builds an AutoProcessor, including image/video
+    # processors. IPTC evaluation only uses text, so load its tokenizer directly.
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint)
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+    if tokenizer.pad_token_id is None:
+        raise ValueError('Clef tokenizer requires a padding or EOS token for batching')
+    backbone = Qwen3_5ForConditionalGeneration.from_pretrained(
+        checkpoint, dtype=dtype, device_map={'': str(device)}, **kwargs,
+    )
+    backbone.config.use_cache = False
+    head = api.JointSchemaHead(**json.loads((checkpoint / 'joint_head_config.json').read_text()))
+    head.load_state_dict(load_file(checkpoint / 'joint_head.safetensors'), strict=True)
+    head = head.to(device=device, dtype=dtype)
+    return api.ClefModel(backbone, head).eval(), tokenizer
+
+
 class ClefPredictor:
     def __init__(self, model_args: ModelArguments, parameters: dict):
         from huggingface_hub import snapshot_download
@@ -84,8 +106,8 @@ class ClefPredictor:
         ))
         self.api = _load_helper(checkpoint)
         kwargs = {'attn_implementation': model_args.attn_implementation} if model_args.attn_implementation else {}
-        self.model, self.processor = self.api.load_release_model(
-            checkpoint, device=self.device, dtype=self.dtype, **kwargs,
+        self.model, self.tokenizer = _load_text_model(
+            self.api, checkpoint, device=self.device, dtype=self.dtype, **kwargs,
         )
 
     def predict(self, ids: np.ndarray, texts: list[str], questions: dict, batch_size: int) -> np.ndarray:
@@ -94,11 +116,11 @@ class ClefPredictor:
         scores = np.empty((len(ids), len(codes)), dtype=np.float32)
         for start in range(0, len(ids), batch_size):
             encoded = [self.api.encode_record(
-                self.processor.tokenizer,
+                self.tokenizer,
                 {'id': str(sample_id), 'state': {'article': text}, 'questions': questions},
-                max_length=self.max_length, max_state_tokens=self.max_state_tokens, processor=self.processor,
+                max_length=self.max_length, max_state_tokens=self.max_state_tokens,
             ) for sample_id, text in zip(ids[start:start + batch_size], texts[start:start + batch_size], strict=True)]
-            batch = self.api.collate_records(encoded, self.processor.tokenizer.pad_token_id, self.device)
+            batch = self.api.collate_records(encoded, self.tokenizer.pad_token_id, self.device)
             with torch.inference_mode():
                 outputs = self.model(batch)
             if len(outputs) != len(encoded):

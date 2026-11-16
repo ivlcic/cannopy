@@ -2,6 +2,7 @@
 # One independent true/false question per configured IPTC topic, including
 # parent/child topics. Scores are P(true), rather than a softmax over 31 topics.
 # Only article text is supplied as state; reference labels are used for scoring.
+# Load the tokenizer directly; image/video processors are not needed.
 # The model and its inference helper are downloaded from this pinned HF revision.
 # Default: CUDA, BF16, SDPA, one article per batch. The model is loaded once
 # across languages. max_seq_length includes the state and the complete schema;
