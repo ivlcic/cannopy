@@ -159,6 +159,30 @@ class TextDecider(ABC):
             scores.append(value)
         return scores
 
+    def predict_candidates(self, ids, texts: list[str], questions: dict, candidates: list[list[str]],
+                           batch_size: int = 1) -> np.ndarray:
+        """Score only each article's selected questions; omitted columns remain zero."""
+        # Validate the shared schema/batch settings even if every selection is empty.
+        self.predict([], [], questions, batch_size)
+        ids = np.asarray(ids, dtype=str)
+        if ids.ndim != 1 or len(ids) != len(texts) or len(ids) != len(candidates) or any(not isinstance(text, str) for text in texts):
+            raise ValueError('Decision candidates and article texts must match the sample IDs')
+        columns = {code: column for column, code in enumerate(questions)}
+        groups = {}
+        for row, selected in enumerate(candidates):
+            if not isinstance(selected, (list, tuple)) or any(not isinstance(code, str) or code not in questions for code in selected):
+                raise ValueError('Decision candidates must contain only known question IDs')
+            selected = set(selected)
+            codes = tuple(code for code in questions if code in selected)
+            if codes:
+                groups.setdefault(codes, []).append(row)
+        scores = np.zeros((len(ids), len(questions)), dtype=np.float32)
+        for codes, rows in groups.items():
+            chosen = {code: questions[code] for code in codes}
+            values = self.predict(ids[rows], [texts[row] for row in rows], chosen, batch_size)
+            scores[np.ix_(rows, [columns[code] for code in codes])] = values
+        return scores
+
     def _count_tokens(self, usage, sample_id) -> None:
         tokens = usage.get('input_tokens') if isinstance(usage, dict) else None
         if not isinstance(tokens, int) or isinstance(tokens, bool) or tokens < 0:
@@ -306,7 +330,8 @@ class ClefDecider(TextDecider):
         return result
 
     def _predict(self, ids, texts, questions, batch_size):
-        if getattr(self, 'head_metadata', None) and self.head_metadata['topic_questions'] != questions:
+        if (getattr(self, 'head_metadata', None)
+                and any(self.head_metadata['topic_questions'].get(code) != question for code, question in questions.items())):
             raise ValueError('Clef head requires the same topic questions/descriptions as training')
         columns = {code: index for index, code in enumerate(questions)}
         scores = np.empty((len(ids), len(questions)), dtype=np.float32)

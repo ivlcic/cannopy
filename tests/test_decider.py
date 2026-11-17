@@ -68,3 +68,23 @@ def test_factory_rejects_unknown_models_and_options():
         ClefDecider.validate_parameters({})
     with pytest.raises(ValueError, match='Unknown Clef parameters'):
         ClefDecider.validate_parameters({'revision': 'a' * 40, 'typo': 1})
+
+
+def test_candidate_questions_are_batched_and_mapped_to_full_label_columns():
+    calls = []
+
+    class Backend(TextDecider):
+        def _predict(self, ids, texts, questions, batch_size):
+            calls.append((ids.tolist(), tuple(questions), batch_size))
+            return np.asarray([[.8 if code == 'a' else .2 for code in questions]] * len(ids))
+
+    decider = Backend(ModelArguments(), {'revision': 'a'*40, 'device': 'cpu'})
+    questions = {code: {'type': 'noul'} for code in ('a', 'b', 'c')}
+    scores = decider.predict_candidates(['1', '2', '3', '4'], ['One', 'Two', 'Three', 'Four'], questions,
+                                        [['b', 'a'], [], ['a', 'b', 'a'], ['c']], batch_size=4)
+    np.testing.assert_allclose(scores, [[.8, .2, 0], [0, 0, 0], [.8, .2, 0], [0, 0, .2]])
+    assert calls == [(['1', '3'], ('a', 'b'), 4), (['4'], ('c',), 4)]
+    with pytest.raises(ValueError, match='known question IDs'):
+        decider.predict_candidates(['1'], ['Article'], questions, [['unknown']])
+    with pytest.raises(ValueError, match='match the sample IDs'):
+        decider.predict_candidates(['1'], ['Article'], questions, [])

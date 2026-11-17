@@ -281,4 +281,4 @@ def test_decision_uses_prepared_test_only_filters_ids_and_loads_once(
 def test_clef_rejects_optuna_before_loading_a_model():
     args = DataArguments(attributes={'sequence': {'optuna': {'trials': 50}}})
     with pytest.raises(ValueError, match='Clef is a zero-shot'):
-        decision.evaluate_clef(args, ModelArguments(), None, None)
+        decision.evaluate_decision(args, ModelArguments(), None, None, method='clef')

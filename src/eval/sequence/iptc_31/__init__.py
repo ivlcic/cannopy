@@ -321,9 +321,10 @@ def svm(data_args: DataArguments, model_args: ModelArguments) -> None:
 
 
 def clef(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments | None = None) -> None:
-    from .decision import evaluate_clef
+    from .decision import evaluate_decision
 
-    evaluate_clef(data_args, model_args, paths, logger, seed=train_args.seed if train_args is not None else None)
+    evaluate_decision(data_args, model_args, paths, logger, method='clef',
+                      seed=train_args.seed if train_args is not None else None)
 
 
 def glide(data_args: DataArguments, model_args: ModelArguments) -> None:

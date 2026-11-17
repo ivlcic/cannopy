@@ -10,6 +10,7 @@ from . import (
     _pool_evaluations, _select_subsets, _write_evaluation,
 )
 from .features import _read_text_split
+from .memory import LabelMemory, memory_settings, pool_memory
 from ....app.args.data import DataArguments
 from ....app.args.model import ModelArguments
 from ....app.args.runtime import Paths
@@ -84,6 +85,7 @@ def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, path
     use_descriptions = parameters['use_label_descriptions']
     questions = _topic_questions(data_args.attributes.get('labels', []), use_descriptions)
     labeler = MultilabelLabeler(labels=list(questions))
+    memory_options = memory_settings(data_args.attributes)
     prepare_dir = paths.get_script_ctx_path('data', 'prepare')
     datasets = []
     for args in _select_subsets(data_args, model_args, test_only=True):
@@ -93,7 +95,14 @@ def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, path
         before_filter = len(ids)
         # The common row filter works on text arrays as well as feature matrices.
         retained, excluded = _filter_test_split(EmbeddedSplit(ids, np.asarray(texts), labels), options.get('exclude_test_ids', []))
-        datasets.append((subset, test_file, before_filter, excluded, retained))
+        candidates = memory_info = None
+        if memory_options:
+            memory = LabelMemory(paths.get_script_ctx_path('data', 'embed'), args, memory_options, labeler)
+            candidates, memory_info = memory.retrieve(retained.ids[:max_samples])
+            logger.info('%s memory: %d candidate topics for %d articles; %d articles without candidates',
+                        subset, memory_info['num_candidate_labels'], memory_info['num_queries'],
+                        memory_info['num_queries_without_candidates'])
+        datasets.append((subset, test_file, before_filter, excluded, retained, candidates, memory_info))
 
     logger.info('Loading %s model %s at revision %s', name, model_args.model_name_or_path, parameters['revision'])
     loaded = time.perf_counter()
@@ -101,12 +110,17 @@ def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, path
         load_seconds = time.perf_counter() - loaded
         evaluations = []
         suffix = ('.descriptions' if use_descriptions else '') + (f'.limit{max_samples}' if max_samples is not None else '')
-        for subset, test_file, before_filter, excluded, retained in datasets:
+        if memory_options:
+            suffix += f'.memory.{memory_options["model"]}.t{memory_options["threshold"]}.n{memory_options["top_n"]}'
+        for subset, test_file, before_filter, excluded, retained, candidates, memory_info in datasets:
             ids, texts, labels = retained.ids[:max_samples], retained.embeddings[:max_samples].tolist(), retained.labels[:max_samples]
             logger.info('%s %s: scoring %s articles after excluding %s test IDs', method, subset, len(ids), len(excluded))
             before = predictor.counters()
             started = time.perf_counter()
-            scores = np.asarray(predictor.predict(ids, texts, questions, batch_size), dtype=np.float32)
+            scores = np.asarray(
+                predictor.predict(ids, texts, questions, batch_size) if candidates is None else
+                predictor.predict_candidates(ids, texts, questions, candidates, batch_size), dtype=np.float32,
+            )
             duration = time.perf_counter() - started
             if scores.shape != labels.shape or not np.isfinite(scores).all():
                 raise ValueError(f'{name} returned invalid classification scores')
@@ -126,6 +140,15 @@ def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, path
             }
             if use_descriptions:
                 result['label_description_metadata'] = data_args.attributes.get('label_description_metadata', {})
+            if memory_info is not None:
+                mask = labeler.encode(candidates)
+                memory_info['num_gold_labels'] = int(labels.sum())
+                memory_info['num_gold_candidate_labels'] = int((labels * mask).sum())
+                memory_info['candidate_label_recall'] = (
+                    memory_info['num_gold_candidate_labels'] / memory_info['num_gold_labels']
+                    if memory_info['num_gold_labels'] else 0.0
+                )
+                result['memory'] = memory_info
             for key, value in predictor.counters().items():
                 result['num_test_truncated' if key == 'truncated_articles' else key] = value - before[key]
             evaluations.append(EvaluationResult(result, ids, labels, scores))
@@ -136,9 +159,10 @@ def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, path
             for field in ('input_tokens', 'num_test_before_limit', 'num_test_truncated'):
                 if field in final.metadata:
                     final.metadata[field] = sum(evaluation.metadata[field] for evaluation in evaluations)
+            if memory_options:
+                final.metadata['memory'] = pool_memory(evaluations)
+        if memory_options:
+            final.metadata['aggregation'] = final.metadata.get('aggregation', 'single language test samples') + (
+                '; candidate topics retrieved from each language\'s training memory'
+            )
         _write_evaluation(final)
-
-
-def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: Paths, logger: Logger,
-                  seed: int | None = None) -> None:
-    evaluate_decision(data_args, model_args, paths, logger, method='clef', seed=seed)

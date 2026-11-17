@@ -5,7 +5,8 @@
 # Each language uses its own training set. Test predictions are aligned by IPTC
 # code and concatenated before metrics are computed through src/app/metrics.py.
 # Pooled micro-F1 uses global TP/FP/FN counts, not mean language-level F1.
-# Clef, GLiDE and StartLux use prepared test text, without training fits or embeddings.
+# Clef, GLiDE and StartLux use prepared test text. Optional data.attributes.memory
+# retrieves candidate labels from saved training embeddings before deciding.
 # Select -c clef-flash, -c glide-2b, -c glide-9b or -c starlux1.1-4b for decisions.
 # Add -s data.attributes.sequence.parameters.use_label_descriptions=true to
 # include official IPTC definitions. These runs add .descriptions to output

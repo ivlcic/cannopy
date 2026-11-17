@@ -118,6 +118,8 @@ Train only Clef-Flash's decision head on prepared training text, then evaluate i
 ```
 The backbone stays frozen; a validation split selects the best head. Checkpoints and evaluation files include `.s<seed>`; use the same `train.seed` for both commands. Head-specific overrides are in the [head training overlay](conf/task/sequence/iptc-31/clef-flash-head.yaml).
 
+To evaluate only topics found in retrieved training samples, add `-s data.attributes.memory.model=bge-m3 -s data.attributes.memory.threshold=0.5 -s data.attributes.memory.top_n=5` to a decision evaluation command. This uses existing train/test embedding sidecars for that model and language; the threshold is minimum cosine similarity. With no matches, all labels are predicted negative. Omit `memory.model` to evaluate all topics.
+
 | Method | Description | Default parameters |
 | --- | --- | --- |
 | `zero_shot` | Copy the nearest training document's labels | 1 neighbor, normalized L2 distance |

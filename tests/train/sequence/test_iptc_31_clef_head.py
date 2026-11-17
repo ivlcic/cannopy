@@ -190,7 +190,8 @@ def test_training_keeps_multiple_seeds_without_overwriting_existing_head(tmp_pat
 
 
 @pytest.mark.parametrize('automatic', [True, False])
-def test_evaluation_reloads_trained_head_and_reports_shared_supervision(tmp_path, monkeypatch, automatic):
+@pytest.mark.parametrize('use_memory', [False, True])
+def test_evaluation_reloads_trained_head_and_reports_shared_supervision(tmp_path, monkeypatch, automatic, use_memory):
     paths, model_args, data_args, train_args, _ = setup_run(tmp_path, monkeypatch, seed=2711)
     iptc_31.main(data_args, model_args, train_args)
     output = Path(train_args.output_dir)
@@ -201,6 +202,16 @@ def test_evaluation_reloads_trained_head_and_reports_shared_supervision(tmp_path
             'id': f'{language}:test', 'text': 'Test article', 'label': ['01000000'],
         }) + '\n')
         (prepare / f'iptc-31.{language}.labels.csv').write_text('id,name\n01000000,arts\n')
+        if use_memory:
+            embedding_dir = paths.get_script_ctx_path('data', 'embed')
+            embedding_dir.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(embedding_dir / f'iptc-31.{language}.bge-m3.train.npz',
+                                ids=np.array([f'{language}:0']), embeddings=np.array([[1., 0.]]),
+                                labels=np.array([['01000000']], dtype=object))
+            np.savez_compressed(embedding_dir / f'iptc-31.{language}.bge-m3.test.npz',
+                                ids=np.array([f'{language}:test']), embeddings=np.array([[1., 0.]]))
+    if use_memory:
+        data_args.attributes['memory'] = {'model': 'bge-m3', 'threshold': .5, 'top_n': 5}
     monkeypatch.setattr(evaluate, 'paths', eval_paths, raising=False)
     monkeypatch.setattr(evaluate, 'logger', logging.getLogger(__name__), raising=False)
     parameters = data_args.attributes['sequence']['parameters']
@@ -225,14 +236,21 @@ def test_evaluation_reloads_trained_head_and_reports_shared_supervision(tmp_path
 
     monkeypatch.setattr(ClefDecider, '_load_text_model', staticmethod(lambda *args, **kwargs: (Model(), SimpleNamespace(pad_token_id=0))))
     evaluate.main(data_args, model_args, train_args)
-    result_file = eval_paths.context / 'iptc-31.descriptions.clef-flash-head.s2711.clef.metrics.json'
+    memory_suffix = '.memory.bge-m3.t0.5.n5' if use_memory else ''
+    result_file = eval_paths.context / f'iptc-31.descriptions{memory_suffix}.clef-flash-head.s2711.clef.metrics.json'
     metadata = json.loads(result_file.read_text())
     trained = json.loads((output / ClefDecider.HEAD_MANIFEST).read_text())
     for key, value in load_file(output / ClefDecider.HEAD_WEIGHTS).items():
         torch.testing.assert_close(loaded_models[0].head.state_dict()[key], value)
     expected_probability = loaded_models[0].head.projection(torch.ones(4)).softmax(-1)[1].item()
     with np.load(result_file.with_name(result_file.name.replace('.metrics.json', '.predictions.npz'))) as predictions:
-        np.testing.assert_allclose(predictions['y_score'], expected_probability, atol=1e-7)
+        if use_memory:
+            expected = np.zeros_like(predictions['y_score'])
+            expected[:, list(predictions['label_codes']).index('01000000')] = expected_probability
+            np.testing.assert_allclose(predictions['y_score'], expected, atol=1e-7)
+            assert metadata['memory']['num_candidate_labels'] == 2
+        else:
+            np.testing.assert_allclose(predictions['y_score'], expected_probability, atol=1e-7)
     assert metadata['supervision'] == 'supervised_decision_head'
     assert metadata['parameters']['head_checkpoint'] == str(output)
     assert metadata['head_training']['seed'] == 2711
