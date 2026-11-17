@@ -259,7 +259,7 @@ def train_head(data_args: DataArguments, model_args: ModelArguments, train_args:
         preprocess_logits_for_metrics=metrics.preprocess_logits,
         decider=decider, provenance=provenance, callbacks=[
             EarlyStoppingCallback(
-                early_stopping_patience=7,
+                early_stopping_patience=5,
                 early_stopping_threshold=0.0,
             ),
         ],

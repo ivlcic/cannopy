@@ -31,19 +31,24 @@ train:
   per_device_train_batch_size: 1
   per_device_eval_batch_size: 1
   gradient_accumulation_steps: 8
+
   num_train_epochs: 50
   learning_rate: 0.0001
   lr_scheduler_type: linear
   weight_decay: 0.01
   warmup_steps: 20
   max_grad_norm: 1.0
+
   bf16: true
   seed: 2611
+
   eval_strategy: epoch
+  eval_on_start: true
   save_strategy: epoch
   load_best_model_at_end: true
   metric_for_best_model: micro.f1
   greater_is_better: true
   save_total_limit: 2
+  restore_callback_states_from_checkpoint: true
   logging_steps: 10
   report_to: []
