@@ -10,7 +10,8 @@
 # with -s train.resume_from_checkpoint=<directory>.
 #
 # ./eval sequence iptc-31 -c clef-flash -c clef-flash-head reloads the head. 'auto'
-# finds result/train/sequence/iptc-31/<subset>[.limit<N>].clef-flash-head.
+# finds result/train/sequence/iptc-31/<subset>[.limit<N>].clef-flash-head.s<seed>
+# using train.seed (2611 by default) for both training and evaluation.
 # Set parameters.head_checkpoint explicitly to evaluate a shared head on one
 # language, or a head saved with train.output_dir. Keep prompt/caps unchanged.
 # max_samples_per_language enables short training runs with separate output

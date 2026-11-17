@@ -113,10 +113,10 @@ Add `-s data.attributes.sequence.parameters.use_label_descriptions=true` to incl
 
 Train only Clef-Flash's decision head on prepared training text, then evaluate it:
 ```shell
-./train sequence iptc-31 -c clef-flash -c clef-flash-head
-./eval sequence iptc-31 -c clef-flash -c clef-flash-head
+./train sequence iptc-31 -c clef-flash -c clef-flash-head -s train.seed=2711
+./eval sequence iptc-31 -c clef-flash -c clef-flash-head -s train.seed=2711
 ```
-The backbone stays frozen; a validation split selects the best head. Head-specific overrides are in the [head training overlay](conf/task/sequence/iptc-31/clef-flash-head.yaml).
+The backbone stays frozen; a validation split selects the best head. Checkpoints and evaluation files include `.s<seed>`; use the same `train.seed` for both commands. Head-specific overrides are in the [head training overlay](conf/task/sequence/iptc-31/clef-flash-head.yaml).
 
 | Method | Description | Default parameters |
 | --- | --- | --- |

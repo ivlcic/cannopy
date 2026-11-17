@@ -221,7 +221,7 @@ def train_head(data_args: DataArguments, model_args: ModelArguments, train_args:
     questions = _topic_questions(data_args.attributes.get('labels', []), use_descriptions)
     output = Path(train_args.output_dir) if train_args.output_dir != 'trainer_output' else ClefDecider.default_head_directory(
         paths.get_script_ctx_path('train', 'sequence'), data_args.source.select.subset or data_args.dataset_name,
-        model_args.short_name, limit,
+        model_args.short_name, limit, seed=train_args.seed,
     )
     if output.exists() and any(output.iterdir()) and not train_args.resume_from_checkpoint:
         raise FileExistsError(f'Training output is not empty: {output}; choose train.output_dir or train.resume_from_checkpoint')

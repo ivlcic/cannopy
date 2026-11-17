@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy.sparse import spmatrix
+from transformers import TrainingArguments
 
 from .features import load_tfidf_splits
 from .methods import METHODS
@@ -159,7 +160,9 @@ def _write_evaluation(evaluation: EvaluationResult) -> None:
         evaluation.y_true, evaluation.scores, prefix='test/', prob_threshold=threshold,
     )
     result['metrics'] = {key: float(value) for key, value in metrics.items()}
-    target_name = f"{result['subset']}.{result['model']}.{result['method']}"
+    head_seed = result.get('head_training', {}).get('seed')
+    seed_suffix = f'.s{head_seed}' if head_seed is not None else ''
+    target_name = f"{result['subset']}.{result['model']}{seed_suffix}.{result['method']}"
     result_file = paths.context / f'{target_name}.metrics.json'
     prediction_file = paths.context / f'{target_name}.predictions.npz'
     np.savez_compressed(
@@ -219,9 +222,10 @@ def _pool_evaluations(evaluations: list[EvaluationResult], dataset_name: str) ->
     return EvaluationResult(result, ids, np.concatenate(true_rows), np.concatenate(score_rows))
 
 
-def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str) -> None:
+def _evaluate(data_args: DataArguments, model_args: ModelArguments, method: str,
+              train_args: TrainingArguments | None = None) -> None:
     if method == 'clef':
-        clef(data_args, model_args)
+        clef(data_args, model_args, train_args)
         return
     if method == 'glide':
         glide(data_args, model_args)
@@ -316,10 +320,10 @@ def svm(data_args: DataArguments, model_args: ModelArguments) -> None:
     _evaluate(data_args, model_args, 'svm')
 
 
-def clef(data_args: DataArguments, model_args: ModelArguments) -> None:
+def clef(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments | None = None) -> None:
     from .decision import evaluate_clef
 
-    evaluate_clef(data_args, model_args, paths, logger)
+    evaluate_clef(data_args, model_args, paths, logger, seed=train_args.seed if train_args is not None else None)
 
 
 def glide(data_args: DataArguments, model_args: ModelArguments) -> None:
@@ -334,6 +338,6 @@ def startlux(data_args: DataArguments, model_args: ModelArguments) -> None:
     evaluate_decision(data_args, model_args, paths, logger, method='startlux')
 
 
-def main(data_args: DataArguments, model_args: ModelArguments) -> None:
+def main(data_args: DataArguments, model_args: ModelArguments, train_args: TrainingArguments | None = None) -> None:
     method = data_args.attributes.get('sequence', {}).get('method', 'zero_shot')
-    _evaluate(data_args, model_args, method)
+    _evaluate(data_args, model_args, method, train_args)

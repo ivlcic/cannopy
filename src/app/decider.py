@@ -246,8 +246,9 @@ class ClefDecider(TextDecider):
         return api.ClefModel(backbone, head.to(device=device, dtype=dtype)).eval(), tokenizer
 
     @staticmethod
-    def default_head_directory(root: Path, subset: str, model_name: str, limit: int | None = None) -> Path:
-        return root / f'{subset}{f".limit{limit}" if limit is not None else ""}.{model_name}'
+    def default_head_directory(root: Path, subset: str, model_name: str, limit: int | None = None,
+                               *, seed: int) -> Path:
+        return root / f'{subset}{f".limit{limit}" if limit is not None else ""}.{model_name}.s{seed}'
 
     @classmethod
     def read_head_manifest(cls, directory, model_name: str, revision: str) -> dict:

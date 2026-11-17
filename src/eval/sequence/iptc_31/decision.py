@@ -49,7 +49,7 @@ def _topic_questions(definitions: list[dict], use_label_descriptions: bool = Fal
 
 
 def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, paths: Paths, logger: Logger,
-                      method: str = 'clef') -> None:
+                      method: str = 'clef', seed: int | None = None) -> None:
     backend = TextDecider.for_method(method)
     name = backend.name
     options = data_args.attributes.get('sequence', {})
@@ -66,9 +66,11 @@ def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, path
     parameters = {**backend.default_parameters, **parameters}
     parameters.setdefault('use_label_descriptions', False)
     if parameters.get('head_checkpoint') == 'auto':
+        if seed is None:
+            raise ValueError('Automatic Clef head lookup requires train.seed')
         parameters['head_checkpoint'] = str(ClefDecider.default_head_directory(
             paths.get_script_ctx_path('train', 'sequence'), get_subset_name(data_args), model_args.short_name,
-            options.get('head_training', {}).get('max_samples_per_language'),
+            options.get('head_training', {}).get('max_samples_per_language'), seed=seed,
         ))
     model_parameters = {key: value for key, value in parameters.items()
                         if key not in ('max_samples', 'use_label_descriptions')}
@@ -137,5 +139,6 @@ def evaluate_decision(data_args: DataArguments, model_args: ModelArguments, path
         _write_evaluation(final)
 
 
-def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: Paths, logger: Logger) -> None:
-    evaluate_decision(data_args, model_args, paths, logger, method='clef')
+def evaluate_clef(data_args: DataArguments, model_args: ModelArguments, paths: Paths, logger: Logger,
+                  seed: int | None = None) -> None:
+    evaluate_decision(data_args, model_args, paths, logger, method='clef', seed=seed)
